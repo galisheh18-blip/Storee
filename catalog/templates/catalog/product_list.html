@@ -1,0 +1,84 @@
+{% extends 'catalog/base.html' %}
+
+{% block title %}Каталог — СпортМагазин{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-6">
+        <form method="get" class="d-flex" action="{% url 'catalog:product_list' %}">
+            <input type="text" name="q" class="form-control me-2" placeholder="Поиск по названию или описанию" value="{{ search }}">
+            <button type="submit" class="btn btn-outline-primary">Поиск</button>
+        </form>
+    </div>
+    <div class="col-md-6">
+        <form method="get" class="d-flex justify-content-md-end" action="{% url 'catalog:product_list' %}">
+            {% if search %}
+            <input type="hidden" name="q" value="{{ search }}">
+            {% endif %}
+            <select name="sort" class="form-select w-auto" onchange="this.form.submit()">
+                <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Сначала новые</option>
+                <option value="price_asc" {% if sort == 'price_asc' %}selected{% endif %}>Дешевле</option>
+                <option value="price_desc" {% if sort == 'price_desc' %}selected{% endif %}>Дороже</option>
+            </select>
+        </form>
+    </div>
+</div>
+
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+    {% for product in products %}
+    <div class="col">
+        <div class="card h-100 shadow-sm">
+            {% if product.image %}
+            <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}" style="height: 200px; object-fit: cover;">
+            {% else %}
+            <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
+                <span class="text-muted">Нет изображения</span>
+            </div>
+            {% endif %}
+            <div class="card-body d-flex flex-column">
+                <h5 class="card-title">{{ product.name }}</h5>
+                <p class="card-text text-muted">{{ product.get_category_display }}</p>
+                <p class="card-text" style="font-size: 0.9rem; color: #666; flex-grow: 1;">{{ product.description|truncatewords:20 }}</p>
+                <p class="card-text fw-bold mt-auto">{{ product.price }} ₽</p>
+                <div class="d-flex gap-2 mt-2">
+                    <a href="{% url 'catalog:product_update' product.pk %}" class="btn btn-sm btn-outline-secondary">Редактировать</a>
+                    <a href="{% url 'catalog:product_delete' product.pk %}" class="btn btn-sm btn-outline-danger">Удалить</a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="alert alert-info">Товары не найдены.</div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if is_paginated %}
+<nav class="mt-4" aria-label="Page navigation">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page=1{% if sort != 'newest' %}&sort={{ sort }}{% endif %}{% if search %}&q={{ search|urlencode }}{% endif %}">Первая</a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if sort != 'newest' %}&sort={{ sort }}{% endif %}{% if search %}&q={{ search|urlencode }}{% endif %}">← Предыдущая</a>
+        </li>
+        {% endif %}
+
+        <li class="page-item active" aria-current="page">
+            <span class="page-link">Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span>
+        </li>
+
+        {% if page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if sort != 'newest' %}&sort={{ sort }}{% endif %}{% if search %}&q={{ search|urlencode }}{% endif %}">Следующая →</a>
+        </li>
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}{% if sort != 'newest' %}&sort={{ sort }}{% endif %}{% if search %}&q={{ search|urlencode }}{% endif %}">Последняя</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}
