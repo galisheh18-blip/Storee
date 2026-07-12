@@ -9,7 +9,30 @@
 Приложение  <--{ name, grams, kcal, p, f, c }--  Прокси
 ```
 
-## Вариант 1. Cloudflare Workers (бесплатно)
+## Какой файл выбрать
+
+- `gemini-worker.js` — **бесплатно** (Google Gemini, бесплатный тариф). Рекомендуется, если не хотите платить.
+- `cloudflare-worker.js` — Claude (платный API Anthropic, выше точность).
+
+Оба отдают одинаковый ответ `{ name, grams, kcal, p, f, c }` — в приложении просто ставится URL нужного прокси, код менять не надо.
+
+## Бесплатный вариант — Gemini (рекомендуется)
+
+1. Получите **бесплатный** ключ: https://aistudio.google.com/apikey
+2. Разверните `gemini-worker.js` на Cloudflare Workers (бесплатный тариф хостинга):
+   ```sh
+   npm install -g wrangler
+   wrangler login
+   cd calorie-app/server
+   printf 'name="calorie-photo-proxy"\nmain="gemini-worker.js"\ncompatibility_date="2024-11-01"\n' > wrangler.toml
+   wrangler secret put GEMINI_API_KEY   # вставить ключ из AI Studio
+   wrangler deploy
+   ```
+3. Скопируйте выданный адрес `https://…workers.dev` → вставьте в приложении: **«Ещё» → URL прокси**.
+
+**Лимиты и приватность:** у бесплатного тарифа Gemini есть ограничения по числу запросов в минуту/сутки (для личного использования обычно с запасом). На бесплатном тарифе Google может использовать переданные данные для улучшения сервиса — не отправляйте то, что считаете чувствительным.
+
+## Платный вариант — Claude (Cloudflare Workers)
 
 1. Установите инструмент и войдите:
    ```sh
