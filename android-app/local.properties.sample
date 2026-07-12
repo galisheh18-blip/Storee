@@ -1,0 +1,7 @@
+# Скопируйте этот файл в local.properties и укажите путь к Android SDK.
+# Android Studio создаёт local.properties автоматически — вручную нужно только для сборки из терминала.
+#
+# Linux/macOS:
+# sdk.dir=/home/USER/Android/Sdk
+# Windows (двойные слэши):
+# sdk.dir=C\:\\Users\\USER\\AppData\\Local\\Android\\Sdk
