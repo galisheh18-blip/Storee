@@ -1,5 +1,8 @@
-/* Service Worker — оффлайн-кэш «Мои траты». */
-const CACHE = "expense-app-v1";
+/* Service Worker — «Мои траты».
+   Стратегия «сначала сеть»: при наличии интернета всегда берём свежие файлы
+   и обновляем кэш; кэш используется только как запасной вариант офлайн.
+   Так обновления приложения подхватываются сразу, без застревания на старой версии. */
+const CACHE = "expense-app-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -16,23 +19,27 @@ self.addEventListener("install", (e) => {
 
 self.addEventListener("activate", (e) => {
   e.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener("fetch", (e) => {
-  if (e.request.method !== "GET") return;
+  const req = e.request;
+  if (req.method !== "GET") return;
+
   e.respondWith(
-    caches.match(e.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(e.request)
-        .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
-          return res;
-        })
-        .catch(() => caches.match("./index.html"));
-    })
+    fetch(req)
+      .then((res) => {
+        // обновляем кэш свежей копией
+        const copy = res.clone();
+        caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+        return res;
+      })
+      .catch(() =>
+        // нет сети — отдаём из кэша, для навигации — index.html
+        caches.match(req).then((cached) => cached || caches.match("./index.html"))
+      )
   );
 });
