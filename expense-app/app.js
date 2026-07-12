@@ -59,6 +59,15 @@ function spentByCategory(key) {
   for (const e of expensesForMonth(key)) map[e.catId] = (map[e.catId] || 0) + e.amount;
   return map;
 }
+function plannedStats(key) {
+  let total = 0, paid = 0, unpaidCount = 0;
+  for (const p of state.planned) {
+    const amt = Number(p.amount) || 0;
+    total += amt;
+    if (p.paidMonths.includes(key)) paid += amt; else unpaidCount++;
+  }
+  return { total, paid, due: total - paid, unpaidCount, count: state.planned.length };
+}
 
 /* ---------- Рендер: Обзор ---------- */
 function renderOverview() {
@@ -66,9 +75,9 @@ function renderOverview() {
   const expensesTotal = Object.values(spent).reduce((a, b) => a + b, 0);
   const limitsTotal = state.categories.reduce((a, c) => a + (Number(c.limit) || 0), 0);
   // Плановые платежи тоже входят в бюджет; оплаченные считаются потраченными.
-  const plannedTotal = state.planned.reduce((a, p) => a + (Number(p.amount) || 0), 0);
-  const plannedPaid = state.planned.reduce(
-    (a, p) => a + (p.paidMonths.includes(viewMonth) ? (Number(p.amount) || 0) : 0), 0);
+  const pl = plannedStats(viewMonth);
+  const plannedTotal = pl.total;
+  const plannedPaid = pl.paid;
   const totalSpent = expensesTotal + plannedPaid;
   const totalBudget = limitsTotal + plannedTotal;
   const left = totalBudget - totalSpent;
@@ -129,6 +138,18 @@ function renderOverview() {
   document.getElementById("tfLimit").textContent = fmt(totalBudget);
   document.getElementById("tfLeft").textContent = fmt(left);
 
+  // Строка-итог по плановым платежам
+  const note = document.getElementById("plannedNote");
+  if (pl.count && pl.due > 0) {
+    note.textContent = `Осталось оплатить ${fmt(pl.due)} · ${pl.unpaidCount} из ${pl.count}`;
+    note.className = "planned-note due";
+  } else if (pl.count) {
+    note.textContent = "Все плановые платежи оплачены ✓";
+    note.className = "planned-note done";
+  } else {
+    note.textContent = "";
+  }
+
   // Мини-список плановых
   const mini = document.getElementById("plannedMini");
   mini.innerHTML = "";
@@ -176,6 +197,28 @@ function renderExpenses() {
 
 /* ---------- Рендер: Планы ---------- */
 function renderPlanned() {
+  // Карточка-итог: сколько ещё нужно оплатить в этом месяце.
+  const pl = plannedStats(viewMonth);
+  const summary = document.getElementById("plannedSummary");
+  if (pl.count) {
+    const p = pl.total > 0 ? Math.min(100, (pl.paid / pl.total) * 100) : 0;
+    summary.style.display = "";
+    summary.innerHTML = `
+      <div class="ps-top">
+        <div>
+          <div class="ps-label">Осталось оплатить</div>
+          <div class="ps-value ${pl.due > 0 ? "due" : "done"}">${pl.due > 0 ? fmt(pl.due) : "0 ₽ ✓"}</div>
+        </div>
+        <div class="ps-right">
+          <div class="ps-sub">${pl.unpaidCount} из ${pl.count} платежей</div>
+          <div class="ps-sub">оплачено ${fmt(pl.paid)} из ${fmt(pl.total)}</div>
+        </div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${p}%"></div></div>`;
+  } else {
+    summary.style.display = "none";
+  }
+
   const list = document.getElementById("plannedList");
   list.innerHTML = "";
   if (!state.planned.length) list.innerHTML = `<div class="empty">Добавьте первый платёж</div>`;
