@@ -155,7 +155,7 @@ input:focus, select:focus { outline: 2px solid var(--accent); border-color: tran
 
 .tabbar {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
-  display: grid; grid-template-columns: repeat(4,1fr);
+  display: grid; grid-template-columns: repeat(5,1fr);
   background: var(--card); border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -167,6 +167,55 @@ input:focus, select:focus { outline: 2px solid var(--accent); border-color: tran
 .tab.active { color: var(--accent); font-weight: 600; }
 
 .hint { font-size: 13px; color: var(--muted); margin: -4px 0 12px; }
+
+/* Доходы / расходы / баланс */
+.balance-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+.bl { font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 999px; background: var(--card); box-shadow: var(--shadow); }
+.bl.in { color: var(--green); }
+.bl.out { color: var(--muted); }
+.bl.bal.pos { color: var(--green); }
+.bl.bal.neg { color: var(--red); }
+
+/* Сегменты Расход/Доход */
+.segmented { display: flex; background: var(--bg); border-radius: 12px; padding: 4px; gap: 4px; }
+.seg { flex: 1; border: none; background: transparent; padding: 9px; border-radius: 9px; font-size: 14px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.seg.active { background: var(--card); color: var(--accent); box-shadow: var(--shadow); }
+.field-row { display: flex; gap: 10px; }
+
+.search { margin-bottom: 12px; }
+.card-select { width: 100%; margin-bottom: 8px; }
+.row.clickable { cursor: pointer; }
+.row.clickable:active { background: var(--accent-soft); }
+.cat-ico { width: 10px; height: 10px; border-radius: 3px; display: inline-block; margin-right: 6px; vertical-align: middle; flex-shrink: 0; }
+.amt-in { color: var(--green); }
+
+/* Графики */
+.chart { min-height: 60px; }
+.svg-chart { display: block; overflow: visible; }
+.svg-chart text { fill: var(--muted); }
+.cx-lbl { font-size: 11px; }
+.cx-val { font-size: 10px; font-weight: 600; }
+.cx-mid { font-size: 15px; font-weight: 800; fill: var(--text); }
+.cx-sub { font-size: 9px; }
+.donut-wrap { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; justify-content: center; }
+.legend { flex: 1 1 190px; min-width: 190px; display: flex; flex-direction: column; gap: 7px; }
+.lg-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.lg-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+.lg-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lg-val { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+/* Модальное окно */
+.modal { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.5); display: flex; align-items: flex-end; justify-content: center; }
+.modal.hidden { display: none; }
+.modal-card { background: var(--card); width: 100%; max-width: 560px; border-radius: 20px 20px 0 0; padding: 20px 18px calc(24px + env(safe-area-inset-bottom)); position: relative; max-height: 88vh; overflow-y: auto; }
+@media (min-width: 560px) { .modal { align-items: center; } .modal-card { border-radius: 20px; } }
+.modal-card h3 { margin: 0 0 14px; font-size: 18px; }
+.modal-card .field { margin-bottom: 12px; }
+.modal-actions { display: flex; gap: 10px; margin-top: 8px; }
+.modal-actions .btn { margin-top: 0; }
+.modal-close { position: absolute; top: 12px; right: 12px; background: var(--bg); border: none; color: var(--muted); width: 34px; height: 34px; border-radius: 10px; font-size: 16px; cursor: pointer; }
+.backup-area { width: 100%; min-height: 120px; margin: 10px 0; font-family: monospace; font-size: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); color: var(--text); resize: vertical; }
+#mDownload { text-align: center; text-decoration: none; display: block; margin-bottom: 8px; }
 
 .toast {
   position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
