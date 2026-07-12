@@ -63,8 +63,14 @@ function spentByCategory(key) {
 /* ---------- Рендер: Обзор ---------- */
 function renderOverview() {
   const spent = spentByCategory(viewMonth);
-  const totalSpent = Object.values(spent).reduce((a, b) => a + b, 0);
-  const totalBudget = state.categories.reduce((a, c) => a + (Number(c.limit) || 0), 0);
+  const expensesTotal = Object.values(spent).reduce((a, b) => a + b, 0);
+  const limitsTotal = state.categories.reduce((a, c) => a + (Number(c.limit) || 0), 0);
+  // Плановые платежи тоже входят в бюджет; оплаченные считаются потраченными.
+  const plannedTotal = state.planned.reduce((a, p) => a + (Number(p.amount) || 0), 0);
+  const plannedPaid = state.planned.reduce(
+    (a, p) => a + (p.paidMonths.includes(viewMonth) ? (Number(p.amount) || 0) : 0), 0);
+  const totalSpent = expensesTotal + plannedPaid;
+  const totalBudget = limitsTotal + plannedTotal;
   const left = totalBudget - totalSpent;
 
   document.getElementById("sumSpent").textContent = fmt(totalSpent);
@@ -99,6 +105,24 @@ function renderOverview() {
       <td class="num">${fmt(s)}</td>
       <td class="num">${lim > 0 ? fmt(lim) : "—"}</td>
       <td class="num ${lim > 0 ? (rest < 0 ? "left-neg" : "left-pos") : ""}">${lim > 0 ? fmt(rest) : "—"}</td>`;
+    body.appendChild(tr);
+  }
+  // Строка плановых платежей — оплаченная часть считается потраченной.
+  if (plannedTotal > 0) {
+    const rest = plannedTotal - plannedPaid;
+    const p = Math.min(100, (plannedPaid / plannedTotal) * 100);
+    const tr = document.createElement("tr");
+    tr.className = "planned-row";
+    tr.innerHTML = `
+      <td>
+        <div class="cat-cell">
+          <span class="cat-name">📆 Плановые платежи</span>
+          <div class="mini-bar"><div class="mini-fill" style="width:${p}%"></div></div>
+        </div>
+      </td>
+      <td class="num">${fmt(plannedPaid)}</td>
+      <td class="num">${fmt(plannedTotal)}</td>
+      <td class="num ${rest < 0 ? "left-neg" : "left-pos"}">${fmt(rest)}</td>`;
     body.appendChild(tr);
   }
   document.getElementById("tfSpent").textContent = fmt(totalSpent);

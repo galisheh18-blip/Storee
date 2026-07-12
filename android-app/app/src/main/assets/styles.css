@@ -77,6 +77,7 @@ main { padding: 16px; max-width: 640px; margin: 0 auto; }
 .cat-table th, .cat-table td { padding: 12px 12px; text-align: left; border-bottom: 1px solid var(--line); }
 .cat-table thead th { font-size: 12px; color: var(--muted); font-weight: 600; }
 .cat-table tfoot td { font-weight: 700; border-bottom: none; }
+.cat-table tr.planned-row td { background: var(--accent-soft); }
 .cat-table .num { text-align: right; white-space: nowrap; }
 .cat-cell { display: flex; flex-direction: column; gap: 6px; }
 .cat-name { font-weight: 600; }
