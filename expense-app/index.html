@@ -39,6 +39,8 @@
         <div class="progress-meta"><span id="totalPct">0%</span><span id="totalHint"></span></div>
       </div>
 
+      <div id="balanceRow" class="balance-row"></div>
+
       <h2 class="section-title">По категориям</h2>
       <div class="table-scroll">
         <table class="cat-table">
@@ -53,29 +55,39 @@
       </div>
 
       <h2 class="section-title">Плановые платежи</h2>
+      <div id="plannedNote" class="planned-note"></div>
       <div id="plannedMini" class="planned-mini"></div>
     </section>
 
     <!-- Траты -->
     <section class="tab-page hidden" data-page="expenses">
-      <h2 class="section-title">Добавить трату</h2>
+      <h2 class="section-title">Добавить</h2>
       <form id="expenseForm" class="card form">
+        <div class="segmented">
+          <button type="button" class="seg active" data-type="expense">Расход</button>
+          <button type="button" class="seg" data-type="income">Доход</button>
+        </div>
         <div class="field">
           <label>Сумма</label>
           <input type="number" id="expAmount" inputmode="decimal" step="0.01" min="0" placeholder="0" required />
         </div>
-        <div class="field">
+        <div class="field" id="catField">
           <label>Категория</label>
-          <select id="expCategory" required></select>
+          <select id="expCategory"></select>
+        </div>
+        <div class="field">
+          <label>Дата</label>
+          <input type="date" id="expDate" />
         </div>
         <div class="field">
           <label>Комментарий</label>
           <input type="text" id="expNote" placeholder="необязательно" maxlength="60" />
         </div>
-        <button type="submit" class="btn primary">Добавить трату</button>
+        <button type="submit" class="btn primary" id="expSubmit">Добавить трату</button>
       </form>
 
       <h2 class="section-title">История</h2>
+      <input type="search" id="searchBox" class="search" placeholder="Поиск по комментарию или категории" />
       <div id="expenseList" class="list"></div>
     </section>
 
@@ -83,6 +95,7 @@
     <section class="tab-page hidden" data-page="planned">
       <h2 class="section-title">Плановые платежи</h2>
       <p class="hint">Подписки, ЖКХ, кредиты. Отмечайте оплату за текущий месяц.</p>
+      <div id="plannedSummary" class="card planned-summary"></div>
       <div id="plannedList" class="list"></div>
       <form id="plannedForm" class="card form">
         <div class="field">
@@ -97,15 +110,29 @@
       </form>
     </section>
 
-    <!-- Категории -->
-    <section class="tab-page hidden" data-page="categories">
+    <!-- Графики -->
+    <section class="tab-page hidden" data-page="charts">
+      <h2 class="section-title">Расходы по месяцам</h2>
+      <div class="card"><div id="barChart" class="chart"></div></div>
+      <h2 class="section-title">По категориям за месяц</h2>
+      <div class="card"><div id="donutChart" class="chart"></div></div>
+    </section>
+
+    <!-- Ещё (категории и настройки) -->
+    <section class="tab-page hidden" data-page="more">
       <h2 class="section-title">Категории и лимиты</h2>
-      <p class="hint">Задайте месячный лимит для каждой категории.</p>
+      <p class="hint">Задайте месячный лимит и значок (эмодзи) для категории.</p>
       <div id="categoryList" class="list"></div>
       <form id="categoryForm" class="card form">
-        <div class="field">
-          <label>Новая категория</label>
-          <input type="text" id="catName" placeholder="Например: Спорт" maxlength="30" required />
+        <div class="field-row">
+          <div class="field" style="flex:0 0 64px">
+            <label>Значок</label>
+            <input type="text" id="catIcon" placeholder="🏷️" maxlength="2" />
+          </div>
+          <div class="field" style="flex:1">
+            <label>Новая категория</label>
+            <input type="text" id="catName" placeholder="Например: Спорт" maxlength="30" required />
+          </div>
         </div>
         <div class="field">
           <label>Месячный лимит</label>
@@ -113,6 +140,21 @@
         </div>
         <button type="submit" class="btn primary">Добавить категорию</button>
       </form>
+
+      <h2 class="section-title">Валюта</h2>
+      <select id="currencySelect" class="card-select">
+        <option value="₽">₽ — рубль</option>
+        <option value="$">$ — доллар</option>
+        <option value="€">€ — евро</option>
+        <option value="₸">₸ — тенге</option>
+        <option value="₴">₴ — гривна</option>
+      </select>
+
+      <h2 class="section-title">Резервная копия</h2>
+      <p class="hint">Данные хранятся только на этом устройстве. Делайте копию перед сменой телефона.</p>
+      <button id="exportBtn" class="btn ghost">📤 Экспорт данных</button>
+      <button id="importBtn" class="btn ghost">📥 Импорт данных</button>
+
       <button id="resetBtn" class="btn ghost danger">Сбросить все данные</button>
     </section>
   </main>
@@ -121,8 +163,14 @@
     <button class="tab active" data-tab="overview"><span>📊</span>Обзор</button>
     <button class="tab" data-tab="expenses"><span>➕</span>Траты</button>
     <button class="tab" data-tab="planned"><span>📆</span>Планы</button>
-    <button class="tab" data-tab="categories"><span>🗂️</span>Категории</button>
+    <button class="tab" data-tab="charts"><span>📈</span>Графики</button>
+    <button class="tab" data-tab="more"><span>⚙️</span>Ещё</button>
   </nav>
+
+  <!-- Универсальное модальное окно -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card" id="modalBody"></div>
+  </div>
 
   <div id="toast" class="toast hidden"></div>
 
