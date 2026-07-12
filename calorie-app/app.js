@@ -70,7 +70,7 @@ function seedFoods() {
 /* ---------- Состояние ---------- */
 function defaultState() {
   return {
-    settings: { autoNorm: true, manualCal: 2000, macroPct: { p: 30, f: 30, c: 40 }, waterGoal: 2000 },
+    settings: { autoNorm: true, manualCal: 2000, macroPct: { p: 30, f: 30, c: 40 }, waterGoal: 2000, aiProxyUrl: "" },
     profile: { sex: "m", age: 30, height: 175, weight: 75, activity: 1.55, goal: "maintain" },
     foods: seedFoods(),
     recipes: [],
@@ -83,6 +83,9 @@ function defaultState() {
 let state = load();
 let viewDate = todayKey();
 let picked = null; // выбранный продукт/рецепт в форме добавления
+let searchToken = 0; // защита от гонки при онлайн-поиске
+let extCounter = 0;
+const extCache = new Map(); // онлайн-продукты до сохранения в базу
 
 function uid() { return Math.random().toString(36).slice(2, 10); }
 
@@ -312,22 +315,80 @@ function searchFoods(q) {
   }
   return out.slice(0, 30);
 }
+function frItemHtml(it) {
+  const tag = it.tag === "recipe" ? `<span class="fr-tag recipe">рецепт</span>`
+    : it.tag === "custom" ? `<span class="fr-tag custom">своё</span>`
+    : it.tag === "online" ? `<span class="fr-tag online">онлайн</span>` : "";
+  const unit = it.kind === "recipe" ? "порция" : "100 г";
+  return `<div class="fr-item" data-pick="${it.id}">
+      <div class="fr-name">${escapeHtml(it.name)}${tag}</div>
+      <div class="fr-sub">${Math.round(it.kcal)} ккал / ${unit} · Б ${r1(it.p)} Ж ${r1(it.f)} У ${r1(it.c)}</div></div>`;
+}
 function renderResults() {
   const q = document.getElementById("foodSearch").value;
   const box = document.getElementById("foodResults");
+  const tq = q.trim();
+  const token = ++searchToken;
+  if (!tq) { box.classList.remove("show"); box.innerHTML = ""; return; }
   const res = searchFoods(q);
-  if (!q.trim()) { box.classList.remove("show"); box.innerHTML = ""; return; }
-  if (!res.length) { box.classList.add("show"); box.innerHTML = `<div class="fr-item"><div class="fr-sub">Ничего не найдено. Добавьте продукт на вкладке «Продукты».</div></div>`; return; }
   box.classList.add("show");
-  box.innerHTML = res.map((it) => {
-    const tag = it.tag === "recipe" ? `<span class="fr-tag recipe">рецепт</span>` : it.tag === "custom" ? `<span class="fr-tag custom">своё</span>` : "";
-    const unit = it.kind === "recipe" ? "порция" : "100 г";
-    return `<div class="fr-item" data-pick="${it.id}">
-      <div class="fr-name">${escapeHtml(it.name)}${tag}</div>
-      <div class="fr-sub">${Math.round(it.kcal)} ккал / ${unit} · Б ${r1(it.p)} Ж ${r1(it.f)} У ${r1(it.c)}</div></div>`;
-  }).join("");
+  box.innerHTML = res.map(frItemHtml).join("");
+  if (tq.length >= 3 && navigator.onLine !== false) {
+    const loading = document.createElement("div");
+    loading.className = "fr-item"; loading.id = "frLoading";
+    loading.innerHTML = `<div class="fr-sub">Поиск в онлайн-базе…</div>`;
+    box.appendChild(loading);
+    searchOnline(tq, token);
+  } else if (!res.length) {
+    box.innerHTML = `<div class="fr-item"><div class="fr-sub">Ничего не найдено. Добавьте продукт на вкладке «Продукты».</div></div>`;
+  }
 }
+
+/* ---------- Онлайн-база (Open Food Facts) ---------- */
+function offToProduct(p) {
+  const n = p.nutriments || {};
+  const kcal = n["energy-kcal_100g"];
+  if (kcal == null) return null;
+  let name = (p.product_name_ru || p.product_name || "").trim();
+  if (!name) return null;
+  const brand = (p.brands || "").split(",")[0].trim();
+  if (brand && !name.toLowerCase().includes(brand.toLowerCase())) name += " (" + brand + ")";
+  return { name: name.slice(0, 60), kcal: Math.round(kcal), p: +(n.proteins_100g || 0), f: +(n.fat_100g || 0), c: +(n.carbohydrates_100g || 0), barcode: p.code || "" };
+}
+function addExternalFood(prod) {
+  let food = null;
+  if (prod.barcode) food = state.foods.find((x) => x.barcode && x.barcode === prod.barcode);
+  if (!food) food = state.foods.find((x) => x.name === prod.name && Math.round(x.kcal) === Math.round(prod.kcal));
+  if (food) return food;
+  food = { id: uid(), name: prod.name, kcal: prod.kcal, p: prod.p, f: prod.f, c: prod.c, barcode: prod.barcode || "", fav: false, custom: true };
+  state.foods.push(food); save();
+  return food;
+}
+async function searchOnline(q, token) {
+  try {
+    const url = "https://world.openfoodfacts.org/cgi/search.pl?search_terms=" + encodeURIComponent(q) +
+      "&search_simple=1&action=process&json=1&page_size=20&fields=code,product_name,product_name_ru,brands,nutriments";
+    const r = await fetch(url);
+    const data = await r.json();
+    if (token !== searchToken) return; // запрос устарел
+    const items = (data.products || []).map(offToProduct).filter(Boolean).slice(0, 15);
+    const box = document.getElementById("foodResults");
+    const loading = document.getElementById("frLoading");
+    if (loading) loading.remove();
+    for (const it of items) {
+      const key = "ext_" + (extCounter++);
+      extCache.set(key, it);
+      box.insertAdjacentHTML("beforeend", frItemHtml({ ...it, id: key, tag: "online" }));
+    }
+    if (!box.children.length) box.innerHTML = `<div class="fr-item"><div class="fr-sub">Ничего не найдено.</div></div>`;
+  } catch (e) {
+    const loading = document.getElementById("frLoading");
+    if (loading) loading.remove();
+  }
+}
+
 function pickItem(id) {
+  if (extCache.has(id)) { const food = addExternalFood(extCache.get(id)); return pickItem(food.id); }
   const it = findItem(id);
   if (!it) return;
   picked = it;
@@ -519,6 +580,7 @@ function renderMore() {
   document.getElementById("mPctF").value = st.macroPct.f;
   document.getElementById("mPctC").value = st.macroPct.c;
   document.getElementById("waterGoal").value = st.waterGoal;
+  document.getElementById("aiProxyUrl").value = st.aiProxyUrl || "";
   updatePctHint();
 
   // журнал веса
@@ -566,8 +628,12 @@ function pushRecent(id) {
 }
 
 /* ---------- Модалка ---------- */
+let modalCleanup = null;
 function openModal(html) { document.getElementById("modalBody").innerHTML = html; document.getElementById("modal").classList.remove("hidden"); }
-function closeModal() { document.getElementById("modal").classList.add("hidden"); }
+function closeModal() {
+  if (modalCleanup) { try { modalCleanup(); } catch (e) {} modalCleanup = null; }
+  document.getElementById("modal").classList.add("hidden");
+}
 document.getElementById("modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeModal(); });
 
 function openEditEntry(id) {
@@ -784,6 +850,107 @@ function openImportModal() {
   };
 }
 
+/* ---------- Штрих-код ---------- */
+async function lookupBarcode(code) {
+  toast("Ищу " + code + "…");
+  try {
+    const r = await fetch("https://world.openfoodfacts.org/api/v2/product/" + encodeURIComponent(code) +
+      ".json?fields=code,product_name,product_name_ru,brands,nutriments");
+    const data = await r.json();
+    if (data.status === 1 && data.product) {
+      const prod = offToProduct(data.product);
+      if (prod) { const food = addExternalFood(prod); switchTab("add"); pickItem(food.id); toast("Найдено: " + prod.name); return; }
+    }
+    toast("Продукт не найден в базе");
+  } catch (e) { toast("Нет соединения"); }
+}
+function manualBarcode() {
+  const code = prompt("Введите штрих-код (только цифры):");
+  if (code && /^\d{6,}$/.test(code.trim())) lookupBarcode(code.trim());
+  else if (code) toast("Некорректный код");
+}
+async function openScanner() {
+  if (!("BarcodeDetector" in window) || !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) { manualBarcode(); return; }
+  openModal(`
+    <button class="modal-close" id="mClose">✕</button>
+    <h3>Сканирование</h3>
+    <video id="scanVideo" class="scan-video" playsinline muted></video>
+    <div class="scan-status" id="scanStatus">Наведите камеру на штрих-код…</div>
+    <button class="btn ghost" id="scanManual">Ввести код вручную</button>`);
+  const video = document.getElementById("scanVideo");
+  let stream = null, raf = 0, stopped = false;
+  const stop = () => { stopped = true; if (raf) cancelAnimationFrame(raf); if (stream) stream.getTracks().forEach((t) => t.stop()); };
+  modalCleanup = stop;
+  document.getElementById("mClose").onclick = closeModal;
+  document.getElementById("scanManual").onclick = () => { closeModal(); manualBarcode(); };
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    video.srcObject = stream; await video.play();
+  } catch (e) { closeModal(); toast("Нет доступа к камере"); manualBarcode(); return; }
+  const detector = new BarcodeDetector({ formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"] });
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const codes = await detector.detect(video);
+      if (codes.length && codes[0].rawValue) { const code = codes[0].rawValue; closeModal(); lookupBarcode(code); return; }
+    } catch (e) {}
+    raf = requestAnimationFrame(tick);
+  };
+  raf = requestAnimationFrame(tick);
+}
+
+/* ---------- Распознавание по фото ---------- */
+function resizeImage(file, max) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      if (w > h && w > max) { h = Math.round(h * max / w); w = max; }
+      else if (h >= w && h > max) { w = Math.round(w * max / h); h = max; }
+      const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+      cv.getContext("2d").drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(img.src);
+      resolve(cv.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+function startPhoto() {
+  if (!(state.settings.aiProxyUrl || "").trim()) { toast("Укажите URL прокси в разделе «Ещё»"); switchTab("more"); return; }
+  document.getElementById("photoInput").click();
+}
+async function handlePhoto(file) {
+  let dataUrl;
+  try { dataUrl = await resizeImage(file, 1024); } catch (e) { toast("Не удалось прочитать фото"); return; }
+  const base64 = dataUrl.split(",")[1];
+  openModal(`<h3>Распознаю блюдо…</h3>
+    <div class="ai-loading"><img class="photo-preview" src="${dataUrl}" alt="" /><div class="spinner"></div>
+    <div class="scan-status">Оцениваю КБЖУ по фото…</div></div>`);
+  try {
+    const r = await fetch(state.settings.aiProxyUrl.trim(), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: base64, mediaType: "image/jpeg" }),
+    });
+    if (!r.ok) throw new Error("http " + r.status);
+    const d = await r.json();
+    closeModal();
+    if (!d || d.kcal == null) { toast("Не удалось распознать"); return; }
+    const grams = Number(d.grams) > 0 ? Number(d.grams) : 100;
+    const per = 100 / grams; // приводим к значениям на 100 г
+    const food = addExternalFood({
+      name: (d.name || "Блюдо (фото)").slice(0, 60),
+      kcal: (Number(d.kcal) || 0) * per, p: (Number(d.p) || 0) * per,
+      f: (Number(d.f) || 0) * per, c: (Number(d.c) || 0) * per, barcode: "",
+    });
+    switchTab("add");
+    pickItem(food.id);
+    document.getElementById("addGrams").value = Math.round(grams);
+    updatePickedMacros();
+    toast("Распознано: " + food.name);
+  } catch (e) { closeModal(); toast("Ошибка распознавания. Проверьте прокси."); }
+}
+
 /* ---------- События ---------- */
 document.querySelectorAll(".tab").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -806,6 +973,9 @@ document.getElementById("dayTitle").onclick = () => {
 
 // Добавление еды: поиск, выбор, количество
 document.getElementById("foodSearch").addEventListener("input", renderResults);
+document.getElementById("scanBtn").onclick = openScanner;
+document.getElementById("photoBtn").onclick = startPhoto;
+document.getElementById("photoInput").addEventListener("change", (e) => { const f = e.target.files[0]; if (f) handlePhoto(f); e.target.value = ""; });
 document.getElementById("addGrams").addEventListener("input", updatePickedMacros);
 document.getElementById("pickedClear").onclick = clearPicked;
 document.getElementById("app").addEventListener("click", (e) => {
@@ -919,6 +1089,7 @@ document.getElementById("manualCal").addEventListener("change", (e) => { state.s
   save(); updatePctHint(); renderDiary();
 }));
 document.getElementById("waterGoal").addEventListener("change", (e) => { state.settings.waterGoal = parseFloat(e.target.value) || 0; save(); renderDiary(); });
+document.getElementById("aiProxyUrl").addEventListener("change", (e) => { state.settings.aiProxyUrl = e.target.value.trim(); save(); });
 
 // Вес и замеры
 document.getElementById("weightForm").addEventListener("submit", (e) => {

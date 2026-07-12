@@ -71,6 +71,11 @@
           <input type="search" id="foodSearch" placeholder="Начните вводить название…" autocomplete="off" />
           <div id="foodResults" class="food-results"></div>
         </div>
+        <div class="tool-row">
+          <button type="button" class="tool-btn" id="scanBtn">📷 Штрих-код</button>
+          <button type="button" class="tool-btn" id="photoBtn">🍽️ Распознать по фото</button>
+          <input type="file" id="photoInput" accept="image/*" capture="environment" hidden />
+        </div>
         <div id="quickPicks" class="quick-picks"></div>
 
         <div id="pickedBox" class="picked-box hidden">
@@ -186,6 +191,12 @@
         </div>
         <div id="pctHint" class="hint"></div>
         <div class="field"><label>Цель по воде, мл</label><input type="number" id="waterGoal" inputmode="numeric" min="0" step="100" placeholder="2000" /></div>
+      </div>
+
+      <h2 class="section-title">Распознавание по фото</h2>
+      <p class="hint">Адрес вашего прокси (см. папку <code>server/</code>). Фото уходит на этот сервис для оценки КБЖУ. Оставьте пустым, чтобы отключить.</p>
+      <div class="card form">
+        <div class="field"><label>URL прокси</label><input type="url" id="aiProxyUrl" inputmode="url" placeholder="https://ваш-воркер.workers.dev" /></div>
       </div>
 
       <h2 class="section-title">Вес и замеры</h2>

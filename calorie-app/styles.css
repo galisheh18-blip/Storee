@@ -142,6 +142,18 @@ input:focus, select:focus { outline: 2px solid var(--accent); border-color: tran
 .fr-tag.recipe { background: rgba(20,184,166,.15); color: var(--carb); }
 .fr-tag.custom { background: rgba(99,102,241,.15); color: var(--prot); }
 
+.tool-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.tool-btn { flex: 1 1 auto; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); border-radius: 12px; padding: 11px 12px; font-size: 14px; font-weight: 600; cursor: pointer; }
+.tool-btn:active { opacity: .85; }
+.tool-btn:disabled { opacity: .5; cursor: default; }
+.fr-tag.online { background: rgba(14,165,233,.15); color: var(--water); }
+.scan-video { width: 100%; border-radius: 12px; background: #000; aspect-ratio: 4/3; object-fit: cover; }
+.scan-status { font-size: 13px; color: var(--muted); text-align: center; margin-top: 10px; }
+.ai-loading { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px; }
+.spinner { width: 34px; height: 34px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.photo-preview { width: 100%; max-height: 200px; object-fit: contain; border-radius: 12px; margin-bottom: 12px; }
+
 .quick-picks { display: flex; flex-wrap: wrap; gap: 8px; }
 .qp { border: 1px solid var(--line); background: var(--card); border-radius: 999px; padding: 7px 12px; font-size: 13px; cursor: pointer; color: var(--text); }
 .qp:active { background: var(--accent-soft); }
