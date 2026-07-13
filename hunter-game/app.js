@@ -9,7 +9,7 @@
 /* ---------- Хранилище ---------- */
 const SAVE_KEY = "darkhunt_v1";
 const save = { coins:0, bestNight:1, owned:{}, chars:["hunter"], char:"hunter", mode:"classic",
-  best:{ classic:1, endless:0, horde:0, bossrush:0 } };
+  autoUpgrade:false, best:{ classic:1, endless:0, horde:0, bossrush:0 } };
 function load(){
   try{
     const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"{}");
@@ -38,6 +38,8 @@ const CHARS = [
     desc:"Окружён пламенем, что постоянно жжёт близких зверей.", mods:{maxHpMul:1.1, damageMul:0.95}, special:"aura" },
   { id:"witch", name:"Ведьма", icon:"🌙", cost:450,
     desc:"Огромный факел и лютый холод: враги медленнее, опыта больше. Урон слабее.", mods:{torchMul:1.45, slow:0.18, xpBonus:0.3, damageMul:0.82}, special:null },
+  { id:"necro", name:"Некромант", icon:"💀", cost:600,
+    desc:"Поднимает павших зверей как нежить, что сражается за него. Урон слабее, но армия растёт с каждым убийством.", mods:{damageMul:0.85, maxHpMul:1.05}, special:"summon" },
 ];
 const CHAR = Object.fromEntries(CHARS.map(c=>[c.id,c]));
 const curChar = ()=> CHAR[save.char] || CHARS[0];
@@ -134,7 +136,7 @@ const G = {
   player:null, enemies:[], bullets:[], loot:[], gems:[], pickups:[], parts:[], rings:[], zaps:[], dtexts:[],
   kills:0, coinRun:0, spawnT:0, fireT:0, screenShake:0, torchFlicker:0,
   level:1, xp:0, xpNext:5, pendingLevels:0,
-  orbit:null, nova:null, chain:null, aura:null, auraT:0,
+  orbit:null, nova:null, chain:null, aura:null, auraT:0, summon:null, minions:[],
   boss:null, bossCount:0, nextBossT:0, revives:0,
 };
 
@@ -188,7 +190,7 @@ function startRun(modeId){
   G.enemies=[]; G.bullets=[]; G.loot=[]; G.gems=[]; G.pickups=[]; G.parts=[]; G.rings=[]; G.zaps=[]; G.dtexts=[];
   G.kills=0; G.coinRun=0; G.spawnT=0; G.fireT=0; G.screenShake=0;
   G.level=1; G.xp=0; G.xpNext=5; G.pendingLevels=0;
-  G.orbit=null; G.nova=null; G.chain=null; G.aura=null; G.auraT=0;
+  G.orbit=null; G.nova=null; G.chain=null; G.aura=null; G.auraT=0; G.summon=null; G.minions=[];
   G.boss=null; G.bossCount=0; G.nextBossT=0;
   const best=save.best;
   if(G.gameMode==="classic"){ G.night=Math.max(1,best.classic); G.duration=45+(G.night-1)*2; }
@@ -201,6 +203,7 @@ function startRun(modeId){
   G.player.hp=G.player.maxHp=G.eff.maxHp;
   G.revives=G.eff.revive;
   if(curChar().special==="aura") G.aura={level:1};
+  if(curChar().special==="summon"){ G.summon={level:1,cap:5}; for(let i=0;i<3;i++) spawnMinion(G.player.x+rand(-30,30),G.player.y+rand(-30,30)); }
 
   G.mode="play";
   showOnly("hud");
@@ -293,6 +296,10 @@ function screenBomb(){
   for(const e of G.enemies){ if(e.boss) damageEnemy(e,150,false,p.x,p.y,0); else damageEnemy(e,9999,false,p.x,p.y,200); }
   boom(p.x,p.y,"#ffd15c",30,260);
 }
+function spawnMinion(x,y){
+  if(!G.summon || G.minions.length>=G.summon.cap) return;
+  G.minions.push({ x, y, atkCd:0, phase:Math.random()*6.28 });
+}
 function doChain(){
   const p=G.player, st=G.eff, lvl=G.chain.level;
   let src=null, bd=(st.range*1.3)**2;
@@ -363,6 +370,23 @@ function update(dt){
       for(const e of G.enemies){ if(e.hp<=0) continue; if(dist2(p.x,p.y,e.x,e.y)<R*R){ damageEnemy(e,dmg,false,p.x,p.y,0); e.burnT=0.3; } } }
   }
 
+  // нежить некроманта
+  if(G.summon){
+    const mdmg=st.damage*(0.4+0.18*G.summon.level);
+    for(const mn of G.minions){
+      let tgt=null, bd=280*280;
+      for(const e of G.enemies){ if(e.hp<=0) continue; const dd=dist2(mn.x,mn.y,e.x,e.y); if(dd<bd){bd=dd;tgt=e;} }
+      let tx,ty,spd;
+      if(tgt){ tx=tgt.x; ty=tgt.y; spd=200; }
+      else { const a=performance.now()*0.0012+mn.phase; tx=p.x+Math.cos(a)*58; ty=p.y+Math.sin(a)*58; spd=150; }
+      const a=Math.atan2(ty-mn.y,tx-mn.x); mn.x+=Math.cos(a)*spd*dt; mn.y+=Math.sin(a)*spd*dt;
+      const dl=Math.hypot(mn.x-p.x,mn.y-p.y);
+      if(dl>360){ const la=Math.atan2(p.y-mn.y,p.x-mn.x); mn.x+=Math.cos(la)*(dl-360); mn.y+=Math.sin(la)*(dl-360); }
+      if(mn.atkCd>0) mn.atkCd-=dt;
+      if(tgt && mn.atkCd<=0){ const rr=tgt.r+12; if(dist2(mn.x,mn.y,tgt.x,tgt.y)<rr*rr){ damageEnemy(tgt,mdmg,false,mn.x,mn.y,20); mn.atkCd=0.5; } }
+    }
+  }
+
   // цепная молния
   if(G.chain){ G.chain.t-=dt; if(G.chain.t<=0){ G.chain.t=Math.max(0.7,1.8-G.chain.level*0.12); doChain(); } }
   for(const z of G.zaps) z.t+=dt; G.zaps=G.zaps.filter(z=>z.t<z.life);
@@ -399,7 +423,8 @@ function update(dt){
         for(let i=0;i<6;i++) dropLoot(e.x+rand(-30,30),e.y+rand(-30,30),Math.ceil(e.coin/6));
         showToast("👑 Босс повержен!","#ffd15c");
         if(G.gameMode==="bossrush"){ G.bossCount++; G.nextBossT=G.time+2.2; }
-      } else { dropLoot(e.x,e.y,e.coin); maybeDropPickup(e.x,e.y); }
+      } else { dropLoot(e.x,e.y,e.coin); maybeDropPickup(e.x,e.y);
+        if(G.summon && G.minions.length<G.summon.cap && Math.random()<0.28) spawnMinion(e.x,e.y); }
     } else alive.push(e);
   }
   G.enemies=alive;
@@ -482,6 +507,13 @@ function render(){
     ctx.fillStyle=ag; ctx.beginPath(); ctx.arc(p.x,p.y,R,0,6.28); ctx.fill(); ctx.globalCompositeOperation="source-over"; }
 
   for(const e of G.enemies) drawBeast(e);
+
+  // нежить
+  for(const mn of G.minions){ const wob=Math.sin(performance.now()*0.01+mn.phase)*1.5;
+    ctx.save(); ctx.translate(mn.x,mn.y+wob);
+    ctx.beginPath(); ctx.arc(0,0,8,0,6.28); ctx.fillStyle="#9bd4a0"; ctx.shadowColor="#4caf6a"; ctx.shadowBlur=9; ctx.fill(); ctx.shadowBlur=0;
+    ctx.fillStyle="#0b0d12"; ctx.beginPath(); ctx.arc(-2.6,-1,1.5,0,6.28); ctx.fill(); ctx.beginPath(); ctx.arc(2.6,-1,1.5,0,6.28); ctx.fill();
+    ctx.restore(); }
 
   // молнии
   for(const z of G.zaps){ ctx.globalAlpha=Math.max(0,1-z.t/z.life); ctx.strokeStyle="#bfe6ff"; ctx.lineWidth=3; ctx.shadowColor="#4f8cff"; ctx.shadowBlur=12;
@@ -594,6 +626,8 @@ function buildPool(){
   else if(G.chain.level<8) add("chain","Цепная молния +","Дальше по цепи и сильнее","⚡","weapon",5,()=>{G.chain.level++;});
   if(!G.aura) add("aura","Огненная аура","Пламя жжёт зверей вокруг охотника","🔥","weapon",6,()=>{G.aura={level:1};});
   else if(G.aura.level<8) add("aura","Огненная аура +","Шире и горячее","🔥","weapon",5,()=>{G.aura.level++;});
+  if(!G.summon) add("raise","Восставший мертвец","Поднимает нежить, что бьётся за тебя","🧟","weapon",6,()=>{G.summon={level:1,cap:3}; for(let i=0;i<2;i++) spawnMinion(G.player.x+rand(-30,30),G.player.y+rand(-30,30));});
+  else if(G.summon.cap<10) add("raise","Восставший мертвец +","Больше нежити и сильнее","🧟","weapon",5,()=>{G.summon.level++; G.summon.cap++; spawnMinion(G.player.x,G.player.y);});
   return P;
 }
 function pickCards(n){
@@ -606,6 +640,14 @@ function pickCards(n){
   return chosen;
 }
 function openLevelUp(){
+  if(save.autoUpgrade){
+    while(G.pendingLevels>0){
+      const c=pickCards(1)[0]; if(!c) break;
+      c.apply(); applyEff(); G.pendingLevels--;
+      showToast("⬆ Ур."+G.level+" · "+c.icon+" "+c.name,"#8affab");
+    }
+    return;
+  }
   G.mode="levelup";
   const cards=pickCards(3), box=document.getElementById("cards"); box.innerHTML="";
   const tagText={common:"улучшение",rare:"редкое",weapon:"оружие"};
@@ -704,6 +746,7 @@ function refreshMenuStats(){
   const c=curChar();
   const locked=!save.chars.includes(c.id);
   document.getElementById("charDesc").textContent=c.desc+(locked?"  🔒 Открыть за 🪙 "+c.cost:"");
+  document.getElementById("autoRow").classList.toggle("on",!!save.autoUpgrade);
   buildModeRow(); buildCharRow();
 }
 function buildModeRow(){
@@ -732,6 +775,7 @@ function buildCharRow(){
   }
 }
 
+document.getElementById("autoRow").onclick=()=>{ save.autoUpgrade=!save.autoUpgrade; persist(); refreshMenuStats(); };
 document.getElementById("playBtn").onclick=()=>startRun(save.mode);
 document.getElementById("resAgain").onclick=()=>startRun(G.gameMode);
 document.getElementById("resMenu").onclick=()=>{ showOnly("menu"); refreshMenuStats(); };

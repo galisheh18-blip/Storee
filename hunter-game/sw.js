@@ -1,5 +1,5 @@
 /* Service Worker — оффлайн-кэш «Тёмная охота». */
-const CACHE = "darkhunt-v3";
+const CACHE = "darkhunt-v4";
 const ASSETS = [
   "./",
   "./index.html",
