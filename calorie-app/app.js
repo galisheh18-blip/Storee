@@ -68,12 +68,14 @@ function seedFoods() {
 }
 
 /* ---------- Состояние ---------- */
+function defaultMealPrefs() { return { diet: "any", exclude: "", cuisine: "any", time: "any", meals: 4 }; }
 function defaultState() {
   return {
-    settings: { autoNorm: true, manualCal: 2000, macroPct: { p: 30, f: 30, c: 40 }, waterGoal: 2000, aiProxyUrl: "" },
-    profile: { sex: "m", age: 30, height: 175, weight: 75, activity: 1.55, goal: "maintain" },
+    settings: { autoNorm: true, manualCal: 2000, macroPct: { p: 30, f: 30, c: 40 }, waterGoal: 2000, aiProxyUrl: "", onboarded: false, mealPrefs: defaultMealPrefs() },
+    profile: { sex: "m", age: 30, height: 175, weight: 75, activity: 1.55, goal: "maintain", targetWeight: 0 },
     foods: seedFoods(),
     recipes: [],
+    templates: [],    // [{ id, name, meals:[{meal,name,grams,perUnit,kcal,p,f,c}] }]
     diary: {},        // { 'YYYY-MM-DD': { meals:[...], water:0, exercise:[...] } }
     weightLog: [],    // [{ date, weight, waist, fat }]
     recent: [],       // id последних использованных продуктов/рецептов
@@ -90,13 +92,17 @@ const extCache = new Map(); // онлайн-продукты до сохране
 function uid() { return Math.random().toString(36).slice(2, 10); }
 
 function migrate(s) {
-  if (!s.settings) s.settings = {};
+  const rawSettings = s.settings || {};
   const d = defaultState().settings;
-  s.settings = Object.assign({}, d, s.settings);
+  s.settings = Object.assign({}, d, rawSettings);
   if (!s.settings.macroPct) s.settings.macroPct = { p: 30, f: 30, c: 40 };
+  if (!s.settings.mealPrefs) s.settings.mealPrefs = defaultMealPrefs();
+  if (typeof rawSettings.onboarded !== "boolean") s.settings.onboarded = true; // существующие данные — не онбордить заново
   if (!s.profile) s.profile = defaultState().profile;
+  if (typeof s.profile.targetWeight !== "number") s.profile.targetWeight = 0;
   if (!Array.isArray(s.foods)) s.foods = seedFoods();
   if (!Array.isArray(s.recipes)) s.recipes = [];
+  if (!Array.isArray(s.templates)) s.templates = [];
   if (!s.diary || typeof s.diary !== "object") s.diary = {};
   if (!Array.isArray(s.weightLog)) s.weightLog = [];
   if (!Array.isArray(s.recent)) s.recent = [];
@@ -532,6 +538,7 @@ function renderCharts() {
 
   // Динамика веса
   renderWeightChart();
+  renderWeekSummary();
 }
 function renderWeightChart() {
   const log = [...state.weightLog].sort((a, b) => a.date.localeCompare(b.date)).slice(-20);
@@ -566,6 +573,7 @@ function renderMore() {
   document.getElementById("pWeight").value = pr.weight;
   document.getElementById("pActivity").value = String(pr.activity);
   document.getElementById("pGoal").value = pr.goal;
+  document.getElementById("pTarget").value = pr.targetWeight ? pr.targetWeight : "";
 
   const n = calcNorm();
   document.getElementById("bmrVal").textContent = n.bmr + " ккал";
@@ -951,6 +959,255 @@ async function handlePhoto(file) {
   } catch (e) { closeModal(); toast("Ошибка распознавания. Проверьте прокси."); }
 }
 
+/* ---------- Итоги недели + прогноз ---------- */
+function renderWeekSummary() {
+  const box = document.getElementById("weekSummary");
+  if (!box) return;
+  const goal = goalCalories();
+  let sumK = 0, sumP = 0, sumF = 0, sumC = 0, logged = 0, inGoal = 0, sumWater = 0, waterDays = 0;
+  for (let i = 6; i >= 0; i--) {
+    const key = shiftDay(viewDate, -i);
+    const t = dayTotals(key);
+    if (t.kcal > 0) {
+      logged++; sumK += t.kcal; sumP += t.p; sumF += t.f; sumC += t.c;
+      if (goal > 0 && Math.abs(t.kcal - goal) <= goal * 0.1) inGoal++;
+    }
+    if (t.water > 0) { sumWater += t.water; waterDays++; }
+  }
+  if (!logged) { box.innerHTML = `<div class="empty">Записей за неделю пока нет</div>`; return; }
+  const avgK = Math.round(sumK / logged), avgP = Math.round(sumP / logged), avgF = Math.round(sumF / logged), avgC = Math.round(sumC / logged);
+  const maintenance = calcNorm().tdee;
+  const weeklyKg = maintenance > 0 ? ((avgK - maintenance) * 7 / 7700) : 0; // <0 — снижение
+  const dir = weeklyKg < -0.005 ? "снижение" : weeklyKg > 0.005 ? "набор" : "без изменений";
+  const dirCls = weeklyKg < -0.005 ? "ws-pos" : weeklyKg > 0.005 ? "ws-neg" : "";
+  let eta = "";
+  const tw = Number(state.profile.targetWeight) || 0;
+  const sorted = [...state.weightLog].sort((a, b) => b.date.localeCompare(a.date));
+  const curW = sorted.length ? Number(sorted[0].weight) : Number(state.profile.weight) || 0;
+  if (tw > 0 && curW > 0 && Math.abs(weeklyKg) > 0.02) {
+    const remaining = curW - tw; // >0 — нужно снижать
+    if ((remaining > 0 && weeklyKg < 0) || (remaining < 0 && weeklyKg > 0)) {
+      const weeks = Math.abs(remaining / weeklyKg);
+      const etaDate = new Date(); etaDate.setDate(etaDate.getDate() + Math.round(weeks * 7));
+      eta = "≈ " + weeks.toFixed(1) + " нед · к " + etaDate.getDate() + " " + MONTHS_SHORT[etaDate.getMonth()];
+    } else { eta = "текущий баланс не ведёт к цели"; }
+  }
+  box.innerHTML = `
+    <div class="ws-grid">
+      <div class="ws-cell"><div class="ws-num">${avgK}</div><div class="ws-lbl">ккал/день</div></div>
+      <div class="ws-cell"><div class="ws-num">${avgP}</div><div class="ws-lbl">белки, г</div></div>
+      <div class="ws-cell"><div class="ws-num">${avgF}</div><div class="ws-lbl">жиры, г</div></div>
+      <div class="ws-cell"><div class="ws-num">${avgC}</div><div class="ws-lbl">углеводы, г</div></div>
+    </div>
+    <div class="ws-rows">
+      <div class="ws-row"><span>Дней с записями</span><span>${logged} из 7</span></div>
+      ${goal > 0 ? `<div class="ws-row"><span>В пределах нормы (±10%)</span><span>${inGoal} дн.</span></div>` : ""}
+      ${waterDays ? `<div class="ws-row"><span>Вода в среднем</span><span>${Math.round(sumWater / waterDays)} мл</span></div>` : ""}
+      <div class="ws-row"><span>Прогноз веса</span><span class="${dirCls}">${dir} ${Math.abs(weeklyKg).toFixed(2)} кг/нед</span></div>
+      ${eta ? `<div class="ws-row"><span>До цели ${tw} кг</span><span>${eta}</span></div>` : ""}
+    </div>`;
+}
+
+/* ---------- Онбординг ---------- */
+function openOnboarding() {
+  const pr = state.profile;
+  openModal(`
+    <h3>Добро пожаловать 👋</h3>
+    <p class="hint">Заполните профиль — посчитаем дневную норму калорий и БЖУ.</p>
+    <div class="segmented" id="obSex">
+      <button type="button" class="seg ${pr.sex === "m" ? "active" : ""}" data-sex="m">Мужчина</button>
+      <button type="button" class="seg ${pr.sex === "f" ? "active" : ""}" data-sex="f">Женщина</button>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Возраст</label><input type="number" id="obAge" inputmode="numeric" value="${pr.age}" /></div>
+      <div class="field"><label>Рост, см</label><input type="number" id="obHeight" inputmode="decimal" value="${pr.height}" /></div>
+      <div class="field"><label>Вес, кг</label><input type="number" id="obWeight" inputmode="decimal" value="${pr.weight}" /></div>
+    </div>
+    <div class="field"><label>Активность</label><select id="obActivity">
+      <option value="1.2">Минимальная (сидячий образ)</option>
+      <option value="1.375">Лёгкая (1–3 трен./нед)</option>
+      <option value="1.55" selected>Средняя (3–5 трен./нед)</option>
+      <option value="1.725">Высокая (6–7 трен./нед)</option>
+      <option value="1.9">Очень высокая</option>
+    </select></div>
+    <div class="field"><label>Цель</label><select id="obGoal">
+      <option value="lose">Похудение</option>
+      <option value="maintain" selected>Поддержание веса</option>
+      <option value="gain">Набор массы</option>
+    </select></div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="obSkip">Пропустить</button>
+      <button class="btn primary" id="obSave">Готово</button>
+    </div>`);
+  document.querySelectorAll("#obSex .seg").forEach((b) => b.onclick = () => {
+    document.querySelectorAll("#obSex .seg").forEach((x) => x.classList.remove("active"));
+    b.classList.add("active");
+  });
+  const finish = () => { state.settings.onboarded = true; save(); closeModal(); renderAll(); };
+  document.getElementById("obSkip").onclick = finish;
+  document.getElementById("obSave").onclick = () => {
+    state.profile.sex = document.querySelector("#obSex .seg.active").dataset.sex;
+    state.profile.age = parseFloat(document.getElementById("obAge").value) || 30;
+    state.profile.height = parseFloat(document.getElementById("obHeight").value) || 175;
+    state.profile.weight = parseFloat(document.getElementById("obWeight").value) || 75;
+    state.profile.activity = parseFloat(document.getElementById("obActivity").value) || 1.55;
+    state.profile.goal = document.getElementById("obGoal").value;
+    const n = calcNorm();
+    finish();
+    toast("Ваша норма: " + n.goal + " ккал/день");
+  };
+}
+
+/* ---------- Повтор дня и шаблоны ---------- */
+function copyYesterday() {
+  const prev = day(shiftDay(viewDate, -1));
+  if (!prev.meals.length) { toast("Вчера нет записей"); return; }
+  const d = day(viewDate);
+  for (const m of prev.meals) d.meals.push({ ...m, id: uid() });
+  save(); renderAll(); toast("Скопировано из вчера: " + prev.meals.length);
+}
+function openTemplatesModal() {
+  const list = state.templates.map((t) => `
+    <div class="row">
+      <div class="row-main clickable" data-apply-tpl="${t.id}" style="cursor:pointer">
+        <div class="row-title">${escapeHtml(t.name)}</div>
+        <div class="row-sub">${t.meals.length} блюд · ${Math.round(t.meals.reduce((a, m) => a + m.kcal, 0))} ккал</div>
+      </div>
+      <button class="icon-btn" data-del-tpl="${t.id}" title="Удалить">✕</button>
+    </div>`).join("") || `<div class="empty">Шаблонов пока нет</div>`;
+  openModal(`
+    <button class="modal-close" id="mClose">✕</button>
+    <h3>Шаблоны дня</h3>
+    <p class="hint">Сохраните типичный день и применяйте одним тапом.</p>
+    <button class="btn primary" id="tplSave">💾 Сохранить текущий день как шаблон</button>
+    <div class="list" style="margin-top:12px">${list}</div>`);
+  document.getElementById("mClose").onclick = closeModal;
+  document.getElementById("tplSave").onclick = () => {
+    const d = day(viewDate);
+    if (!d.meals.length) { toast("В этом дне нет блюд"); return; }
+    const name = prompt("Название шаблона:", dayLabel(viewDate));
+    if (!name || !name.trim()) return;
+    state.templates.push({ id: uid(), name: name.trim(), meals: d.meals.map((m) => ({ meal: m.meal, name: m.name, grams: m.grams, perUnit: m.perUnit, kcal: m.kcal, p: m.p, f: m.f, c: m.c })) });
+    save(); openTemplatesModal(); toast("Шаблон сохранён");
+  };
+  document.querySelectorAll("[data-apply-tpl]").forEach((el) => el.onclick = () => applyTemplate(el.dataset.applyTpl));
+  document.querySelectorAll("[data-del-tpl]").forEach((el) => el.onclick = () => { state.templates = state.templates.filter((t) => t.id !== el.dataset.delTpl); save(); openTemplatesModal(); });
+}
+function applyTemplate(id) {
+  const t = state.templates.find((x) => x.id === id);
+  if (!t) return;
+  const d = day(viewDate);
+  for (const m of t.meals) d.meals.push({ ...m, id: uid() });
+  save(); closeModal(); renderAll(); toast("Добавлено из шаблона: " + t.meals.length);
+}
+
+/* ---------- План питания на день (ИИ через прокси) ---------- */
+const DIETS = [["any", "Обычное"], ["veg", "Вегетарианское"], ["vegan", "Веганское"], ["keto", "Кето"], ["lowcarb", "Низкоуглеводное"], ["highprot", "Высокобелковое"]];
+const CUISINES = [["any", "Любая"], ["ru", "Русская"], ["it", "Итальянская"], ["asia", "Азиатская"], ["med", "Средиземноморская"]];
+const TIMES = [["any", "Не важно"], ["fast", "Быстро (до 15 мин)"], ["mid", "Среднее"]];
+let lastPlan = null;
+
+function openMealPlanModal() {
+  const p = state.settings.mealPrefs || defaultMealPrefs();
+  const g = goalMacros();
+  const sel = (arr, cur, id) => `<select id="${id}">${arr.map((o) => `<option value="${o[0]}" ${o[0] === cur ? "selected" : ""}>${o[1]}</option>`).join("")}</select>`;
+  openModal(`
+    <button class="modal-close" id="mClose">✕</button>
+    <h3>План питания на день</h3>
+    <p class="hint">Цель: ${g.kcal} ккал · Б ${g.p} · Ж ${g.f} · У ${g.c} г</p>
+    <div class="field"><label>Тип питания</label>${sel(DIETS, p.diet, "mpDiet")}</div>
+    <div class="field"><label>Кухня</label>${sel(CUISINES, p.cuisine, "mpCuisine")}</div>
+    <div class="field"><label>Время на готовку</label>${sel(TIMES, p.time, "mpTime")}</div>
+    <div class="field"><label>Приёмов пищи</label><select id="mpMeals"><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></div>
+    <div class="field"><label>Исключить продукты / аллергии</label><input type="text" id="mpExclude" value="${escapeHtml(p.exclude || "")}" placeholder="напр. грибы, орехи" maxlength="100" /></div>
+    <button class="btn primary" id="mpGen">✨ Составить</button>`);
+  document.getElementById("mpMeals").value = String(p.meals || 4);
+  document.getElementById("mClose").onclick = closeModal;
+  document.getElementById("mpGen").onclick = () => {
+    state.settings.mealPrefs = {
+      diet: document.getElementById("mpDiet").value,
+      cuisine: document.getElementById("mpCuisine").value,
+      time: document.getElementById("mpTime").value,
+      meals: parseInt(document.getElementById("mpMeals").value) || 4,
+      exclude: document.getElementById("mpExclude").value.trim(),
+    };
+    save();
+    generatePlan();
+  };
+}
+async function generatePlan() {
+  const url = (state.settings.aiProxyUrl || "").trim();
+  if (!url) { closeModal(); toast("Укажите URL прокси в разделе «Ещё»"); switchTab("more"); return; }
+  const prefs = state.settings.mealPrefs || defaultMealPrefs();
+  const targets = goalMacros();
+  openModal(`<h3>Составляю план…</h3><div class="ai-loading"><div class="spinner"></div><div class="scan-status">Подбираю рецепты под ваши КБЖУ…</div></div>`);
+  try {
+    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ task: "mealplan", targets, prefs }) });
+    if (!r.ok) throw new Error("http " + r.status);
+    const d = await r.json();
+    if (!d || !Array.isArray(d.meals) || !d.meals.length) throw new Error("empty");
+    renderMealPlanResult(d.meals);
+  } catch (e) { closeModal(); toast("Не удалось составить план. Проверьте прокси."); }
+}
+function renderMealPlanResult(meals) {
+  lastPlan = meals;
+  const tot = meals.reduce((a, m) => ({ k: a.k + (+m.kcal || 0), p: a.p + (+m.p || 0), f: a.f + (+m.f || 0), c: a.c + (+m.c || 0) }), { k: 0, p: 0, f: 0, c: 0 });
+  const mealName = (id) => { const m = MEALS.find((x) => x.id === id); return m ? m.icon + " " + m.name : "🍽️ Приём"; };
+  const cards = meals.map((m) => `
+    <div class="plan-card">
+      <div class="plan-head"><span class="plan-meal">${mealName(m.meal)}</span><span class="plan-kcal">${Math.round(+m.kcal || 0)} ккал</span></div>
+      <div class="plan-title">${escapeHtml(m.title || "Блюдо")}</div>
+      <div class="mi-sub">Б ${r1(+m.p || 0)} · Ж ${r1(+m.f || 0)} · У ${r1(+m.c || 0)}</div>
+      ${Array.isArray(m.ingredients) && m.ingredients.length ? `<div class="plan-ing">${m.ingredients.map((i) => escapeHtml((i.name || "") + " — " + Math.round(+i.grams || 0) + " г")).join("<br>")}</div>` : ""}
+      ${m.recipe ? `<div class="plan-recipe">${escapeHtml(m.recipe)}</div>` : ""}
+    </div>`).join("");
+  openModal(`
+    <button class="modal-close" id="mClose">✕</button>
+    <h3>План на день</h3>
+    <div class="picked-macros"><span class="pm-pill kcal">${Math.round(tot.k)} ккал</span><span class="pm-pill">Б ${r1(tot.p)}</span><span class="pm-pill">Ж ${r1(tot.f)}</span><span class="pm-pill">У ${r1(tot.c)}</span></div>
+    <div class="plan-list">${cards}</div>
+    <div class="modal-actions">
+      <button class="btn ghost" id="mpShop">🛒 Покупки</button>
+      <button class="btn primary" id="mpAdd">Добавить в дневник</button>
+    </div>
+    <button class="btn ghost" id="mpAgain">↻ Другой вариант</button>`);
+  document.getElementById("mClose").onclick = closeModal;
+  document.getElementById("mpAdd").onclick = () => addPlanToDiary(meals);
+  document.getElementById("mpAgain").onclick = generatePlan;
+  document.getElementById("mpShop").onclick = () => showShopping(meals);
+}
+function addPlanToDiary(meals) {
+  const d = day(viewDate);
+  let n = 0;
+  for (const m of meals) {
+    const meal = MEALS.some((x) => x.id === m.meal) ? m.meal : "snack";
+    const grams = Array.isArray(m.ingredients) ? m.ingredients.reduce((a, i) => a + (+i.grams || 0), 0) : 0;
+    d.meals.push({ id: uid(), meal, name: (m.title || "Блюдо из плана"), grams: grams > 0 ? grams : 100, perUnit: "g", kcal: +m.kcal || 0, p: +m.p || 0, f: +m.f || 0, c: +m.c || 0 });
+    n++;
+  }
+  save(); closeModal(); switchTab("diary"); renderAll(); toast("Добавлено блюд: " + n);
+}
+function showShopping(meals) {
+  const map = {};
+  for (const m of meals) if (Array.isArray(m.ingredients)) for (const i of m.ingredients) {
+    const name = (i.name || "").trim(); if (!name) continue;
+    map[name] = (map[name] || 0) + (+i.grams || 0);
+  }
+  const items = Object.keys(map).sort((a, b) => a.localeCompare(b, "ru"));
+  const txt = items.map((n) => n + " — " + Math.round(map[n]) + " г").join("\n");
+  openModal(`
+    <button class="modal-close" id="mClose">✕</button>
+    <h3>🛒 Список покупок</h3>
+    <textarea class="backup-area" id="shopTxt" readonly>${escapeHtml(txt || "—")}</textarea>
+    <div class="modal-actions"><button class="btn ghost" id="shopBack">← К плану</button><button class="btn primary" id="shopCopy">Скопировать</button></div>`);
+  document.getElementById("mClose").onclick = closeModal;
+  document.getElementById("shopBack").onclick = () => renderMealPlanResult(meals);
+  document.getElementById("shopCopy").onclick = async () => {
+    try { await navigator.clipboard.writeText(txt); toast("Скопировано"); }
+    catch (e) { const t = document.getElementById("shopTxt"); t.focus(); t.select(); toast("Выделено — скопируйте вручную"); }
+  };
+}
+
 /* ---------- События ---------- */
 document.querySelectorAll(".tab").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -1000,6 +1257,11 @@ document.getElementById("addForm").addEventListener("submit", (e) => {
   renderAll();
   toast("Добавлено в " + MEALS.find((m) => m.id === meal).name.toLowerCase());
 });
+
+// Действия дня: план, повтор вчера, шаблоны
+document.getElementById("planBtn").onclick = openMealPlanModal;
+document.getElementById("copyYesterday").onclick = copyYesterday;
+document.getElementById("templatesBtn").onclick = openTemplatesModal;
 
 // Кнопка "+" в приёме пищи → переход на вкладку добавления
 document.getElementById("mealsWrap").addEventListener("click", (e) => {
@@ -1071,6 +1333,7 @@ document.getElementById("profileForm").addEventListener("submit", (e) => {
     weight: parseFloat(document.getElementById("pWeight").value) || 75,
     activity: parseFloat(document.getElementById("pActivity").value) || 1.55,
     goal: document.getElementById("pGoal").value,
+    targetWeight: parseFloat(document.getElementById("pTarget").value) || 0,
   };
   save(); renderAll(); toast("Норма пересчитана");
 });
@@ -1124,3 +1387,4 @@ if ("serviceWorker" in navigator) {
 }
 
 renderAll();
+if (!state.settings.onboarded) openOnboarding();

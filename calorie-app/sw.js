@@ -1,5 +1,5 @@
 /* Service Worker — оффлайн-кэш «Калории и БЖУ». */
-const CACHE = "calorie-app-v2";
+const CACHE = "calorie-app-v3";
 const ASSETS = [
   "./",
   "./index.html",

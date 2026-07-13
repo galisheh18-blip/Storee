@@ -84,6 +84,34 @@ main { padding: 16px; max-width: 640px; margin: 0 auto; }
 .chip-btn { border: none; background: var(--water); color: #fff; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 999px; cursor: pointer; }
 .chip-btn.ghostchip { background: transparent; color: var(--water); border: 1px solid var(--water); }
 
+/* Действия дня */
+.day-actions { display: flex; gap: 8px; margin: 14px 0 4px; flex-wrap: wrap; }
+.day-act { flex: 1 1 auto; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 12px; padding: 11px 10px; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: var(--shadow); }
+.day-act:active { background: var(--accent-soft); }
+.day-act.accent-act { background: var(--accent); color: #fff; border-color: transparent; }
+
+/* Итоги недели */
+.ws-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+.ws-cell { text-align: center; background: var(--bg); border-radius: 12px; padding: 10px 4px; }
+.ws-num { font-size: 20px; font-weight: 800; letter-spacing: -.3px; }
+.ws-lbl { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.ws-rows { display: flex; flex-direction: column; gap: 8px; }
+.ws-row { display: flex; justify-content: space-between; font-size: 13px; }
+.ws-row span:first-child { color: var(--muted); }
+.ws-row span:last-child { font-weight: 600; }
+.ws-pos { color: var(--green); }
+.ws-neg { color: var(--amber); }
+
+/* План питания */
+.plan-list { display: flex; flex-direction: column; gap: 10px; margin: 4px 0 12px; }
+.plan-card { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--bg); }
+.plan-head { display: flex; justify-content: space-between; align-items: center; }
+.plan-meal { font-size: 12px; font-weight: 700; color: var(--accent); }
+.plan-kcal { font-size: 13px; font-weight: 700; color: var(--muted); }
+.plan-title { font-size: 15px; font-weight: 700; margin: 3px 0; }
+.plan-ing { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.55; }
+.plan-recipe { font-size: 13px; margin-top: 8px; line-height: 1.5; }
+
 /* Приёмы пищи */
 .meal-block { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); margin-bottom: 12px; overflow: hidden; }
 .meal-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
