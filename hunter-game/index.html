@@ -57,19 +57,27 @@
 
     <!-- Главное меню -->
     <div id="menu" class="overlay">
-      <div class="menu-card">
+      <div class="menu-scroll">
         <div class="logo">🌲🩸</div>
         <h1>Тёмная охота</h1>
-        <p class="tag">Выживай в ночном лесу. Из темноты идут звери — виден лишь свет твоего факела.</p>
         <div class="stat-row">
-          <div class="stat"><span class="s-val" id="bestNight">1</span><span class="s-lab">Лучшая ночь</span></div>
+          <div class="stat"><span class="s-val" id="bestVal">1</span><span class="s-lab" id="bestLab">Лучшая ночь</span></div>
           <div class="stat"><span class="s-val" id="coinBank">0</span><span class="s-lab">🪙 Монеты</span></div>
         </div>
+
+        <div class="sect-lab">Режим</div>
+        <div id="modeRow" class="chip-row"></div>
+        <p class="pick-desc" id="modeDesc"></p>
+
+        <div class="sect-lab">Охотник</div>
+        <div id="charRow" class="char-row"></div>
+        <p class="pick-desc" id="charDesc"></p>
+
         <button class="btn btn-primary" id="playBtn">▶ Играть</button>
         <button class="btn btn-ghost" id="treeBtn">🌳 Дерево улучшений</button>
         <button class="btn btn-mini" id="howBtn">Как играть</button>
+        <div class="credit-in">Оффлайн-игра · данные хранятся на устройстве</div>
       </div>
-      <div class="credit">Оффлайн-игра · данные хранятся на устройстве</div>
     </div>
 
     <!-- Дерево улучшений -->
@@ -98,10 +106,11 @@
         <h1 id="resTitle">Ночь пережита!</h1>
         <p class="tag" id="resSub">Ты дожил до рассвета.</p>
         <div class="stat-row">
-          <div class="stat"><span class="s-val" id="resNight">1</span><span class="s-lab">Ночь</span></div>
-          <div class="stat"><span class="s-val" id="resKills">0</span><span class="s-lab">Убито</span></div>
+          <div class="stat"><span class="s-val" id="resNight">1</span><span class="s-lab" id="resNightLab">Ночь</span></div>
+          <div class="stat"><span class="s-val" id="resKills">0</span><span class="s-lab" id="resKillsLab">Убито</span></div>
           <div class="stat"><span class="s-val" id="resCoins">+0</span><span class="s-lab">🪙 Монеты</span></div>
         </div>
+        <p class="tag rec-line hidden" id="resRecord">🏆 Новый рекорд!</p>
         <button class="btn btn-primary" id="resTree">🌳 Потратить монеты</button>
         <button class="btn btn-ghost" id="resAgain">▶ Ещё раз</button>
         <button class="btn btn-mini" id="resMenu">В меню</button>
