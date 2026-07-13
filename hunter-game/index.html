@@ -28,12 +28,31 @@
       <div class="hud-mid">
         <div id="waveTimer"><div id="waveTimerFill"></div></div>
         <div id="waveLabel">Пережить ночь: <b id="timeLeft">45</b>с</div>
+        <div id="bossWrap" class="hidden">
+          <div id="bossName">Лесной хозяин</div>
+          <div id="bossBar"><div id="bossFill"></div></div>
+        </div>
+      </div>
+      <!-- полоса опыта -->
+      <div id="xpWrap">
+        <div id="xpBar"><div id="xpFill"></div></div>
+        <div id="lvlBadge">ур. <b id="lvlNo">1</b></div>
       </div>
       <!-- виртуальный джойстик -->
       <div id="stickZone">
         <div id="stickBase"><div id="stickKnob"></div></div>
       </div>
       <button id="pauseBtn" class="icon-btn" aria-label="Пауза">⏸</button>
+    </div>
+
+    <!-- Выбор карты улучшения (во время ночи) -->
+    <div id="levelup" class="overlay hidden">
+      <div class="lu-head">
+        <div class="lu-spark">✦</div>
+        <h1>Новый уровень!</h1>
+        <p class="tag">Выбери усиление на эту ночь</p>
+      </div>
+      <div id="cards"></div>
     </div>
 
     <!-- Главное меню -->

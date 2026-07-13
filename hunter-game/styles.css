@@ -69,6 +69,43 @@ h1{font-size:26px;margin:4px 0 8px;letter-spacing:.3px}
 #waveLabel{font-size:12px;color:var(--muted);margin-top:5px;text-shadow:0 1px 3px #000}
 #waveLabel b{color:var(--text)}
 
+/* здоровье босса */
+#bossWrap{margin-top:10px}
+#bossName{font-size:12px;color:#ff9a9a;text-shadow:0 1px 3px #000;margin-bottom:3px;font-weight:700}
+#bossBar{height:9px;background:rgba(40,10,14,.85);border:1px solid #5a1f24;border-radius:6px;overflow:hidden}
+#bossFill{height:100%;width:100%;background:linear-gradient(90deg,#e5484d,#ff8a5c);transition:width .15s}
+
+/* полоса опыта */
+#xpWrap{position:absolute;left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom) + 8px);
+  display:flex;align-items:center;gap:8px;pointer-events:none}
+#xpBar{flex:1;height:9px;background:rgba(15,19,27,.8);border:1px solid var(--line);border-radius:6px;overflow:hidden}
+#xpFill{height:100%;width:0%;background:linear-gradient(90deg,#30c46b,#8affab);transition:width .15s;box-shadow:0 0 8px #30c46b}
+#lvlBadge{font-size:12px;font-weight:800;color:var(--text);background:rgba(15,19,27,.85);border:1px solid var(--line);
+  border-radius:999px;padding:3px 10px;text-shadow:0 1px 2px #000}
+#lvlBadge b{color:#8affab}
+
+/* карты уровня */
+#levelup{background:radial-gradient(120% 90% at 50% 0%, rgba(48,196,107,.14), rgba(5,6,10,.96) 70%)}
+.lu-head{text-align:center;margin-bottom:18px}
+.lu-spark{font-size:34px;color:var(--green);animation:spin 3s linear infinite;filter:drop-shadow(0 0 10px var(--green))}
+@keyframes spin{to{transform:rotate(360deg)}}
+#cards{display:flex;flex-direction:column;gap:12px;width:100%;max-width:420px}
+.card{display:flex;align-items:center;gap:14px;background:linear-gradient(180deg,var(--panel),#0f131b);
+  border:1px solid var(--line);border-radius:16px;padding:16px;cursor:pointer;text-align:left;
+  transition:transform .08s,border-color .15s;animation:pop .3s cubic-bezier(.2,.9,.3,1.2) backwards}
+.card:active{transform:scale(.97)}
+.card:nth-child(2){animation-delay:.06s}.card:nth-child(3){animation-delay:.12s}
+.card .c-ico{width:52px;height:52px;flex-shrink:0;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:26px;background:var(--panel2)}
+.card .c-body{flex:1;min-width:0}
+.card .c-name{display:block;font-weight:800;font-size:16px}
+.card .c-desc{display:block;color:var(--muted);font-size:13px;margin-top:3px;line-height:1.4}
+.card .c-tag{font-size:11px;font-weight:800;padding:2px 8px;border-radius:8px;margin-left:auto;flex-shrink:0}
+.card.rare{border-color:var(--amber)} .card.rare .c-ico{box-shadow:0 0 14px -2px var(--amber)}
+.card.rare .c-tag{background:var(--amber);color:#0b0d12}
+.card.common .c-tag{background:var(--panel2);color:var(--muted)}
+.card.weapon{border-color:var(--blue)} .card.weapon .c-ico{box-shadow:0 0 14px -2px var(--blue)}
+.card.weapon .c-tag{background:var(--blue);color:#fff}
+
 #pauseBtn{position:absolute;top:calc(env(safe-area-inset-top) + 8px);right:0}
 .icon-btn{pointer-events:auto;background:rgba(15,19,27,.82);border:1px solid var(--line);color:var(--text);
   width:42px;height:42px;border-radius:50%;font-size:18px;display:flex;align-items:center;justify-content:center;
