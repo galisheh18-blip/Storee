@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e1230" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon.svg" />
+  <title>Нуб Инкрементал</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ВЕРХНЯЯ ПАНЕЛЬ РЕСУРСОВ -->
+  <header id="topbar">
+    <div class="res res-oof">
+      <span class="res-ico">😵</span>
+      <div class="res-body">
+        <b id="oofVal">0</b>
+        <span class="res-sub"><span id="opsVal">0</span> Oof/с</span>
+      </div>
+    </div>
+    <div class="res res-prism" id="prismRes">
+      <span class="res-ico">💎</span>
+      <div class="res-body"><b id="prismVal">0</b><span class="res-sub">призмы</span></div>
+    </div>
+    <div class="res res-star hidden" id="starRes">
+      <span class="res-ico">⭐</span>
+      <div class="res-body"><b id="starVal">0</b><span class="res-sub">звёзды</span></div>
+    </div>
+    <button id="menuBtn" class="icon-btn" aria-label="Меню">☰</button>
+  </header>
+
+  <!-- 2D СЦЕНА -->
+  <section id="scene">
+    <canvas id="c"></canvas>
+    <div id="tapHint">Тапай по нубу — делай Oof!</div>
+  </section>
+
+  <!-- КОНТЕНТ ВКЛАДОК -->
+  <main id="panel">
+    <!-- НУБЫ -->
+    <div class="tabpage" data-page="noobs">
+      <div class="page-head"><h2>🧍 Нубы</h2><span class="page-hint">Покупай нубов — они делают Oof сами</span></div>
+      <div id="noobList" class="list"></div>
+    </div>
+
+    <!-- АПГРЕЙДЫ -->
+    <div class="tabpage hidden" data-page="ups">
+      <div class="page-head"><h2>⚡ Улучшения</h2><span class="page-hint" id="upCount">0 доступно</span></div>
+      <div id="upList" class="grid"></div>
+      <div id="upEmpty" class="empty hidden">Пока нечего улучшать.<br>Покупай нубов и копи Oof — появятся новые улучшения.</div>
+    </div>
+
+    <!-- РУНЫ -->
+    <div class="tabpage hidden" data-page="runes">
+      <div class="page-head"><h2>🔮 Руны</h2><span class="page-hint">Брось руну и усиль её</span></div>
+      <div id="runeRollBar">
+        <div class="energy">
+          <div class="energy-bar"><div id="energyFill"></div></div>
+          <span>⚡ <b id="energyVal">0</b>/<span id="energyMax">5</span></span>
+        </div>
+        <button class="btn btn-primary" id="rollBtn">🎲 Бросить руну</button>
+      </div>
+      <div class="sect-lab">Слоты рун <span id="slotInfo" class="dim"></span></div>
+      <div id="runeSlots" class="rune-slots"></div>
+      <div class="dust-line">💠 Пыль рун: <b id="dustVal">0</b></div>
+    </div>
+
+    <!-- ПРЕСТИЖ -->
+    <div class="tabpage hidden" data-page="prestige">
+      <div class="page-head"><h2>💎 Престиж</h2><span class="page-hint">Сбрось прогресс — получи призмы навсегда</span></div>
+
+      <div class="prestige-card">
+        <div class="pc-top">
+          <span class="pc-ico">💎</span>
+          <div>
+            <div class="pc-title">Призма</div>
+            <div class="pc-sub">За призмы — вечные улучшения</div>
+          </div>
+        </div>
+        <div class="pc-gain">Сброс даст <b id="prismGain">0</b> 💎</div>
+        <div class="pc-prog"><div id="prismProg"></div></div>
+        <div class="pc-note" id="prismNote">Нужно ещё Oof</div>
+        <button class="btn btn-primary" id="prestigeBtn" disabled>💎 Престиж</button>
+      </div>
+
+      <div class="sect-lab">Призматические улучшения</div>
+      <div id="prismUpList" class="list"></div>
+
+      <div id="ascendWrap" class="hidden">
+        <div class="sect-lab">⭐ Вознесение</div>
+        <div class="prestige-card star-card">
+          <div class="pc-top">
+            <span class="pc-ico">⭐</span>
+            <div>
+              <div class="pc-title">Вознесение</div>
+              <div class="pc-sub">Сбрось призмы — получи звёзды и ×множитель</div>
+            </div>
+          </div>
+          <div class="pc-gain">Вознесение даст <b id="starGain">0</b> ⭐</div>
+          <div class="pc-note" id="starNote"></div>
+          <button class="btn btn-primary" id="ascendBtn" disabled>⭐ Вознестись</button>
+        </div>
+        <div class="sect-lab">Звёздные улучшения</div>
+        <div id="starUpList" class="list"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- НИЖНЯЯ НАВИГАЦИЯ -->
+  <nav id="tabbar">
+    <button class="tab on" data-tab="noobs"><span>🧍</span>Нубы</button>
+    <button class="tab" data-tab="ups"><span>⚡</span>Улучш.<i class="badge hidden" id="upBadge"></i></button>
+    <button class="tab" data-tab="runes"><span>🔮</span>Руны</button>
+    <button class="tab" data-tab="prestige"><span>💎</span>Престиж<i class="badge hidden" id="prBadge"></i></button>
+  </nav>
+
+  <!-- РУНА-РЕЗУЛЬТАТ -->
+  <div id="runeModal" class="overlay hidden">
+    <div class="modal">
+      <div class="rune-drop" id="dropCard"></div>
+      <div class="modal-btns">
+        <button class="btn btn-primary" id="equipBtn">Поставить</button>
+        <button class="btn btn-ghost" id="scrapBtn">💠 Разобрать</button>
+      </div>
+      <div id="slotPick" class="slot-pick hidden"></div>
+    </div>
+  </div>
+
+  <!-- МЕНЮ -->
+  <div id="menuModal" class="overlay hidden">
+    <div class="modal">
+      <div class="menu-logo">🧍‍♂️😵</div>
+      <h1>Нуб Инкрементал</h1>
+      <div class="menu-stats">
+        <div><b id="mStatLife">0</b><span>Всего Oof</span></div>
+        <div><b id="mStatPrest">0</b><span>Престижей</span></div>
+        <div><b id="mStatNoobs">0</b><span>Нубов</span></div>
+      </div>
+      <button class="btn btn-ghost" id="howBtn2">❓ Как играть</button>
+      <button class="btn btn-ghost" id="wipeBtn">🗑️ Сбросить всё</button>
+      <button class="btn btn-primary" id="closeMenu">Закрыть</button>
+      <div class="credit">Оффлайн-игра · данные хранятся на устройстве</div>
+    </div>
+  </div>
+
+  <!-- КАК ИГРАТЬ -->
+  <div id="howModal" class="overlay hidden">
+    <div class="modal how">
+      <h1>Как играть</h1>
+      <ul class="how-list">
+        <li>😵 <b>Тапай</b> по большому нубу в поле — получай Oof.</li>
+        <li>🧍 Покупай <b>нубов</b> — они делают Oof сами, даже без тапов.</li>
+        <li>⚡ Трать Oof на <b>улучшения</b> — множители клика и нубов.</li>
+        <li>🔮 Бросай <b>руны</b> и качай их пылью — вечные бонусы.</li>
+        <li>💎 <b>Престиж</b> сбрасывает прогресс, но даёт призмы на вечные улучшения.</li>
+        <li>⭐ На вершине откроется <b>Вознесение</b> — новый слой множителей.</li>
+      </ul>
+      <button class="btn btn-primary" id="howClose2">Понятно</button>
+    </div>
+  </div>
+
+  <!-- ВСПЛЫВАШКИ -->
+  <div id="toast"></div>
+</div>
+<script src="app.js"></script>
+</body>
+</html>

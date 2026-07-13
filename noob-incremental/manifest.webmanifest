@@ -1,0 +1,16 @@
+{
+  "name": "Нуб Инкрементал",
+  "short_name": "Нуб Инкр.",
+  "description": "Тапай нубов, копи Oof, качай сотни улучшений, руны и престиж",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#0b0e24",
+  "theme_color": "#0e1230",
+  "lang": "ru",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
