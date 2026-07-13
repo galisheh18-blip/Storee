@@ -172,7 +172,8 @@ const DEFAULT = ()=>({
   oof:0, totalOof:0, lifetimeOof:0, lifetimeClicks:0,
   noobs:{}, ups:{}, prisms:0, prestiges:0, prismUps:{},
   runes:[], dust:0, energy:5, stars:0, ascends:0, starUps:{},
-  lastTime:Date.now(), seen:{}
+  lastTime:Date.now(), seen:{},
+  admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }
 });
 let save = DEFAULT();
 function load(){
@@ -181,6 +182,7 @@ function load(){
     if(raw){ save=Object.assign(DEFAULT(),raw);
       for(const k of ["noobs","ups","prismUps","starUps","seen"]) if(!save[k]) save[k]={};
       if(!Array.isArray(save.runes)) save.runes=[];
+      save.admin=Object.assign({ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }, save.admin||{});
     }
   }catch(e){ save=DEFAULT(); }
 }
@@ -201,6 +203,10 @@ function recompute(){
   for(const s of STAR_UPS){ const l=save.starUps[s.id]||0; if(l>0) s.apply(m,l); }
   // руны
   for(const r of save.runes){ if(r) RTYPE[r.type].apply(m, runeValue(r)); }
+  // админ-множители
+  const a=save.admin||{};
+  m.global *= (a.oofMul||1); m.click *= (a.clickMul||1);
+  m.cost *= (a.costMul||1); m.prism *= (a.prismMul||1);
 
   D.global=m.global; D.click=m.click; D.clickFromPs=m.clickFromPs;
   D.crit=Math.min(m.crit,1); D.critPow=m.critPow; D.costMul=Math.max(m.cost,0.02);
@@ -490,15 +496,16 @@ cv.addEventListener("pointerdown", e=>{
 let last=performance.now(), acc=0;
 function loop(now){
   let dt=(now-last)/1000; last=now; if(dt>0.25) dt=0.25;
+  const sp=(save.admin&&save.admin.speed)||1; const edt=dt*sp; // ускорение времени (админ)
   // экономика
-  if(D.ops) gainOof(D.ops*dt);
+  if(D.ops) gainOof(D.ops*edt);
   // авто-клик
-  if(D.autoClick>0){ save._acc=(save._acc||0)+D.autoClick*dt;
+  if(D.autoClick>0){ save._acc=(save._acc||0)+D.autoClick*edt;
     while(save._acc>=1){ save._acc--; const a=D.clickBase; gainOof(a); save.lifetimeClicks++; }
   }
   // энергия рун
   const emax=D.slots+2;
-  if(save.energy<emax){ save.energy=Math.min(emax, save.energy + dt/(60/D.runeRegen)); }
+  if(save.energy<emax){ save.energy=Math.min(emax, save.energy + edt/(60/D.runeRegen)); }
   // авто-покупка нубов
   if(D.autoBuy){ autoBuyTick(); }
 
@@ -781,6 +788,132 @@ $("wipeBtn").addEventListener("click", ()=>{
 ["menuModal","howModal","runeModal"].forEach(id=>{
   $(id).addEventListener("click", e=>{ if(e.target.id===id){ if(id==="runeModal") return; $(id).classList.add("hidden"); } });
 });
+
+/* ============ АДМИН-ПАНЕЛЬ ============ */
+function parseAmt(s){
+  s=(s||"").toString().trim().replace(/\s|,/g,"").replace("×","");
+  if(!s) return NaN;
+  const v=Number(s); return isFinite(v)? v : NaN;
+}
+function setOof(v){ save.oof=v; save.totalOof=Math.max(save.totalOof,v); save.lifetimeOof=Math.max(save.lifetimeOof,v); }
+function afterAdmin(){ recompute(); syncNoobSprites(); refreshTop(); renderAll(); queueSave(); }
+
+const ADM_SLIDERS = [
+  { key:"oofMul",  label:"Множитель Oof/с",   emin:0,  emax:9 },
+  { key:"clickMul",label:"Множитель клика",   emin:0,  emax:9 },
+  { key:"costMul", label:"Цена нубов",        emin:-3, emax:1 },
+  { key:"prismMul",label:"Множитель призм",   emin:0,  emax:6 },
+  { key:"speed",   label:"Скорость игры",     emin:0,  emax:3 },
+];
+function buildAdmin(){
+  const b=$("adminBody"); b.innerHTML="";
+  // --- множители (крутилки) ---
+  const secM=admSect("🎚️ Множители");
+  ADM_SLIDERS.forEach(s=>{
+    const cur=(save.admin[s.key]||1);
+    const wrap=document.createElement("div"); wrap.className="adm-slider";
+    wrap.innerHTML=`<div class="sl-top"><span>${s.label}</span>
+      <span><span class="sl-val" data-v>×${fmt(cur)}</span> <button class="sl-reset" data-r>сброс</button></span></div>
+      <input type="range" min="${s.emin*100}" max="${s.emax*100}" step="1" value="${Math.round(Math.log10(cur)*100)}">`;
+    const inp=wrap.querySelector("input"), lab=wrap.querySelector("[data-v]");
+    inp.addEventListener("input", ()=>{ const val=Math.pow(10, inp.value/100);
+      save.admin[s.key]=val; lab.textContent="×"+fmt(val); recompute(); refreshTop(); queueSave(); });
+    wrap.querySelector("[data-r]").addEventListener("click", ()=>{ save.admin[s.key]=1;
+      inp.value=0; lab.textContent="×1"; recompute(); refreshTop(); queueSave(); });
+    secM.appendChild(wrap);
+  });
+  b.appendChild(secM);
+
+  // --- ресурсы ---
+  const secR=admSect("💰 Ресурсы");
+  secR.appendChild(admResRow("Oof", "oof", ["1e6","1e9","1e12","1e18"], "MAX"));
+  secR.appendChild(admResRow("Призмы", "prisms", ["10","1000","1e6","1e9"]));
+  secR.appendChild(admResRow("Звёзды", "stars", ["10","100","1000"]));
+  secR.appendChild(admResRow("Пыль рун", "dust", ["100","1e4","1e6"]));
+  const en=document.createElement("div"); en.className="adm-row";
+  en.innerHTML=`<label>Энергия рун</label>`;
+  en.appendChild(admBtn("Полная", ()=>{ recompute(); save.energy=D.slots+2; updateRuneLive(); toast("⚡ Энергия полна"); }));
+  secR.appendChild(en);
+  b.appendChild(secR);
+
+  // --- нубы ---
+  const secN=admSect("🧍 Нубы");
+  const nrow=document.createElement("div"); nrow.className="adm-row";
+  nrow.innerHTML=`<label>Всем по</label><input class="adm-inp" id="admNoobN" placeholder="напр. 500">`;
+  nrow.appendChild(admBtn("Задать", ()=>{ const n=Math.max(0,Math.floor(parseAmt($("admNoobN").value)));
+    if(!isFinite(n)) return; NOOBS.forEach(nb=>save.noobs[nb.id]=n); afterAdmin(); toast("Всем нубам: "+n); }));
+  secN.appendChild(nrow);
+  const nchips=document.createElement("div"); nchips.className="adm-chips";
+  [10,100,1000].forEach(n=>nchips.appendChild(admBtn("+"+n+" всем", ()=>{ NOOBS.forEach(nb=>save.noobs[nb.id]=(save.noobs[nb.id]||0)+n); afterAdmin(); })));
+  nchips.appendChild(admBtn("Обнулить", ()=>{ save.noobs={}; afterAdmin(); }, "dng"));
+  secN.appendChild(nchips);
+  b.appendChild(secN);
+
+  // --- улучшения ---
+  const secU=admSect("⚡ Улучшения");
+  const urow=document.createElement("div"); urow.className="adm-chips";
+  urow.appendChild(admBtn("Открыть все ("+UPS.length+")", ()=>{ UPS.forEach(u=>save.ups[u.id]=true); recompute(); if(curTab==="ups")renderUps(); refreshTop(); queueSave(); toast("Все улучшения открыты"); }, "pri"));
+  urow.appendChild(admBtn("Сбросить все", ()=>{ save.ups={}; recompute(); if(curTab==="ups")renderUps(); refreshTop(); queueSave(); }, "dng"));
+  secU.appendChild(urow);
+  b.appendChild(secU);
+
+  // --- руны ---
+  const secRu=admSect("🔮 Руны");
+  const rr=document.createElement("div"); rr.className="adm-row";
+  rr.innerHTML=`<select class="adm-inp" id="admRar">${RARITIES.map((r,i)=>`<option value="${i}">${r.name}</option>`).join("")}</select>
+    <select class="adm-inp" id="admType">${RUNE_TYPES.map(t=>`<option value="${t.id}">${t.icon} ${t.name}</option>`).join("")}</select>`;
+  secRu.appendChild(rr);
+  const rr2=document.createElement("div"); rr2.className="adm-row";
+  rr2.innerHTML=`<label>Уровень</label><input class="adm-inp" id="admRlvl" value="10">`;
+  rr2.appendChild(admBtn("Выдать", ()=>{
+    const rar=+$("admRar").value, type=$("admType").value, lvl=Math.max(1,Math.floor(parseAmt($("admRlvl").value))||1);
+    recompute(); let slot=-1; for(let i=0;i<D.slots;i++) if(!save.runes[i]){slot=i;break;} if(slot<0) slot=0;
+    save.runes[slot]={type,rar,lvl}; afterAdmin(); if(curTab==="runes")renderRunes(); toast("Руна выдана"); }, "pri"));
+  secRu.appendChild(rr2);
+  const rchips=document.createElement("div"); rchips.className="adm-chips";
+  rchips.appendChild(admBtn("Все слоты — мифич.", ()=>{ recompute();
+    for(let i=0;i<D.slots;i++){ save.runes[i]={type:RUNE_TYPES[i%RUNE_TYPES.length].id, rar:5, lvl:15}; }
+    afterAdmin(); if(curTab==="runes")renderRunes(); toast("Слоты забиты мифическими"); }, "pri"));
+  rchips.appendChild(admBtn("Очистить слоты", ()=>{ save.runes=[]; afterAdmin(); if(curTab==="runes")renderRunes(); }, "dng"));
+  secRu.appendChild(rchips);
+  b.appendChild(secRu);
+
+  // --- прочее ---
+  const secO=admSect("🎯 Прочее");
+  const orow=document.createElement("div"); orow.className="adm-chips";
+  orow.appendChild(admBtn("Мгновенный престиж", ()=>{ if(save.totalOof<1e6) save.totalOof=1e6; doPrestige(); }, "pri"));
+  orow.appendChild(admBtn("Мгновенное вознесение", ()=>{ if(save.prisms<500) save.prisms=500; recompute(); doAscend(); }, "pri"));
+  secO.appendChild(orow);
+  const orow2=document.createElement("div"); orow2.className="adm-chips";
+  orow2.appendChild(admBtn("🗑 Полный сброс игры", ()=>{ if(confirm("Стереть весь прогресс безвозвратно?")){ localStorage.removeItem(SAVE_KEY); location.reload(); } }, "dng"));
+  secO.appendChild(orow2);
+  b.appendChild(secO);
+}
+function admSect(title){
+  const s=document.createElement("div"); s.className="adm-sect";
+  s.innerHTML=`<div class="sect-lab">${title}</div>`; return s;
+}
+function admBtn(txt, fn, cls){
+  const btn=document.createElement("button"); btn.className="adm-btn"+(cls?" "+cls:""); btn.textContent=txt;
+  btn.addEventListener("click", fn); return btn;
+}
+function admResRow(label, key, chips, extra){
+  const row=document.createElement("div"); row.className="adm-row";
+  row.innerHTML=`<label>${label}</label><input class="adm-inp" placeholder="напр. 1e12">`;
+  const inp=row.querySelector("input");
+  row.appendChild(admBtn("Задать", ()=>{ const v=parseAmt(inp.value); if(!isFinite(v)) return;
+    if(key==="oof") setOof(v); else save[key]=v; afterAdmin(); toast(label+" = "+fmt(v)); }));
+  const chipWrap=document.createElement("div"); chipWrap.className="adm-chips"; chipWrap.style.width="100%";
+  chips.forEach(c=>{ const amt=parseAmt(c);
+    chipWrap.appendChild(admBtn("+"+fmt(amt), ()=>{ if(key==="oof") setOof(save.oof+amt); else save[key]=(save[key]||0)+amt; afterAdmin(); })); });
+  if(extra==="MAX") chipWrap.appendChild(admBtn("MAX", ()=>{ setOof(1e300); afterAdmin(); toast("Oof = MAX"); }, "pri"));
+  row.appendChild(chipWrap);
+  return row;
+}
+function openAdmin(){ buildAdmin(); $("adminModal").classList.remove("hidden"); }
+$("adminBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); openAdmin(); });
+$("adminClose").addEventListener("click", ()=>$("adminModal").classList.add("hidden"));
+$("adminModal").addEventListener("click", e=>{ if(e.target.id==="adminModal") $("adminModal").classList.add("hidden"); });
 
 /* ============ Старт ============ */
 function init(){

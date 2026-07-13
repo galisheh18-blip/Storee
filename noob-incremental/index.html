@@ -142,6 +142,7 @@
         <div><b id="mStatNoobs">0</b><span>Нубов</span></div>
       </div>
       <button class="btn btn-ghost" id="howBtn2">❓ Как играть</button>
+      <button class="btn btn-ghost" id="adminBtn">🛠️ Админ-панель</button>
       <button class="btn btn-ghost" id="wipeBtn">🗑️ Сбросить всё</button>
       <button class="btn btn-primary" id="closeMenu">Закрыть</button>
       <div class="credit">Оффлайн-игра · данные хранятся на устройстве</div>
@@ -161,6 +162,18 @@
         <li>⭐ На вершине откроется <b>Вознесение</b> — новый слой множителей.</li>
       </ul>
       <button class="btn btn-primary" id="howClose2">Понятно</button>
+    </div>
+  </div>
+
+  <!-- АДМИН-ПАНЕЛЬ -->
+  <div id="adminModal" class="overlay hidden">
+    <div class="modal admin">
+      <div class="admin-head">
+        <h1>🛠️ Админ-панель</h1>
+        <button class="icon-btn" id="adminClose">✕</button>
+      </div>
+      <p class="admin-warn">Читерский режим. Крути значения как хочешь — прогресс сохраняется.</p>
+      <div id="adminBody"></div>
     </div>
   </div>
 
