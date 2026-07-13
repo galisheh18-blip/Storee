@@ -23,13 +23,10 @@
         <span class="res-sub"><span id="opsVal">0</span> Oof/с</span>
       </div>
     </div>
-    <div class="res res-prism" id="prismRes">
-      <span class="res-ico">💎</span>
-      <div class="res-body"><b id="prismVal">0</b><span class="res-sub">призмы</span></div>
-    </div>
-    <div class="res res-star hidden" id="starRes">
-      <span class="res-ico">⭐</span>
-      <div class="res-body"><b id="starVal">0</b><span class="res-sub">звёзды</span></div>
+    <div class="res res-mini" id="miniRes">
+      <span class="mini" id="prismWrap"><i>💎</i><b id="prismVal">0</b></span>
+      <span class="mini hidden" id="starWrap"><i>⭐</i><b id="starVal">0</b></span>
+      <span class="mini hidden" id="gearWrap"><i>⚙️</i><b id="gearVal">0</b></span>
     </div>
     <button id="menuBtn" class="icon-btn" aria-label="Меню">☰</button>
   </header>
@@ -109,6 +106,18 @@
         <div id="starUpList" class="list"></div>
       </div>
     </div>
+
+    <!-- МАСТЕРСКАЯ -->
+    <div class="tabpage hidden" data-page="workshop">
+      <div class="page-head"><h2>⚙️ Мастерская</h2><span class="page-hint">Фарми шестерёнки — усиливай уже вложенное</span></div>
+      <div class="workshop-farm">
+        <div class="wf-big">⚙️ <b id="gearBig">0</b></div>
+        <div class="wf-rate" id="gearRateTxt">+0 ⚙️/с</div>
+      </div>
+      <p class="wf-note">Шестерёнки капают сами (быстрее с престижами и звёздами) и падают за каждый престиж. Их улучшения усиливают твои призматические, звёздные и обычные улучшения.</p>
+      <div class="sect-lab">Улучшения мастерской</div>
+      <div id="workshopList" class="list"></div>
+    </div>
   </main>
 
   <!-- НИЖНЯЯ НАВИГАЦИЯ -->
@@ -117,6 +126,7 @@
     <button class="tab" data-tab="ups"><span>⚡</span>Улучш.<i class="badge hidden" id="upBadge"></i></button>
     <button class="tab" data-tab="runes"><span>🔮</span>Руны</button>
     <button class="tab" data-tab="prestige"><span>💎</span>Престиж<i class="badge hidden" id="prBadge"></i></button>
+    <button class="tab hidden" data-tab="workshop" id="tabWorkshop"><span>⚙️</span>Мастер.</button>
   </nav>
 
   <!-- РУНА-РЕЗУЛЬТАТ -->

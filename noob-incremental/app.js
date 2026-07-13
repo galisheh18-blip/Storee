@@ -149,6 +149,15 @@ const PRISM_UPS = [
     cost:()=>50, apply:(m,l)=>m.autoBuy=l>0 },
   { id:"pmul",   icon:"🌟", name:"Больше призм", max:50, desc:l=>"Призм за престиж +"+(l*8)+"%",
     cost:l=>Math.ceil(5*Math.pow(1.5,l)), apply:(m,l)=>m.prism*=(1+l*0.08) },
+  // --- уникальные ---
+  { id:"keepnoob",icon:"🧬", name:"Наследие нубов", max:10, desc:l=>l?("Оставляй "+(l*3)+"% нубов при престиже"):"Заблокировано",
+    cost:l=>Math.ceil(10*Math.pow(1.7,l)), apply:()=>{} },
+  { id:"critmass",icon:"💥", name:"Критическая масса", max:30, desc:l=>"+"+l+"% крит и крит-урон +"+(l*10)+"%",
+    cost:l=>Math.ceil(6*Math.pow(1.4,l)), apply:(m,l)=>{ m.crit+=l*0.01; m.critPow+=l*0.1; } },
+  { id:"megaclick",icon:"🤜", name:"Мощь толпы", max:50, desc:l=>"Тап +"+(l*2)+"% за каждый вид нуба",
+    cost:l=>Math.ceil(8*Math.pow(1.45,l)), apply:(m,l)=>{ m._megaClick+=l*0.02; } },
+  { id:"runepow", icon:"🔮", name:"Резонанс рун", max:40, desc:l=>"Эффект рун +"+(l*5)+"%",
+    cost:l=>Math.ceil(7*Math.pow(1.5,l)), apply:(m,l)=>{ m._runePow+=l*0.05; } },
 ];
 const PRISM_UP = Object.fromEntries(PRISM_UPS.map(p=>[p.id,p]));
 function startOof(l){ return l<=0?0: 100*Math.pow(6,l); }
@@ -161,8 +170,36 @@ const STAR_UPS = [
     cost:l=>Math.ceil(2*Math.pow(1.5,l)), apply:()=>{} },
   { id:"spmul",  icon:"💫", name:"Звёздный поток", max:100, desc:l=>"Призм и Oof +"+(l*15)+"%",
     cost:l=>Math.ceil(2*Math.pow(1.45,l)), apply:(m,l)=>{ m.prism*=(1+l*0.15); m.global*=(1+l*0.15); } },
+  // --- уникальные ---
+  { id:"sauto",  icon:"🛸", name:"Звёздный автопилот", max:1, desc:l=>l?"Авто-престиж при выгодном сбросе":"Заблокировано",
+    cost:()=>5, apply:(m,l)=>{ m.autoPrestige=l>0; } },
+  { id:"srune",  icon:"🌌", name:"Вечные руны", max:5, desc:l=>"+"+l+" слот рун и эффект рун +"+(l*10)+"%",
+    cost:l=>Math.ceil(3*Math.pow(1.8,l)), apply:(m,l)=>{ m._bonusSlots+=l; m._runePow+=l*0.1; } },
+  { id:"scrit",  icon:"☄️", name:"Звёздный крит", max:50, desc:l=>"+"+(l*2)+"% крит и крит-урон +"+(l*20)+"%",
+    cost:l=>Math.ceil(2*Math.pow(1.4,l)), apply:(m,l)=>{ m.crit+=l*0.02; m.critPow+=l*0.2; } },
 ];
 const STAR_UP = Object.fromEntries(STAR_UPS.map(s=>[s.id,s]));
+
+// ---- Мастерская: ⚙️ шестерёнки (фарм-валюта, усиливает уже вложенное) ----
+const WORKSHOP_UPS = [
+  { id:"wrate",  icon:"⏩", name:"Ускорение фарма", max:50, desc:l=>"Шестерёнок +"+(l*20)+"%/с",
+    cost:l=>Math.ceil(8*Math.pow(1.4,l)) },
+  { id:"wall",   icon:"⚙️", name:"Главный редуктор", max:200, desc:l=>"Всё ×"+(1+0.2*l).toFixed(1),
+    cost:l=>Math.ceil(20*Math.pow(1.32,l)), apply:(m,l)=>{ m.global*=(1+0.2*l); } },
+  { id:"wprism", icon:"💎", name:"Смазка призм", max:100, desc:l=>"Сила призм-улучшений +"+(l*2)+"% за их уровень",
+    cost:l=>Math.ceil(12*Math.pow(1.4,l)), apply:(m,l,c)=>{ m.global*=(1+0.02*c.prismLv*l); } },
+  { id:"wstar",  icon:"⭐", name:"Полировка звёзд", max:100, desc:l=>"Сила звёзд-улучшений +"+(l*3)+"% за их уровень",
+    cost:l=>Math.ceil(15*Math.pow(1.45,l)), apply:(m,l,c)=>{ const f=1+0.03*c.starLv*l; m.global*=f; m.click*=f; } },
+  { id:"wnoob",  icon:"🧍", name:"Точило нубов", max:100, desc:l=>"Сила нубов +"+(l*1)+"% за каждое улучшение нубов",
+    cost:l=>Math.ceil(10*Math.pow(1.4,l)), apply:(m,l,c)=>{ m.global*=(1+0.01*c.noobUp*l); } },
+  { id:"wrune",  icon:"🔮", name:"Крепёж рун", max:50, desc:l=>"Эффект рун +"+(l*8)+"%",
+    cost:l=>Math.ceil(14*Math.pow(1.5,l)), apply:(m,l)=>{ m._runePow+=l*0.08; } },
+  { id:"wslot",  icon:"🧩", name:"Кустарные слоты", max:5, desc:l=>"+"+l+" слот рун",
+    cost:l=>Math.ceil(40*Math.pow(2.2,l)), apply:(m,l)=>{ m._bonusSlots+=l; } },
+  { id:"wconv",  icon:"♻️", name:"Перегонка призм", max:30, desc:l=>"Шестерёнок за престиж +"+(l*25)+"% от призм",
+    cost:l=>Math.ceil(16*Math.pow(1.5,l)) },
+];
+const WORKSHOP_UP = Object.fromEntries(WORKSHOP_UPS.map(w=>[w.id,w]));
 
 function toRoman(n){ const r=["","I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"]; return r[n]||n; }
 
@@ -172,6 +209,7 @@ const DEFAULT = ()=>({
   oof:0, totalOof:0, lifetimeOof:0, lifetimeClicks:0,
   noobs:{}, ups:{}, prisms:0, prestiges:0, prismUps:{},
   runes:[], dust:0, energy:5, stars:0, ascends:0, starUps:{},
+  gears:0, workshopUps:{},
   lastTime:Date.now(), seen:{},
   admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }
 });
@@ -180,7 +218,7 @@ function load(){
   try{
     const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
     if(raw){ save=Object.assign(DEFAULT(),raw);
-      for(const k of ["noobs","ups","prismUps","starUps","seen"]) if(!save[k]) save[k]={};
+      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","seen"]) if(!save[k]) save[k]={};
       if(!Array.isArray(save.runes)) save.runes=[];
       save.admin=Object.assign({ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }, save.admin||{});
     }
@@ -194,15 +232,26 @@ function queueSave(){ saveTimer=1.2; }
 let D = {}; // derived
 function recompute(){
   const m = { global:1, click:1, clickFromPs:0, crit:0, critPow:1.5, cost:1,
-    prism:1, runeRegen:1, offline:0, autoClick:0, autoBuy:false, noob:{} };
-  // улучшения
+    prism:1, runeRegen:1, offline:0, autoClick:0, autoBuy:false, autoPrestige:false,
+    _runePow:0, _megaClick:0, _bonusSlots:0, noob:{} };
+  // обычные улучшения
   for(const id in save.ups){ if(save.ups[id] && UP[id]) UP[id].apply(m); }
   // призматические
-  for(const p of PRISM_UPS){ const l=save.prismUps[p.id]||0; if(l>0) p.apply(m,l); }
+  for(const p of PRISM_UPS){ const l=save.prismUps[p.id]||0; if(l>0 && p.apply) p.apply(m,l); }
   // звёздные
-  for(const s of STAR_UPS){ const l=save.starUps[s.id]||0; if(l>0) s.apply(m,l); }
-  // руны
-  for(const r of save.runes){ if(r) RTYPE[r.type].apply(m, runeValue(r)); }
+  for(const s of STAR_UPS){ const l=save.starUps[s.id]||0; if(l>0 && s.apply) s.apply(m,l); }
+  // мастерская — усиливает уже вложенное в другие улучшения
+  let prismLv=0; for(const k in save.prismUps) prismLv+=save.prismUps[k]||0;
+  let starLv=0;  for(const k in save.starUps)  starLv+=save.starUps[k]||0;
+  let noobUp=0;  for(const id in save.ups){ if(save.ups[id]&&UP[id]&&UP[id].kind==="noob") noobUp++; }
+  const ctx={ prismLv, starLv, noobUp };
+  for(const w of WORKSHOP_UPS){ const l=save.workshopUps[w.id]||0; if(l>0 && w.apply) w.apply(m,l,ctx); }
+  // руны (усиливаются резонансом/крепежом)
+  const rp = 1 + Math.max(0, m._runePow);
+  for(const r of save.runes){ if(r) RTYPE[r.type].apply(m, runeValue(r)*rp); }
+  // мощь толпы: тап растёт от числа видов нубов
+  let ownedTypes=0; for(const nb of NOOBS){ if((save.noobs[nb.id]||0)>0) ownedTypes++; }
+  m.click *= (1 + m._megaClick*ownedTypes);
   // админ-множители
   const a=save.admin||{};
   m.global *= (a.oofMul||1); m.click *= (a.clickMul||1);
@@ -211,8 +260,8 @@ function recompute(){
   D.global=m.global; D.click=m.click; D.clickFromPs=m.clickFromPs;
   D.crit=Math.min(m.crit,1); D.critPow=m.critPow; D.costMul=Math.max(m.cost,0.02);
   D.prismMul=m.prism; D.runeRegen=m.runeRegen; D.offline=m.offline;
-  D.autoClick=m.autoClick; D.autoBuy=m.autoBuy; D.noobMul=m.noob;
-  D.slots = 3 + (save.prismUps.slots||0);
+  D.autoClick=m.autoClick; D.autoBuy=m.autoBuy; D.autoPrestige=m.autoPrestige; D.noobMul=m.noob;
+  D.slots = 3 + (save.prismUps.slots||0) + Math.max(0, m._bonusSlots);
 
   // Oof/с
   let ops=0;
@@ -220,6 +269,11 @@ function recompute(){
   ops *= m.global;
   D.ops=ops;
   D.clickBase = (1*m.click + ops*m.clickFromPs) * m.global;
+
+  // фарм шестерёнок (открыт после первого престижа)
+  D.gearRate = save.prestiges>=1
+    ? 0.05*(1 + 0.2*save.prestiges + save.stars)*(1 + (save.workshopUps.wrate||0)*0.2)
+    : 0;
 }
 
 function noobCost(id, owned){ return NOOB[id].base * Math.pow(COST_MUL, owned) * D.costMul; }
@@ -304,15 +358,20 @@ function upRune(i){
 }
 
 /* ---- Престиж ---- */
-function doPrestige(){
+function doPrestige(auto){
   recompute();
   const g=prismGain(save.totalOof);
   if(g<1) return;
+  const wasUnlocked = save.prestiges>=1;
   save.prisms+=g; save.prestiges++;
+  // Мастерская: шестерёнки за престиж
+  const conv=0.5+(save.workshopUps.wconv||0)*0.25;
+  const gg=Math.floor(g*conv); if(gg>0) save.gears+=gg;
   softReset();
   recompute(); syncNoobSprites();
-  toast("💎 +"+fmt(g)+" призм!");
-  switchTab("prestige"); renderAll(); refreshTop(); persist();
+  toast("💎 +"+fmt(g)+" призм"+(gg>0?"  ·  ⚙️ +"+fmt(gg):"")+(!wasUnlocked?"  ·  ⚙️ Мастерская открыта!":""));
+  if(!auto) switchTab("prestige");
+  renderAll(); refreshTop(); persist();
 }
 function buyPrismUp(id){
   const p=PRISM_UP[id]; const l=save.prismUps[id]||0;
@@ -342,9 +401,21 @@ function buyStarUp(id){
   save.stars-=cost; save.starUps[id]=l+1;
   recompute(); renderPrestige(); refreshTop(); queueSave();
 }
+function buyWorkshopUp(id){
+  const w=WORKSHOP_UP[id]; const l=save.workshopUps[id]||0;
+  if(l>=w.max) return;
+  const cost=w.cost(l);
+  if(save.gears<cost) return;
+  save.gears-=cost; save.workshopUps[id]=l+1;
+  recompute(); renderWorkshop(); refreshTop(); queueSave();
+}
 function softReset(){
+  // Наследие нубов — оставляем часть армии
+  const keep=(save.prismUps.keepnoob||0)*0.03;
+  let kept={};
+  if(keep>0){ for(const id in save.noobs){ const c=Math.floor((save.noobs[id]||0)*keep); if(c>0) kept[id]=c; } }
   save.oof=startOof(save.prismUps.start||0);
-  save.totalOof=save.oof; save.noobs={}; save.ups={};
+  save.totalOof=save.oof; save.noobs=kept; save.ups={};
 }
 
 /* ============ Оффлайн-доход ============ */
@@ -508,6 +579,12 @@ function loop(now){
   if(save.energy<emax){ save.energy=Math.min(emax, save.energy + edt/(60/D.runeRegen)); }
   // авто-покупка нубов
   if(D.autoBuy){ autoBuyTick(); }
+  // фарм шестерёнок мастерской
+  if(D.gearRate>0) save.gears += D.gearRate*edt;
+  // авто-престиж (звёздный автопилот)
+  if(D.autoPrestige){ apTimer+=edt; if(apTimer>=4){ apTimer=0;
+    const g=prismGain(save.totalOof);
+    if(g>=1 && g>=save.prisms*0.5+1){ doPrestige(true); } } }
 
   render(dt);
 
@@ -520,6 +597,7 @@ function loop(now){
 }
 let uiAcc=0;
 let abTimer=0;
+let apTimer=0;
 function autoBuyTick(){
   abTimer++; if(abTimer<20) return; abTimer=0;
   // покупаем самого дорогого доступного нуба
@@ -537,7 +615,11 @@ function refreshTop(){
   $("oofVal").textContent=fmt(save.oof);
   $("opsVal").textContent=fmt(D.ops||0);
   $("prismVal").textContent=fmt(save.prisms);
-  if(save.stars>0 || save.ascends>0){ $("starRes").classList.remove("hidden"); $("starVal").textContent=fmt(save.stars); }
+  if(save.stars>0 || save.ascends>0){ $("starWrap").classList.remove("hidden"); $("starVal").textContent=fmt(save.stars); }
+  if(save.prestiges>0 || save.gears>0){
+    $("gearWrap").classList.remove("hidden"); $("gearVal").textContent=fmt(save.gears);
+    $("tabWorkshop").classList.remove("hidden");
+  }
   // бейджи «доступно»
   updateBadges();
 }
@@ -554,6 +636,7 @@ function refreshLive(){
   else if(curTab==="ups") updateUpLive();
   else if(curTab==="prestige") updatePrestigeLive();
   else if(curTab==="runes") updateRuneLive();
+  else if(curTab==="workshop") updateWorkshopLive();
 }
 
 /* ---- Нубы ---- */
@@ -744,6 +827,31 @@ function updatePrestigeLive(){
   const g2=starGain(save.prisms); const ab=$("ascendBtn"); if(ab) ab.disabled=g2<1;
 }
 
+/* ---- Мастерская ---- */
+function renderWorkshop(){
+  $("gearBig").textContent=fmt(save.gears);
+  $("gearRateTxt").textContent="+"+fmt(D.gearRate||0)+" ⚙️/с";
+  const box=$("workshopList"); box.innerHTML="";
+  WORKSHOP_UPS.forEach(w=>{
+    const l=save.workshopUps[w.id]||0, maxed=l>=w.max, cost=w.cost(l);
+    const row=document.createElement("div"); row.className="buyrow"; row.dataset.wup=w.id;
+    row.innerHTML=upRowHTML(w.icon, w.name+" "+(l>0?"("+l+(w.max<50?"/"+w.max:"")+")":""), w.desc(l), l, w.max, maxed?"МАКС":"⚙️ "+fmt(cost), "gear");
+    if(!maxed) row.addEventListener("click", ()=>buyWorkshopUp(w.id));
+    box.appendChild(row);
+  });
+  updateWorkshopLive();
+}
+function updateWorkshopLive(){
+  const gb=$("gearBig"); if(gb) gb.textContent=fmt(save.gears);
+  const rt=$("gearRateTxt"); if(rt) rt.textContent="+"+fmt(D.gearRate||0)+" ⚙️/с";
+  document.querySelectorAll("#workshopList .buyrow").forEach(row=>{
+    const w=WORKSHOP_UP[row.dataset.wup]; const l=save.workshopUps[w.id]||0;
+    if(l>=w.max) return; const cost=w.cost(l);
+    row.classList.toggle("afford",save.gears>=cost);
+    const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",save.gears<cost);
+  });
+}
+
 /* ============ Вкладки/навигация ============ */
 let curTab="noobs";
 function switchTab(t){
@@ -754,10 +862,13 @@ function switchTab(t){
   else if(t==="ups") renderUps();
   else if(t==="runes") renderRunes();
   else if(t==="prestige") renderPrestige();
+  else if(t==="workshop") renderWorkshop();
 }
 document.querySelectorAll("#tabbar .tab").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
 
-function renderAll(){ renderNoobs(); if(curTab==="ups")renderUps(); if(curTab==="runes")renderRunes(); if(curTab==="prestige")renderPrestige(); }
+function renderAll(){ renderNoobs();
+  if(curTab==="ups")renderUps(); if(curTab==="runes")renderRunes();
+  if(curTab==="prestige")renderPrestige(); if(curTab==="workshop")renderWorkshop(); }
 
 /* ============ Тосты/подсказка ============ */
 function toast(msg){
@@ -829,6 +940,7 @@ function buildAdmin(){
   secR.appendChild(admResRow("Oof", "oof", ["1e6","1e9","1e12","1e18"], "MAX"));
   secR.appendChild(admResRow("Призмы", "prisms", ["10","1000","1e6","1e9"]));
   secR.appendChild(admResRow("Звёзды", "stars", ["10","100","1000"]));
+  secR.appendChild(admResRow("Шестерёнки", "gears", ["100","1e4","1e6"]));
   secR.appendChild(admResRow("Пыль рун", "dust", ["100","1e4","1e6"]));
   const en=document.createElement("div"); en.className="adm-row";
   en.innerHTML=`<label>Энергия рун</label>`;
