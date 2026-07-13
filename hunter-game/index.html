@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0d12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <title>Тёмная охота</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="game">
+    <canvas id="c"></canvas>
+
+    <!-- HUD во время игры -->
+    <div id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="hud-pill" id="hpPill">
+          <div class="hp-bar"><div class="hp-fill" id="hpFill"></div></div>
+          <span id="hpText">100</span>
+        </div>
+        <div class="hud-pill" id="nightPill">🌙 Ночь <b id="nightNo">1</b></div>
+        <div class="hud-pill" id="coinPill">🪙 <b id="coinRun">0</b></div>
+      </div>
+      <div class="hud-mid">
+        <div id="waveTimer"><div id="waveTimerFill"></div></div>
+        <div id="waveLabel">Пережить ночь: <b id="timeLeft">45</b>с</div>
+      </div>
+      <!-- виртуальный джойстик -->
+      <div id="stickZone">
+        <div id="stickBase"><div id="stickKnob"></div></div>
+      </div>
+      <button id="pauseBtn" class="icon-btn" aria-label="Пауза">⏸</button>
+    </div>
+
+    <!-- Главное меню -->
+    <div id="menu" class="overlay">
+      <div class="menu-card">
+        <div class="logo">🌲🩸</div>
+        <h1>Тёмная охота</h1>
+        <p class="tag">Выживай в ночном лесу. Из темноты идут звери — виден лишь свет твоего факела.</p>
+        <div class="stat-row">
+          <div class="stat"><span class="s-val" id="bestNight">1</span><span class="s-lab">Лучшая ночь</span></div>
+          <div class="stat"><span class="s-val" id="coinBank">0</span><span class="s-lab">🪙 Монеты</span></div>
+        </div>
+        <button class="btn btn-primary" id="playBtn">▶ Играть</button>
+        <button class="btn btn-ghost" id="treeBtn">🌳 Дерево улучшений</button>
+        <button class="btn btn-mini" id="howBtn">Как играть</button>
+      </div>
+      <div class="credit">Оффлайн-игра · данные хранятся на устройстве</div>
+    </div>
+
+    <!-- Дерево улучшений -->
+    <div id="tree" class="overlay hidden">
+      <div class="tree-head">
+        <button class="icon-btn" id="treeBack">‹</button>
+        <div class="tree-title">Дерево улучшений</div>
+        <div class="hud-pill big">🪙 <b id="coinTree">0</b></div>
+      </div>
+      <div id="treeScroll">
+        <svg id="treeLines"></svg>
+        <div id="treeNodes"></div>
+      </div>
+      <div id="nodeInfo" class="hidden">
+        <div class="ni-head"><span id="niIcon">⚔️</span><b id="niName">Узел</b></div>
+        <div id="niDesc" class="ni-desc"></div>
+        <div class="ni-lvl">Уровень <b id="niLvl">0</b><span id="niMax">/5</span></div>
+        <button class="btn btn-primary" id="niBuy">Открыть</button>
+      </div>
+    </div>
+
+    <!-- Экран конца ночи -->
+    <div id="result" class="overlay hidden">
+      <div class="menu-card">
+        <div class="logo" id="resIco">🌅</div>
+        <h1 id="resTitle">Ночь пережита!</h1>
+        <p class="tag" id="resSub">Ты дожил до рассвета.</p>
+        <div class="stat-row">
+          <div class="stat"><span class="s-val" id="resNight">1</span><span class="s-lab">Ночь</span></div>
+          <div class="stat"><span class="s-val" id="resKills">0</span><span class="s-lab">Убито</span></div>
+          <div class="stat"><span class="s-val" id="resCoins">+0</span><span class="s-lab">🪙 Монеты</span></div>
+        </div>
+        <button class="btn btn-primary" id="resTree">🌳 Потратить монеты</button>
+        <button class="btn btn-ghost" id="resAgain">▶ Ещё раз</button>
+        <button class="btn btn-mini" id="resMenu">В меню</button>
+      </div>
+    </div>
+
+    <!-- Пауза -->
+    <div id="pause" class="overlay hidden">
+      <div class="menu-card">
+        <h1>Пауза</h1>
+        <button class="btn btn-primary" id="resumeBtn">▶ Продолжить</button>
+        <button class="btn btn-ghost" id="quitBtn">Выйти в меню</button>
+      </div>
+    </div>
+
+    <!-- Как играть -->
+    <div id="how" class="overlay hidden">
+      <div class="menu-card how-card">
+        <h1>Как играть</h1>
+        <ul class="how-list">
+          <li>🕹️ <b>Двигайся</b> джойстиком (левый палец в любой части экрана).</li>
+          <li>🎯 Охотник <b>сам стреляет</b> по ближайшему зверю в радиусе.</li>
+          <li>🔦 В темноте видны лишь <b>горящие глаза</b> — свет факела освещает арену вокруг.</li>
+          <li>🌙 <b>Переживи ночь</b> до рассвета — или бейся, пока хватает здоровья.</li>
+          <li>🪙 За зверей падают монеты. Трать их в <b>дереве улучшений</b> — прокачка навсегда.</li>
+        </ul>
+        <button class="btn btn-primary" id="howClose">Понятно</button>
+      </div>
+    </div>
+
+    <!-- всплывающая монета/урон -->
+    <div id="toast"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
