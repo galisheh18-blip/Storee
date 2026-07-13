@@ -180,4 +180,31 @@ b{font-variant-numeric:tabular-nums}
   padding:9px 15px;font-size:13px;font-weight:600;box-shadow:var(--shadow);animation:tst 2.2s forwards}
 @keyframes tst{0%{opacity:0;transform:translateY(10px)}12%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0;transform:translateY(-8px)}}
 
+/* ---------- Админ-панель ---------- */
+.modal.admin{max-width:460px;text-align:left}
+.admin-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.admin-head h1{margin:0;font-size:20px}
+.admin-warn{font-size:12px;color:var(--star);margin:8px 0 6px}
+.adm-sect{margin-top:16px}
+.adm-sect>.sect-lab{margin:0 0 8px}
+.adm-slider{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-bottom:8px}
+.adm-slider .sl-top{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;margin-bottom:6px}
+.adm-slider .sl-val{font-weight:800;color:var(--prism)}
+.adm-slider input[type=range]{width:100%;accent-color:var(--accent);height:22px}
+.adm-slider .sl-reset{font-size:11px;color:var(--muted);background:none;border:0;padding:0;text-decoration:underline}
+.adm-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.adm-row label{font-size:13px;min-width:96px;color:var(--muted)}
+.adm-inp{flex:1;min-width:90px;background:var(--card);border:1px solid var(--line);color:var(--text);
+  border-radius:10px;padding:9px 11px;font-size:14px;font-weight:700}
+.adm-btn{background:var(--card2);border:1px solid var(--line);color:var(--text);border-radius:10px;
+  padding:9px 12px;font-size:13px;font-weight:700;white-space:nowrap}
+.adm-btn:active{transform:scale(.95)}
+.adm-btn.pri{background:linear-gradient(135deg,var(--accent),var(--accent2));border:0}
+.adm-btn.dng{background:#3a1420;border-color:#5a2030;color:#ff9db0}
+.adm-chips{display:flex;gap:6px;flex-wrap:wrap}
+.adm-chips .adm-btn{flex:0 0 auto;padding:7px 10px}
+.adm-grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.adm-note{font-size:11px;color:var(--dim);margin-top:2px}
+select.adm-inp{-webkit-appearance:none;appearance:none}
+
 @media (min-height:760px){#scene{flex-basis:38vh}}
