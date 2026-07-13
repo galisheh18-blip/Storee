@@ -225,7 +225,9 @@ function load(){
   }catch(e){ save=DEFAULT(); }
 }
 let saveTimer=0;
-function persist(){ try{ localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }catch(e){} }
+let wiping=false; // при полном сбросе не даём перезаписать пустое сохранение
+function persist(){ if(wiping) return; try{ localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }catch(e){} }
+function wipeSave(){ wiping=true; try{ localStorage.removeItem(SAVE_KEY); }catch(e){} location.reload(); }
 function queueSave(){ saveTimer=1.2; }
 
 /* ============ Производные характеристики ============ */
@@ -889,12 +891,20 @@ $("menuBtn").addEventListener("click", ()=>{
 $("closeMenu").addEventListener("click", ()=>$("menuModal").classList.add("hidden"));
 $("howBtn2").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); $("howModal").classList.remove("hidden"); });
 $("howClose2").addEventListener("click", ()=>$("howModal").classList.add("hidden"));
-$("prestigeBtn").addEventListener("click", doPrestige);
-$("ascendBtn").addEventListener("click", ()=>{ if(confirm("Вознестись? Призмы и призматические улучшения сбросятся ради звёзд.")) doAscend(); });
+$("prestigeBtn").addEventListener("click", ()=>doPrestige());
+$("ascendBtn").addEventListener("click", ()=>askConfirm("Вознестись? Призмы и призматические улучшения сбросятся ради звёзд.", doAscend));
 $("rollBtn").addEventListener("click", rollRune);
-$("wipeBtn").addEventListener("click", ()=>{
-  if(confirm("Стереть весь прогресс безвозвратно?")){ localStorage.removeItem(SAVE_KEY); location.reload(); }
-});
+$("wipeBtn").addEventListener("click", ()=>askConfirm("Стереть весь прогресс безвозвратно?", wipeSave));
+
+/* ---- свой диалог подтверждения (системный confirm часто не работает в PWA) ---- */
+let cfCb=null;
+function askConfirm(text, onYes){
+  $("cfText").textContent=text; cfCb=onYes||null;
+  $("confirmModal").classList.remove("hidden");
+}
+$("cfYes").addEventListener("click", ()=>{ $("confirmModal").classList.add("hidden"); const cb=cfCb; cfCb=null; if(cb) cb(); });
+$("cfNo").addEventListener("click", ()=>{ $("confirmModal").classList.add("hidden"); cfCb=null; });
+$("confirmModal").addEventListener("click", e=>{ if(e.target.id==="confirmModal"){ $("confirmModal").classList.add("hidden"); cfCb=null; } });
 // закрытие модалок по фону
 ["menuModal","howModal","runeModal"].forEach(id=>{
   $(id).addEventListener("click", e=>{ if(e.target.id===id){ if(id==="runeModal") return; $(id).classList.add("hidden"); } });
@@ -997,7 +1007,7 @@ function buildAdmin(){
   orow.appendChild(admBtn("Мгновенное вознесение", ()=>{ if(save.prisms<500) save.prisms=500; recompute(); doAscend(); }, "pri"));
   secO.appendChild(orow);
   const orow2=document.createElement("div"); orow2.className="adm-chips";
-  orow2.appendChild(admBtn("🗑 Полный сброс игры", ()=>{ if(confirm("Стереть весь прогресс безвозвратно?")){ localStorage.removeItem(SAVE_KEY); location.reload(); } }, "dng"));
+  orow2.appendChild(admBtn("🗑 Полный сброс игры", ()=>askConfirm("Стереть весь прогресс безвозвратно?", wipeSave), "dng"));
   secO.appendChild(orow2);
   b.appendChild(secO);
 }
