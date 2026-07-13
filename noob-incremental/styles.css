@@ -177,6 +177,9 @@ b{font-variant-numeric:tabular-nums}
 .slot-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;margin-top:14px}
 .slot-pick .sp{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 6px;font-size:12px}
 .slot-pick .sp b{display:block;font-size:22px;margin-bottom:2px}
+.confirm-box{max-width:340px}
+.confirm-box .cf-ico{font-size:40px;margin-bottom:6px}
+.confirm-box p{font-size:15px;line-height:1.45;margin:0 0 18px}
 
 /* ---------- Нижние вкладки ---------- */
 #tabbar{display:flex;background:linear-gradient(0deg,#0e1230,#0b0e24);border-top:1px solid var(--line);
