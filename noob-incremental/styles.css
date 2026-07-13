@@ -1,7 +1,7 @@
 :root{
   --bg:#0b0e24; --bg2:#111743; --panel:#141a3c; --card:#1b2350; --card2:#232c66;
   --line:#2c3670; --text:#eef1ff; --muted:#9aa3d4; --dim:#6d76ab;
-  --oof:#ffd23f; --prism:#7cf3ff; --star:#ffb84d;
+  --oof:#ffd23f; --prism:#7cf3ff; --star:#ffb84d; --gear:#c7b8ff;
   --green:#3ddc84; --red:#ff5d6c; --accent:#7b6cff; --accent2:#b06cff;
   --shadow:0 6px 20px rgba(0,0,0,.35);
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -17,15 +17,22 @@ b{font-variant-numeric:tabular-nums}
 .dim{color:var(--dim);font-weight:400}
 
 /* ---------- Топбар ---------- */
-#topbar{display:flex;align-items:center;gap:8px;padding:calc(env(safe-area-inset-top,0px) + 8px) 12px 8px;
+#topbar{display:flex;align-items:center;gap:6px;padding:calc(env(safe-area-inset-top,0px) + 8px) 10px 8px;
   background:linear-gradient(180deg,#0e1230,#0b0e24);border-bottom:1px solid var(--line);z-index:5}
-.res{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);
-  border-radius:14px;padding:7px 11px;min-width:0}
-.res-oof{flex:1}
-.res-ico{font-size:20px}
+.res{display:flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--line);
+  border-radius:14px;padding:7px 10px;min-width:0}
+.res-oof{flex:1;min-width:84px}
+.res-oof .res-body b{max-width:150px}
+.res-ico{font-size:19px}
 .res-body{display:flex;flex-direction:column;line-height:1.15;min-width:0}
 .res-body b{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.res-oof b{color:var(--oof)} .res-prism b{color:var(--prism)} .res-star b{color:var(--star)}
+/* вторичные валюты — одна компактная пилюля, не сжимается */
+.res-mini{flex:0 0 auto;gap:10px;padding:7px 11px}
+.mini{display:inline-flex;align-items:center;gap:4px;font-size:14px}
+.mini i{font-style:normal;font-size:15px}
+.mini b{font-variant-numeric:tabular-nums;white-space:nowrap;max-width:78px;overflow:hidden;text-overflow:ellipsis}
+#prismWrap b{color:var(--prism)} #starWrap b{color:var(--star)} #gearWrap b{color:var(--gear)}
+.res-oof b{color:var(--oof)} .res-prism b{color:var(--prism)} .res-star b{color:var(--star)} .res-gear b{color:var(--gear)}
 .res-sub{font-size:11px;color:var(--muted);white-space:nowrap}
 .icon-btn{background:var(--card);border:1px solid var(--line);color:var(--text);
   width:40px;height:40px;border-radius:12px;font-size:18px;flex-shrink:0}
@@ -68,7 +75,7 @@ b{font-variant-numeric:tabular-nums}
 .buy-right{text-align:right;flex-shrink:0}
 .buy-cost{font-size:14px;font-weight:800;color:var(--oof);white-space:nowrap}
 .buy-cost.cant{color:var(--red)}
-.buy-cost.prism{color:var(--prism)} .buy-cost.star{color:var(--star)}
+.buy-cost.prism{color:var(--prism)} .buy-cost.star{color:var(--star)} .buy-cost.gear{color:var(--gear)}
 .buy-prod{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap}
 
 .upcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px;
@@ -132,6 +139,15 @@ b{font-variant-numeric:tabular-nums}
 .pc-prog{height:10px;background:rgba(0,0,0,.3);border-radius:6px;overflow:hidden;margin-bottom:6px}
 #prismProg{height:100%;width:0;background:linear-gradient(90deg,var(--prism),var(--accent));transition:width .3s}
 .pc-note{font-size:12px;color:var(--muted);margin-bottom:12px}
+
+/* ---------- Мастерская ---------- */
+.workshop-farm{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  background:linear-gradient(160deg,#2a2f5e,#1a1f42);border:1px solid var(--line);
+  border-radius:18px;padding:16px 18px;box-shadow:var(--shadow)}
+.workshop-farm .wf-big{font-size:26px;font-weight:800}
+.workshop-farm .wf-big b{color:var(--gear)}
+.workshop-farm .wf-rate{font-size:14px;color:var(--gear);font-weight:700}
+.wf-note{font-size:12px;color:var(--muted);line-height:1.45;margin:12px 2px 0}
 
 /* ---------- Модалки ---------- */
 .overlay{position:fixed;inset:0;background:rgba(6,8,22,.72);backdrop-filter:blur(4px);
