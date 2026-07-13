@@ -40,9 +40,34 @@ function json(obj, status) {
   return new Response(JSON.stringify(obj), { status: status || 200, headers: cors({ "content-type": "application/json" }) });
 }
 
+// Крошечное изображение 1x1 для самопроверки
+const TEST_IMG = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") return new Response(null, { headers: cors() });
+
+    // GET = самодиагностика: откройте адрес воркера в браузере
+    if (request.method === "GET") {
+      const key = env.GEMINI_API_KEY || "";
+      const diag = { selftest: true, keyPresent: !!key, keyPrefix: key.slice(0, 4), keyLength: key.length, model: MODEL };
+      if (!key) { diag.hint = "Секрет GEMINI_API_KEY не задан. Settings → Variables and Secrets → Add (Secret)."; return json(diag, 200); }
+      try {
+        const url = "https://generativelanguage.googleapis.com/v1beta/models/" + MODEL +
+          ":generateContent?key=" + encodeURIComponent(key);
+        const r = await fetch(url, {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ contents: [{ parts: [
+            { inline_data: { mime_type: "image/png", data: TEST_IMG } },
+            { text: "Ответь одним словом: ок" },
+          ] }] }),
+        });
+        diag.geminiStatus = r.status;
+        diag.geminiBody = (await r.text()).slice(0, 800);
+      } catch (e) { diag.fetchError = String(e); }
+      return json(diag, 200);
+    }
+
     if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405, headers: cors() });
 
     let body;
