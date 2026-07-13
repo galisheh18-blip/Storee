@@ -1,5 +1,5 @@
 /* Service Worker — оффлайн-кэш «Нуб Инкрементал». */
-const CACHE = "noobinc-v1";
+const CACHE = "noobinc-v3";
 const ASSETS = [
   "./",
   "./index.html",
@@ -17,16 +17,14 @@ self.addEventListener("activate", (e) => {
       .then(() => self.clients.claim())
   );
 });
+// Сеть-сначала: всегда пробуем свежую версию, кэш — резерв для оффлайна.
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   e.respondWith(
-    caches.match(e.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(e.request).then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
-        return res;
-      }).catch(() => cached);
-    })
+    fetch(e.request).then((res) => {
+      const copy = res.clone();
+      caches.open(CACHE).then((c) => c.put(e.request, copy)).catch(() => {});
+      return res;
+    }).catch(() => caches.match(e.request))
   );
 });
