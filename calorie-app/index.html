@@ -46,6 +46,12 @@
         <div class="chip-stat" id="streakStat" title="Дней подряд с записями"><span class="cs-ico">🏆</span><span id="streakTxt">0</span></div>
       </div>
 
+      <div class="day-actions">
+        <button class="day-act accent-act" id="planBtn">✨ План на день</button>
+        <button class="day-act" id="copyYesterday">📋 Повторить вчера</button>
+        <button class="day-act" id="templatesBtn">⭐ Шаблоны</button>
+      </div>
+
       <div id="mealsWrap"></div>
 
       <h2 class="section-title">Активность</h2>
@@ -124,6 +130,8 @@
 
     <!-- Графики -->
     <section class="tab-page hidden" data-page="charts">
+      <h2 class="section-title">Итоги недели</h2>
+      <div class="card" id="weekSummary"></div>
       <h2 class="section-title">Калории за 7 дней</h2>
       <div class="card"><div id="calChart" class="chart"></div></div>
       <h2 class="section-title">БЖУ за день</h2>
@@ -163,6 +171,10 @@
             <option value="maintain" selected>Поддержание веса</option>
             <option value="gain">Набор массы (+10%)</option>
           </select>
+        </div>
+        <div class="field">
+          <label>Целевой вес, кг (необязательно — для прогноза)</label>
+          <input type="number" id="pTarget" inputmode="decimal" min="0" step="0.1" placeholder="—" />
         </div>
         <button type="submit" class="btn primary">Рассчитать и сохранить</button>
       </form>

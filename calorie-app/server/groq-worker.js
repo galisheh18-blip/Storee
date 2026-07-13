@@ -48,6 +48,39 @@ function callGroq(key, dataUrl, jsonMode) {
   });
 }
 
+/* ---- План питания на день ---- */
+const DIET = { any: "обычное", veg: "вегетарианское", vegan: "веганское", keto: "кето", lowcarb: "низкоуглеводное", highprot: "высокобелковое" };
+const CUIS = { any: "любая", ru: "русская", it: "итальянская", asia: "азиатская", med: "средиземноморская" };
+const TIME = { any: "не важно", fast: "быстро, до 15 минут", mid: "среднее" };
+function mealPlanPrompt(t, p) {
+  t = t || {}; p = p || {};
+  return "Составь план питания на день под цель: " + (t.kcal || 0) + " ккал, белки " + (t.p || 0) +
+    " г, жиры " + (t.f || 0) + " г, углеводы " + (t.c || 0) + " г. " +
+    "Количество приёмов пищи: " + (p.meals || 4) + ". Тип питания: " + (DIET[p.diet] || "обычное") +
+    ". Кухня: " + (CUIS[p.cuisine] || "любая") + ". Время на готовку: " + (TIME[p.time] || "не важно") + ". " +
+    (p.exclude ? ("Полностью исключить: " + p.exclude + ". ") : "") +
+    "Сумма калорий и БЖУ по всем приёмам должна быть близка к цели. " +
+    "Ответь СТРОГО одним JSON-объектом без пояснений: " +
+    '{"meals":[{"meal":"breakfast|lunch|dinner|snack","title":строка,"kcal":число,"p":число,"f":число,"c":число,' +
+    '"ingredients":[{"name":строка,"grams":число}],"recipe":строка(2-4 коротких шага)}]}. ' +
+    "Названия и рецепты — по-русски.";
+}
+async function handleMealPlan(body, env) {
+  const res = await fetch(ENDPOINT, {
+    method: "POST",
+    headers: { "authorization": "Bearer " + env.GROQ_API_KEY, "content-type": "application/json" },
+    body: JSON.stringify({
+      model: MODEL, temperature: 0.6, response_format: { type: "json_object" },
+      messages: [{ role: "user", content: mealPlanPrompt(body.targets, body.prefs) }],
+    }),
+  });
+  if (!res.ok) { const t = await res.text(); return json({ error: "groq error", detail: t }, 502); }
+  const data = await res.json();
+  const content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
+  if (!content) return json({ error: "no content" }, 502);
+  try { return json(JSON.parse(content), 200); } catch (e) { return json({ error: "parse", raw: content.slice(0, 400) }, 502); }
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -68,6 +101,7 @@ export default {
     if (request.method !== "POST") return new Response("Method Not Allowed", { status: 405, headers: cors() });
     let body;
     try { body = await request.json(); } catch (e) { return json({ error: "bad json" }, 400); }
+    if (body && body.task === "mealplan") return handleMealPlan(body, env);
     const { image, mediaType } = body || {};
     if (!image) return json({ error: "no image" }, 400);
 

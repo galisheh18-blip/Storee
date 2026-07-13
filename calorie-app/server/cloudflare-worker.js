@@ -33,6 +33,60 @@ function cors(extra) {
   }, extra || {});
 }
 
+/* ---- План питания на день ---- */
+const DIET = { any: "обычное", veg: "вегетарианское", vegan: "веганское", keto: "кето", lowcarb: "низкоуглеводное", highprot: "высокобелковое" };
+const CUIS = { any: "любая", ru: "русская", it: "итальянская", asia: "азиатская", med: "средиземноморская" };
+const TIME = { any: "не важно", fast: "быстро, до 15 минут", mid: "среднее" };
+const PLAN_SCHEMA = {
+  type: "object",
+  properties: {
+    meals: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          meal: { type: "string" }, title: { type: "string" },
+          kcal: { type: "number" }, p: { type: "number" }, f: { type: "number" }, c: { type: "number" },
+          ingredients: {
+            type: "array",
+            items: { type: "object", properties: { name: { type: "string" }, grams: { type: "number" } }, required: ["name", "grams"], additionalProperties: false },
+          },
+          recipe: { type: "string" },
+        },
+        required: ["meal", "title", "kcal", "p", "f", "c", "ingredients", "recipe"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["meals"],
+  additionalProperties: false,
+};
+function mealPlanPrompt(t, p) {
+  t = t || {}; p = p || {};
+  return "Составь план питания на день под цель: " + (t.kcal || 0) + " ккал, белки " + (t.p || 0) +
+    " г, жиры " + (t.f || 0) + " г, углеводы " + (t.c || 0) + " г. Количество приёмов пищи: " + (p.meals || 4) +
+    ". Тип питания: " + (DIET[p.diet] || "обычное") + ". Кухня: " + (CUIS[p.cuisine] || "любая") +
+    ". Время на готовку: " + (TIME[p.time] || "не важно") + ". " + (p.exclude ? ("Полностью исключить: " + p.exclude + ". ") : "") +
+    "Сумма калорий и БЖУ по всем приёмам должна быть близка к цели. meal — одно из breakfast/lunch/dinner/snack. Названия и рецепты по-русски.";
+}
+async function handleMealPlan(body, env) {
+  const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({
+      model: MODEL, max_tokens: 4096,
+      system: "Ты нутрициолог и повар. Составляешь сбалансированные планы питания под заданные КБЖУ.",
+      output_config: { format: { type: "json_schema", schema: PLAN_SCHEMA } },
+      messages: [{ role: "user", content: [{ type: "text", text: mealPlanPrompt(body.targets, body.prefs) }] }],
+    }),
+  });
+  if (!apiRes.ok) { const text = await apiRes.text(); return json({ error: "anthropic error", detail: text }, 502); }
+  const data = await apiRes.json();
+  const textBlock = (data.content || []).find((b) => b.type === "text");
+  if (!textBlock) return json({ error: "no content" }, 502);
+  try { return json(JSON.parse(textBlock.text), 200); } catch (e) { return json({ error: "parse", raw: textBlock.text }, 502); }
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") return new Response(null, { headers: cors() });
@@ -40,6 +94,7 @@ export default {
 
     let body;
     try { body = await request.json(); } catch (e) { return json({ error: "bad json" }, 400); }
+    if (body && body.task === "mealplan") return handleMealPlan(body, env);
     const { image, mediaType } = body || {};
     if (!image) return json({ error: "no image" }, 400);
 
