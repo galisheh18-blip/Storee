@@ -9,7 +9,8 @@
 /* ---------- Хранилище ---------- */
 const SAVE_KEY = "darkhunt_v1";
 const save = { coins:0, bestNight:1, owned:{}, chars:["hunter"], char:"hunter", mode:"classic",
-  autoUpgrade:false, best:{ classic:1, endless:0, horde:0, bossrush:0 } };
+  autoUpgrade:false, best:{ classic:1, endless:0, horde:0, bossrush:0 },
+  classXp:{}, classSpent:{}, classOwned:{} };
 function load(){
   try{
     const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"{}");
@@ -21,6 +22,7 @@ function load(){
     if(!save.best) save.best={ classic:save.bestNight||1, endless:0, horde:0, bossrush:0 };
     if(save.best.classic===undefined) save.best.classic=save.bestNight||1;
     if(save.best.classic<save.bestNight) save.best.classic=save.bestNight;
+    if(!save.classXp) save.classXp={}; if(!save.classSpent) save.classSpent={}; if(!save.classOwned) save.classOwned={};
   }catch(e){}
 }
 function persist(){ try{ save.bestNight=save.best.classic; localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }catch(e){} }
@@ -88,14 +90,87 @@ const TREE = [
   { id:"b6", branch:"body", name:"Толстая шкура", icon:"🛡️", x:80, y:650, max:5, base:180, mul:1.8, req:["b4"], desc:"Снижает получаемый урон.", eff:{armor:0.06} },
   { id:"b7", branch:"body", name:"Второе сердце", icon:"💗", x:80, y:750, max:2, base:420, mul:2.6, req:["b4"], desc:"Возрождение с половиной HP при смерти (1 раз за забег).", eff:{revive:1} },
   { id:"b8", branch:"body", name:"Шипы шкуры", icon:"🌵", x:80, y:850, max:5, base:220, mul:1.8, req:["b6"], desc:"Звери ранятся, когда касаются охотника.", eff:{thorns:8} },
+  // --- расширение общего дерева ---
+  { id:"w9", branch:"weapon", name:"Скорость пули", icon:"🚀", x:20, y:950, max:5, base:200, mul:1.7, req:["w7"], desc:"Снаряды летят быстрее и дальше достают.", eff:{bulletSpeed:45} },
+  { id:"w10", branch:"weapon", name:"Шквал огня", icon:"🌩️", x:20, y:1050, max:5, base:260, mul:1.75, req:["w2"], desc:"Ещё выше скорострельность.", eff:{fireRate:0.3} },
+  { id:"w11", branch:"weapon", name:"Смертельный крит", icon:"☠️", x:20, y:1150, max:3, base:420, mul:2.1, req:["w7"], desc:"Критический урон ещё разрушительнее.", eff:{critMul:0.5} },
+  { id:"t9", branch:"torch", name:"Сундук с золотом", icon:"💎", x:50, y:960, max:5, base:230, mul:1.75, req:["t3"], desc:"Ещё больше монет со зверей.", eff:{coinBonus:0.2} },
+  { id:"t10", branch:"torch", name:"Прозрение", icon:"🔮", x:50, y:1060, max:5, base:240, mul:1.75, req:["t7"], desc:"Больше опыта в бою.", eff:{xpMul:0.15} },
+  { id:"t11", branch:"torch", name:"Талисман удачи", icon:"🪬", x:50, y:1160, max:5, base:260, mul:1.75, req:["t8"], desc:"Ещё выше шанс полезных дропов.", eff:{luck:0.05} },
+  { id:"b9", branch:"body", name:"Богатырь", icon:"🐂", x:80, y:950, max:5, base:230, mul:1.75, req:["b6"], desc:"Крупная прибавка к запасу здоровья.", eff:{maxHp:70} },
+  { id:"b10", branch:"body", name:"Живая вода", icon:"🌿", x:80, y:1050, max:5, base:250, mul:1.75, req:["b2"], desc:"Мощная регенерация здоровья.", eff:{regen:1.5} },
+  { id:"b11", branch:"body", name:"Стальная кожа", icon:"⚙️", x:80, y:1150, max:5, base:300, mul:1.85, req:["b6"], desc:"Ещё меньше получаемого урона.", eff:{armor:0.05} },
 ];
 const NODE = Object.fromEntries(TREE.map(n=>[n.id,n]));
-const TREE_H = 930;
+const TREE_H = 1230;
+
+/* ---------- Классовые ветки (за очки уровня класса) ---------- */
+// col: 0=левая, 1=правая; позиции считаются автоматически
+const CLASSDEF = {
+  hunter:[
+    { id:"h1", name:"Соколиный глаз", icon:"🦅", max:5, eff:{crit:0.05}, req:[], col:0, row:0 },
+    { id:"h2", name:"Убойная сила", icon:"💥", max:5, eff:{critMul:0.35}, req:["h1"], col:0, row:1 },
+    { id:"h3", name:"Двойной залп", icon:"✳️", max:2, eff:{projectiles:1}, req:["h2"], col:0, row:2, pc:3 },
+    { id:"h4", name:"Меткий выстрел", icon:"🎯", max:5, eff:{damage:5}, req:[], col:1, row:0 },
+    { id:"h5", name:"Дальнобойность", icon:"🎇", max:5, eff:{range:30}, req:["h4"], col:1, row:1 },
+    { id:"h6", name:"Пронзание", icon:"🏹", max:3, eff:{pierce:1}, req:["h5"], col:1, row:2, pc:2 },
+  ],
+  ranger:[
+    { id:"r1", name:"Град стрел", icon:"🔥", max:5, eff:{fireRate:0.3}, req:[], col:0, row:0 },
+    { id:"r2", name:"Лёгкий шаг", icon:"👟", max:5, eff:{speed:16}, req:["r1"], col:0, row:1 },
+    { id:"r3", name:"Радиус добычи", icon:"🧲", max:5, eff:{pickup:30}, req:["r2"], col:0, row:2 },
+    { id:"r4", name:"Тугая тетива", icon:"🚀", max:5, eff:{bulletSpeed:50}, req:[], col:1, row:0 },
+    { id:"r5", name:"Двойной выстрел", icon:"✳️", max:2, eff:{projectiles:1}, req:["r4"], col:1, row:1, pc:3 },
+    { id:"r6", name:"Хищный глаз", icon:"🎯", max:5, eff:{crit:0.05}, req:["r5"], col:1, row:2 },
+  ],
+  guardian:[
+    { id:"g1", name:"Крепость", icon:"❤️", max:5, eff:{maxHp:40}, req:[], col:0, row:0 },
+    { id:"g2", name:"Броня", icon:"🛡️", max:5, eff:{armor:0.06}, req:["g1"], col:0, row:1 },
+    { id:"g3", name:"Несокрушимость", icon:"💚", max:5, eff:{maxHp:80}, req:["g2"], col:0, row:2, pc:2 },
+    { id:"g4", name:"Острые шипы", icon:"🌵", max:5, eff:{thorns:12}, req:[], col:1, row:0 },
+    { id:"g5", name:"Мощный толчок", icon:"💥", max:3, eff:{knockback:45}, req:["g4"], col:1, row:1 },
+    { id:"g6", name:"Второе дыхание", icon:"✨", max:5, eff:{regen:1.5}, req:["g5"], col:1, row:2 },
+  ],
+  pyro:[
+    { id:"p1", name:"Жар пламени", icon:"🔥", max:4, eff:{auraStart:1}, req:[], col:0, row:0, pc:2 },
+    { id:"p2", name:"Раскалённость", icon:"🌋", max:5, eff:{damage:6}, req:["p1"], col:0, row:1 },
+    { id:"p3", name:"Стойкость", icon:"❤️", max:5, eff:{maxHp:40}, req:["p2"], col:0, row:2 },
+    { id:"p4", name:"Беглый огонь", icon:"🌩️", max:5, eff:{fireRate:0.2}, req:[], col:1, row:0 },
+    { id:"p5", name:"Обжигающий след", icon:"❄️", max:5, eff:{slow:0.06}, req:["p4"], col:1, row:1 },
+    { id:"p6", name:"Сжигание", icon:"💥", max:3, eff:{critMul:0.4}, req:["p5"], col:1, row:2 },
+  ],
+  witch:[
+    { id:"wi1", name:"Лютый холод", icon:"❄️", max:5, eff:{slow:0.06}, req:[], col:0, row:0 },
+    { id:"wi2", name:"Яркий факел", icon:"🌟", max:5, eff:{torch:30}, req:["wi1"], col:0, row:1 },
+    { id:"wi3", name:"Дальний зов", icon:"🧲", max:5, eff:{pickup:30}, req:["wi2"], col:0, row:2 },
+    { id:"wi4", name:"Мудрость веков", icon:"📖", max:5, eff:{xpMul:0.15}, req:[], col:1, row:0 },
+    { id:"wi5", name:"Алчность", icon:"💰", max:5, eff:{coinBonus:0.2}, req:["wi4"], col:1, row:1 },
+    { id:"wi6", name:"Тёмная мощь", icon:"🔮", max:5, eff:{damage:5}, req:["wi5"], col:1, row:2 },
+  ],
+  necro:[
+    { id:"n1", name:"Зов мёртвых", icon:"🧟", max:4, eff:{summonCap:1}, req:[], col:0, row:0, pc:2 },
+    { id:"n2", name:"Гнилая мощь", icon:"💀", max:5, eff:{summonPow:0.2}, req:["n1"], col:0, row:1 },
+    { id:"n3", name:"Легион", icon:"👑", max:3, eff:{summonCap:1}, req:["n2"], col:0, row:2, pc:3 },
+    { id:"n4", name:"Тёмный дар", icon:"❤️", max:5, eff:{maxHp:40}, req:[], col:1, row:0 },
+    { id:"n5", name:"Проклятие", icon:"🔮", max:5, eff:{damage:4}, req:["n4"], col:1, row:1 },
+    { id:"n6", name:"Ловкость тлена", icon:"👟", max:5, eff:{speed:12}, req:["n5"], col:1, row:2 },
+  ],
+};
+// разложить по координатам (x%, y px)
+for(const cid in CLASSDEF){ for(const n of CLASSDEF[cid]){
+  n.branch="class"; n.x=n.col?68:32; n.y=110+n.row*118; n.pc=n.pc||1; }}
+const CLASS_TREE_H = 110+2*118+90;
+function classNodes(cid){ return CLASSDEF[cid]||[]; }
 function nodeLevel(id){ return save.owned[id]||0; }
 function nodeCost(n){ return Math.floor(n.base*Math.pow(n.mul, nodeLevel(n.id))); }
-function nodeUnlocked(n){ return n.req.every(r=>r==="root"||nodeLevel(r)>0); }
-function nodeMaxed(n){ return n.max>0 && nodeLevel(n.id)>=n.max; }
-function canBuy(n){ return n.max>0 && nodeUnlocked(n) && !nodeMaxed(n) && save.coins>=nodeCost(n); }
+// уровни / очки класса
+function classLevelNum(cid){ let xp=save.classXp[cid]||0, lvl=0, need=25;
+  while(xp>=need){ xp-=need; lvl++; need=Math.round(need*1.25)+10; } return lvl; }
+function classXpInfo(cid){ let xp=save.classXp[cid]||0, lvl=0, need=25;
+  while(xp>=need){ xp-=need; lvl++; need=Math.round(need*1.25)+10; } return {lvl, into:xp, need}; }
+function clsLvl(cid,id){ return (save.classOwned[cid]&&save.classOwned[cid][id])||0; }
+function classSpentPts(cid){ let t=0; for(const n of classNodes(cid)){ const lv=clsLvl(cid,n.id); for(let i=0;i<lv;i++) t+=n.pc*(i+1); } return t; }
+function classPointsAvail(cid){ return classLevelNum(cid)-classSpentPts(cid); }
 
 function computeStats(){
   const s = {
@@ -103,10 +178,14 @@ function computeStats(){
     damage:8, fireRate:2.0, range:210, projectiles:1, spread:0.16,
     crit:0.05, critMul:2, pierce:0, bulletSpeed:430,
     torch:200, pickup:46, coinBonus:0, slow:0, knockback:0, armor:0,
-    xpMul:1, luck:0, revive:0, thorns:0,
+    xpMul:1, luck:0, revive:0, thorns:0, summonCap:0, summonPow:0, auraStart:0,
   };
   for (const n of TREE){ const lv=nodeLevel(n.id); if(!lv) continue;
     for (const k in n.eff) s[k]+=n.eff[k]*lv; }
+  // классовая ветка выбранного персонажа
+  const cid=save.char;
+  for (const n of classNodes(cid)){ const lv=clsLvl(cid,n.id); if(!lv) continue;
+    for (const k in n.eff) s[k]=(s[k]||0)+n.eff[k]*lv; }
   // модификаторы персонажа
   const m=curChar().mods||{};
   s.crit+=m.crit||0; s.speed+=m.speed||0; s.armor+=m.armor||0; s.slow+=m.slow||0; s.xpMul+=m.xpBonus||0;
@@ -173,6 +252,7 @@ function applyEff(){
     torch:s.torch*r.torchMul, pickup:s.pickup*r.pickupMul, coinBonus:s.coinBonus,
     slow:Math.min(0.8,s.slow+r.slowAdd), knockback:s.knockback, armor:Math.min(0.8,s.armor+r.armorAdd),
     xpMul:s.xpMul, luck:s.luck, thorns:s.thorns, lifesteal:r.lifesteal,
+    summonCap:s.summonCap, summonPow:s.summonPow, auraStart:s.auraStart,
   };
   if(G.player) G.player.maxHp=G.eff.maxHp;
 }
@@ -202,8 +282,8 @@ function startRun(modeId){
   applyEff();
   G.player.hp=G.player.maxHp=G.eff.maxHp;
   G.revives=G.eff.revive;
-  if(curChar().special==="aura") G.aura={level:1};
-  if(curChar().special==="summon"){ G.summon={level:1,cap:5}; for(let i=0;i<3;i++) spawnMinion(G.player.x+rand(-30,30),G.player.y+rand(-30,30)); }
+  if(curChar().special==="aura") G.aura={level:1+G.eff.auraStart};
+  if(curChar().special==="summon"){ G.summon={level:1,cap:5+G.eff.summonCap}; for(let i=0;i<3;i++) spawnMinion(G.player.x+rand(-30,30),G.player.y+rand(-30,30)); }
 
   G.mode="play";
   showOnly("hud");
@@ -372,7 +452,7 @@ function update(dt){
 
   // нежить некроманта
   if(G.summon){
-    const mdmg=st.damage*(0.4+0.18*G.summon.level);
+    const mdmg=st.damage*(0.4+0.18*G.summon.level)*(1+st.summonPow);
     for(const mn of G.minions){
       let tgt=null, bd=280*280;
       for(const e of G.enemies){ if(e.hp<=0) continue; const dd=dist2(mn.x,mn.y,e.x,e.y); if(dd<bd){bd=dd;tgt=e;} }
@@ -626,7 +706,7 @@ function buildPool(){
   else if(G.chain.level<8) add("chain","Цепная молния +","Дальше по цепи и сильнее","⚡","weapon",5,()=>{G.chain.level++;});
   if(!G.aura) add("aura","Огненная аура","Пламя жжёт зверей вокруг охотника","🔥","weapon",6,()=>{G.aura={level:1};});
   else if(G.aura.level<8) add("aura","Огненная аура +","Шире и горячее","🔥","weapon",5,()=>{G.aura.level++;});
-  if(!G.summon) add("raise","Восставший мертвец","Поднимает нежить, что бьётся за тебя","🧟","weapon",6,()=>{G.summon={level:1,cap:3}; for(let i=0;i<2;i++) spawnMinion(G.player.x+rand(-30,30),G.player.y+rand(-30,30));});
+  if(!G.summon) add("raise","Восставший мертвец","Поднимает нежить, что бьётся за тебя","🧟","weapon",6,()=>{G.summon={level:1,cap:3+G.eff.summonCap}; for(let i=0;i<2;i++) spawnMinion(G.player.x+rand(-30,30),G.player.y+rand(-30,30));});
   else if(G.summon.cap<10) add("raise","Восставший мертвец +","Больше нежити и сильнее","🧟","weapon",5,()=>{G.summon.level++; G.summon.cap++; spawnMinion(G.player.x,G.player.y);});
   return P;
 }
@@ -672,6 +752,11 @@ function endRun(survived){
   else if(gm==="endless"){ const t=Math.floor(G.time); if(t>save.best.endless){ save.best.endless=t; rec=true; } }
   else if(gm==="horde"){ if(G.kills>save.best.horde){ save.best.horde=G.kills; rec=true; } }
   else if(gm==="bossrush"){ if(G.bossCount>save.best.bossrush){ save.best.bossrush=G.bossCount; rec=true; } }
+  // опыт класса
+  const cid=save.char, before=classLevelNum(cid);
+  const gained=Math.max(5, G.kills*2 + Math.floor(G.coinRun/4) + G.level*3);
+  save.classXp[cid]=(save.classXp[cid]||0)+gained;
+  G._cls={ cid, gained, pts:classLevelNum(cid)-before };
   persist();
   fillResult(survived,rec);
   document.getElementById("bossWrap").classList.add("hidden");
@@ -696,6 +781,9 @@ function fillResult(survived,rec){
   document.getElementById("resKillsLab").textContent=l2; document.getElementById("resKills").textContent=s2;
   document.getElementById("resCoins").textContent="+"+fmt(G.coinRun);
   document.getElementById("resRecord").classList.toggle("hidden",!rec);
+  const cl=G._cls, c=CHAR[cl.cid];
+  document.getElementById("resClass").textContent=
+    c.icon+" "+c.name+" · +"+cl.gained+" опыта класса"+(cl.pts>0?"  🎖 +"+cl.pts+" очк.!":"");
 }
 
 /* ---------- Цикл ---------- */
@@ -765,7 +853,10 @@ function buildCharRow(){
     let state = sel ? `<span class="ch-state">✓ Выбран</span>`
       : owned ? `<span class="ch-state sel">Выбрать</span>`
       : `<span class="ch-state lock">🪙 ${c.cost}</span>`;
-    el.innerHTML=`<div class="ch-ico">${c.icon}</div><div class="ch-name">${c.name}</div>${state}`;
+    const pts=classPointsAvail(c.id);
+    const badge=(owned&&pts>0)?`<span class="ch-pts">${pts}</span>`:"";
+    const lvline=owned?`<div class="ch-lvl">кл. ур. ${classLevelNum(c.id)}</div>`:`<div class="ch-lvl">&nbsp;</div>`;
+    el.innerHTML=`${badge}<div class="ch-ico">${c.icon}</div><div class="ch-name">${c.name}</div>${lvline}${state}`;
     el.onclick=()=>{
       if(owned){ save.char=c.id; persist(); refreshMenuStats(); }
       else if(save.coins>=c.cost){ save.coins-=c.cost; save.chars.push(c.id); save.char=c.id; persist(); showToast(c.icon+" "+c.name+" открыт!","#ffd15c"); refreshMenuStats(); }
@@ -788,55 +879,97 @@ document.getElementById("pauseBtn").onclick=()=>{ if(G.mode==="play"){ G.mode="p
 document.getElementById("resumeBtn").onclick=()=>{ if(G.mode==="pause"){ G.mode="play"; lastT=performance.now(); showOnly("hud"); } };
 document.getElementById("quitBtn").onclick=()=>{ G.mode="menu"; showOnly("menu"); refreshMenuStats(); };
 
-/* ---------- Дерево (DOM) ---------- */
-let selNode=null;
+/* ---------- Дерево (DOM, две вкладки) ---------- */
+let selNode=null, treeKind="common";
+// доступ к активному дереву
+function tNodes(){ return treeKind==="common"?TREE:classNodes(save.char); }
+function tHeight(){ return treeKind==="common"?TREE_H:CLASS_TREE_H; }
+function tNode(id){ return tNodes().find(n=>n.id===id); }
+function tLvl(id){ return treeKind==="common"?(save.owned[id]||0):clsLvl(save.char,id); }
+function tCost(n){ return treeKind==="common"?Math.floor(n.base*Math.pow(n.mul,tLvl(n.id))):n.pc*(tLvl(n.id)+1); }
+function tBal(){ return treeKind==="common"?save.coins:classPointsAvail(save.char); }
+function tUnlocked(n){ return n.req.every(r=> r==="root"?true:tLvl(r)>0); }
+function tMaxed(n){ return n.max>0 && tLvl(n.id)>=n.max; }
+function tCanBuy(n){ return n.max>0 && tUnlocked(n) && !tMaxed(n) && tBal()>=tCost(n); }
+function tCurLabel(){ return treeKind==="common"?("🪙 "+fmt(save.coins)):("⭐ "+classPointsAvail(save.char)+" очк."); }
+function tBuy(n){
+  if(treeKind==="common"){ save.coins-=tCost(n); save.owned[n.id]=(save.owned[n.id]||0)+1; }
+  else { const cid=save.char; if(!save.classOwned[cid]) save.classOwned[cid]={}; save.classOwned[cid][n.id]=clsLvl(cid,n.id)+1; /* очки списываются автоматически через classSpentPts */ }
+}
+
 function buildTree(){
   const nodesEl=document.getElementById("treeNodes"), svg=document.getElementById("treeLines");
-  nodesEl.style.height=TREE_H+"px"; svg.setAttribute("height",TREE_H); svg.style.height=TREE_H+"px";
+  const Hh=tHeight();
+  nodesEl.style.height=Hh+"px"; svg.setAttribute("height",Hh); svg.style.height=Hh+"px";
   nodesEl.innerHTML=""; svg.innerHTML="";
-  const wpx=()=>nodesEl.clientWidth||Math.min(W,520);
-  for(const n of TREE) for(const r of n.req){ const a=NODE[r]; if(!a) continue;
+  const nodes=tNodes(), wpx=()=>nodesEl.clientWidth||Math.min(W,520);
+  for(const n of nodes) for(const r of n.req){ const a=tNode(r); if(!a) continue;
     const line=document.createElementNS("http://www.w3.org/2000/svg","line");
     line.setAttribute("x1",a.x/100*wpx()); line.setAttribute("y1",a.y);
     line.setAttribute("x2",n.x/100*wpx()); line.setAttribute("y2",n.y);
     line.setAttribute("data-to",n.id); line.setAttribute("stroke-width","3"); svg.appendChild(line); }
-  for(const n of TREE){ const el=document.createElement("div"); el.className="node b-"+n.branch; el.dataset.id=n.id;
+  for(const n of nodes){ const el=document.createElement("div"); el.className="node b-"+n.branch; el.dataset.id=n.id;
     el.style.left=n.x+"%"; el.style.top=n.y+"px"; if(n.branch==="root") el.classList.add("root");
     el.innerHTML=`<span>${n.icon}</span>`+(n.max>0?`<span class="lvltag"></span>`:"");
     el.onclick=()=>selectNode(n.id); nodesEl.appendChild(el); n._el=el; }
+  document.getElementById("nodeInfo").classList.add("hidden"); selNode=null;
   refreshTree();
 }
+function nodeEffText(n){
+  const parts=[]; const nm={damage:"урон",fireRate:"скор-сть",crit:"крит",critMul:"× крита",projectiles:"снаряд",
+    pierce:"пробитие",range:"дальность",bulletSpeed:"скорость пули",maxHp:"HP",regen:"реген",speed:"скорость",
+    armor:"броня",thorns:"шипы",knockback:"отброс",torch:"свет",pickup:"добыча",coinBonus:"монеты",slow:"замедл.",
+    xpMul:"опыт",luck:"удача",summonCap:"нежить",summonPow:"урон нежити",auraStart:"аура"};
+  for(const k in n.eff){ const v=n.eff[k]; const pct=(k==="crit"||k==="coinBonus"||k==="xpMul"||k==="slow"||k==="armor"||k==="luck"||k==="summonPow");
+    parts.push("+"+(pct?Math.round(v*100)+"%":v)+" "+(nm[k]||k)); }
+  return parts.join(", ");
+}
 function selectNode(id){
-  selNode=id; refreshTree(); const n=NODE[id], info=document.getElementById("nodeInfo");
-  if(n.branch==="root"){ info.classList.add("hidden"); return; }
+  selNode=id; refreshTree(); const n=tNode(id), info=document.getElementById("nodeInfo");
+  if(!n || n.branch==="root"){ info.classList.add("hidden"); return; }
   info.classList.remove("hidden");
   document.getElementById("niIcon").textContent=n.icon;
   document.getElementById("niName").textContent=n.name;
-  document.getElementById("niDesc").textContent=n.desc;
-  document.getElementById("niLvl").textContent=nodeLevel(n.id);
+  document.getElementById("niDesc").textContent=n.desc || nodeEffText(n);
+  document.getElementById("niLvl").textContent=tLvl(n.id);
   document.getElementById("niMax").textContent="/"+n.max;
-  const buy=document.getElementById("niBuy");
-  if(nodeMaxed(n)){ buy.textContent="Максимум"; buy.classList.add("disabled"); buy.disabled=true; }
-  else if(!nodeUnlocked(n)){ buy.textContent="🔒 Сначала открой предыдущий"; buy.classList.add("disabled"); buy.disabled=true; }
-  else { const c=nodeCost(n); buy.textContent=`Открыть · 🪙 ${fmt(c)}`; const ok=save.coins>=c; buy.disabled=!ok; buy.classList.toggle("disabled",!ok); }
+  const buy=document.getElementById("niBuy"), cur=treeKind==="common"?"🪙":"⭐";
+  if(tMaxed(n)){ buy.textContent="Максимум"; buy.classList.add("disabled"); buy.disabled=true; }
+  else if(!tUnlocked(n)){ buy.textContent="🔒 Сначала открой предыдущий"; buy.classList.add("disabled"); buy.disabled=true; }
+  else { const c=tCost(n); buy.textContent=`Открыть · ${cur} ${fmt(c)}`+(treeKind==="class"?" очк.":""); const ok=tBal()>=c; buy.disabled=!ok; buy.classList.toggle("disabled",!ok); }
 }
-document.getElementById("niBuy").onclick=()=>{ const n=NODE[selNode]; if(!n||!canBuy(n)) return;
-  save.coins-=nodeCost(n); save.owned[n.id]=nodeLevel(n.id)+1; persist(); flash(n._el); selectNode(n.id); refreshTree(); };
+document.getElementById("niBuy").onclick=()=>{ const n=tNode(selNode); if(!n||!tCanBuy(n)) return;
+  tBuy(n); persist(); flash(n._el); selectNode(n.id); refreshTree(); refreshMenuStats(); };
 function refreshTree(){
-  document.getElementById("coinTree").textContent=fmt(save.coins);
-  for(const n of TREE){ const el=n._el; if(!el) continue; el.classList.remove("owned","locked","can","max","sel");
+  document.getElementById("treeCurrency").innerHTML = treeKind==="common"
+    ? '🪙 <b>'+fmt(save.coins)+'</b>' : '⭐ <b>'+classPointsAvail(save.char)+'</b> очк.';
+  const cc=curChar(); document.getElementById("tabClass").textContent=cc.icon+" Класс · "+classPointsAvail(cc.id)+"⭐";
+  for(const n of tNodes()){ const el=n._el; if(!el) continue; el.classList.remove("owned","locked","can","max","sel");
     if(n.branch==="root") el.classList.add("owned");
-    else { const lv=nodeLevel(n.id);
-      if(lv>0) el.classList.add("owned"); if(nodeMaxed(n)) el.classList.add("max");
-      if(!nodeUnlocked(n)) el.classList.add("locked"); else if(canBuy(n)) el.classList.add("can");
-      const tag=el.querySelector(".lvltag"); if(tag) tag.textContent=nodeMaxed(n)?"MAX":lv+"/"+n.max; }
+    else { const lv=tLvl(n.id);
+      if(lv>0) el.classList.add("owned"); if(tMaxed(n)) el.classList.add("max");
+      if(!tUnlocked(n)) el.classList.add("locked"); else if(tCanBuy(n)) el.classList.add("can");
+      const tag=el.querySelector(".lvltag"); if(tag) tag.textContent=tMaxed(n)?"MAX":lv+"/"+n.max; }
     if(n.id===selNode) el.classList.add("sel"); }
   const svg=document.getElementById("treeLines");
-  for(const line of svg.querySelectorAll("line")){ const to=NODE[line.getAttribute("data-to")];
-    line.setAttribute("stroke", nodeLevel(to.id)>0?"#f5a524":"#2a3140"); }
+  for(const line of svg.querySelectorAll("line")){ const to=tNode(line.getAttribute("data-to"));
+    line.setAttribute("stroke", to&&tLvl(to.id)>0?"#f5a524":"#2a3140"); }
 }
 function flash(el){ el.animate([{transform:"translate(-50%,-50%) scale(1.35)"},{transform:"translate(-50%,-50%) scale(1)"}],{duration:280,easing:"ease-out"}); }
-function openTree(){ showOnly("tree"); buildTree(); document.getElementById("treeScroll").scrollTop=0; }
+function setTreeTab(kind){
+  treeKind=kind;
+  document.getElementById("tabCommon").classList.toggle("on",kind==="common");
+  document.getElementById("tabClass").classList.toggle("on",kind==="class");
+  buildTree(); document.getElementById("treeScroll").scrollTop=0;
+}
+document.getElementById("tabCommon").onclick=()=>setTreeTab("common");
+document.getElementById("tabClass").onclick=()=>setTreeTab("class");
+function openTree(){
+  showOnly("tree");
+  const c=curChar();
+  document.getElementById("tabClass").textContent=c.icon+" Класс · "+classPointsAvail(c.id)+"⭐";
+  setTreeTab("common");
+}
 window.addEventListener("resize",()=>{ if(!document.getElementById("tree").classList.contains("hidden")) buildTree(); });
 
 /* ---------- Старт ---------- */

@@ -90,8 +90,12 @@
     <div id="tree" class="overlay hidden">
       <div class="tree-head">
         <button class="icon-btn" id="treeBack">‹</button>
-        <div class="tree-title">Дерево улучшений</div>
-        <div class="hud-pill big">🪙 <b id="coinTree">0</b></div>
+        <div class="tree-title">Улучшения</div>
+        <div class="hud-pill big" id="treeCurrency">🪙 <b id="coinTree">0</b></div>
+      </div>
+      <div class="tree-tabs">
+        <button class="tab on" id="tabCommon">🪙 Общее</button>
+        <button class="tab" id="tabClass">💀 Класс</button>
       </div>
       <div id="treeScroll">
         <svg id="treeLines"></svg>
@@ -117,6 +121,7 @@
           <div class="stat"><span class="s-val" id="resCoins">+0</span><span class="s-lab">🪙 Монеты</span></div>
         </div>
         <p class="tag rec-line hidden" id="resRecord">🏆 Новый рекорд!</p>
+        <p class="tag res-class" id="resClass"></p>
         <button class="btn btn-primary" id="resTree">🌳 Потратить монеты</button>
         <button class="btn btn-ghost" id="resAgain">▶ Ещё раз</button>
         <button class="btn btn-mini" id="resMenu">В меню</button>
