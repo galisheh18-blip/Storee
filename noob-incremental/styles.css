@@ -79,6 +79,22 @@ b{font-variant-numeric:tabular-nums}
 .buy-prod{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap}
 .buy-prod.active{color:var(--green);font-weight:800}
 
+/* богатые карточки нубов (синергии/вехи/ранги) */
+.noobcard{flex-direction:column;align-items:stretch}
+.noobcard .nc-top{display:flex;align-items:center;gap:12px}
+.noobcard .buy-desc{white-space:normal}
+.rankbadge{color:var(--star);font-size:12px;font-weight:800}
+.nc-foot{display:flex;align-items:center;gap:10px;margin-top:9px}
+.nc-ms{flex:1;min-width:0}
+.nc-msbar{height:5px;background:var(--card2);border-radius:4px;overflow:hidden;margin-bottom:4px}
+.nc-msbar>div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .3s}
+.nc-mstext{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.nc-rank{flex-shrink:0;background:var(--card2);border:1px solid var(--line);color:var(--muted);
+  border-radius:9px;padding:7px 9px;font-size:11px;font-weight:700;white-space:nowrap}
+.nc-rank.ready{border-color:var(--star);color:var(--star)}
+.nc-rank.cant,.nc-rank.need,.nc-rank.maxed{opacity:.6}
+.nc-rank:active{transform:scale(.95)}
+
 .upcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px;
   display:flex;flex-direction:column;gap:6px;position:relative;transition:transform .06s}
 .upcard:active{transform:scale(.98)}

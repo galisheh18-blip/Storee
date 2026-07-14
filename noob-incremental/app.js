@@ -39,6 +39,33 @@ const NOOBS = [
 const NOOB = Object.fromEntries(NOOBS.map(n=>[n.id,n]));
 const COST_MUL = 1.15;
 
+/* ---- Углубление нубов: вехи владения (B), синергии (A), ранги (C) ---- */
+// Вехи — бесплатные бонусы за количество владения (дополняют покупные ×2)
+const NOOB_MILESTONES = [
+  { at:25,   type:"all",     val:0.01 },
+  { at:50,   type:"crit",    val:0.01 },
+  { at:100,  type:"synergy" },
+  { at:150,  type:"click",   val:1.25 },
+  { at:250,  type:"all",     val:0.03 },
+  { at:400,  type:"crit",    val:0.02 },
+  { at:600,  type:"all",     val:0.05 },
+  { at:1000, type:"click",   val:1.5 },
+];
+const SYN_AT = 100;      // веха, открывающая синергию
+const SYN_PCT = 0.003;   // +0.3% нижнему виду за каждый вышестоящий
+const MAX_RANK = 10;
+function rankMult(r){ return 1 + r; }                       // ★r → ×(1+r) к этому нубу
+function rankReq(r){ return Math.floor(50*Math.pow(2.6,r)); } // нужно во владении, чтобы взять ранг r→r+1
+function rankCost(nb,r){ return nb.base * 120 * Math.pow(12,r); } // цена в Oof
+function msLabel(ms, loName){
+  if(ms.type==="self")    return "×"+ms.val+" этому нубу";
+  if(ms.type==="all")     return "+"+Math.round(ms.val*100)+"% всем нубам";
+  if(ms.type==="crit")    return "+"+Math.round(ms.val*100)+"% крит";
+  if(ms.type==="click")   return "×"+ms.val+" к тапу";
+  if(ms.type==="synergy") return "синергия → бустит «"+(loName||"ниже")+"»";
+  return "";
+}
+
 // ---- Улучшения ----  (генерируются: клик / глобальные / по каждому нубу)
 const UPS = [];
 // клик-улучшения
@@ -404,6 +431,7 @@ const DEFAULT = ()=>({
   quarks:0, transcends:0, quarkUps:{}, corruption:0, corr:0, corrEver:0, corrUps:{},
   mutants:{}, market:{ ore:1, dust:1, gears:1, nextDrift:0, event:null },
   dustUps:{}, auto:{ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false },
+  ranks:{},
   lastTime:Date.now(), seen:{},
   admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }
 });
@@ -412,7 +440,7 @@ function load(){
   try{
     const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
     if(raw){ save=Object.assign(DEFAULT(),raw);
-      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","dustUps","seen"]) if(!save[k]) save[k]={};
+      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","dustUps","ranks","seen"]) if(!save[k]) save[k]={};
       if(typeof save.corruption!=="number") save.corruption=0;
       if(!save.market) save.market={ ore:1, dust:1, gears:1, nextDrift:0, event:null };
       save.auto=Object.assign({ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false }, save.auto||{});
@@ -504,6 +532,23 @@ function recompute(){
   m.global *= (a.oofMul||1); m.click *= (a.clickMul||1);
   m.cost *= (a.costMul||1); m.prism *= (a.prismMul||1);
 
+  // нубы: множители m.noob + ранги + вехи (крит/тап — ДО финализации D) + синергии
+  const cnt={}; for(const nb of NOOBS) cnt[nb.id]=save.noobs[nb.id]||0;
+  const nm={}; let allBonus=0;
+  for(const nb of NOOBS){
+    let mult=(m.noob[nb.id]||1) * rankMult(save.ranks[nb.id]||0);
+    for(const ms of NOOB_MILESTONES){ if(cnt[nb.id]>=ms.at){
+      if(ms.type==="self") mult*=ms.val;
+      else if(ms.type==="all") allBonus+=ms.val;
+      else if(ms.type==="crit") m.crit+=ms.val;
+      else if(ms.type==="click") m.click*=ms.val;
+    }}
+    nm[nb.id]=mult;
+  }
+  // синергия: вышестоящий вид бустит соседа снизу, если открыта веха
+  for(let i=1;i<NOOBS.length;i++){ if(cnt[NOOBS[i].id]>=SYN_AT) nm[NOOBS[i-1].id]*=(1+SYN_PCT*cnt[NOOBS[i].id]); }
+  D.noobEff=nm; D.noobAllBonus=allBonus;
+
   D.global=m.global; D.click=m.click; D.clickFromPs=m.clickFromPs;
   D.crit=Math.min(m.crit,1); D.critPow=m.critPow; D.costMul=Math.max(m.cost,0.02);
   D.prismMul=m.prism; D.runeRegen=m.runeRegen; D.offline=m.offline;
@@ -513,8 +558,8 @@ function recompute(){
 
   // Oof/с
   let ops=0;
-  for(const nb of NOOBS){ const c=save.noobs[nb.id]||0; if(c>0) ops += c*nb.prod*(m.noob[nb.id]||1); }
-  ops *= m.global;
+  for(const nb of NOOBS){ if(cnt[nb.id]>0) ops += cnt[nb.id]*nb.prod*nm[nb.id]; }
+  ops *= m.global*(1+allBonus);
   if(cr.noPassive) ops=0;
   D.ops=ops;
   D.clickBase = (1*m.click + ops*m.clickFromPs) * m.global;
@@ -569,6 +614,16 @@ function buyMax(id){
   }
   if(bought){ recompute(); syncNoobSprites(); renderNoobs(); refreshTop(); queueSave();
     toast("Куплено "+bought+"× "+NOOB[id].name); }
+}
+function buyRank(id){
+  const nb=NOOB[id], r=save.ranks[id]||0;
+  if(r>=MAX_RANK) return;
+  const owned=save.noobs[id]||0, req=rankReq(r), cost=rankCost(nb,r);
+  if(owned<req){ toast("Нужно "+fmt(req)+" во владении"); return; }
+  if(save.oof<cost){ toast("Не хватает Oof на ранг"); return; }
+  save.oof-=cost; save.ranks[id]=r+1;
+  recompute(); renderNoobs(); refreshTop(); queueSave();
+  toast(nb.icon+" "+nb.name+" → ранг "+(r+1)+"!");
 }
 function buyUp(id){
   const u=UP[id]; if(!u||save.ups[id]) return;
@@ -971,34 +1026,58 @@ function renderNoobs(){
     if(!unlocked && i>0 && (save.noobs[NOOBS[i-1].id]||0)===0 && save.lifetimeOof<nb.base*0.15) return;
     anyUnlocked=true;
     const row=document.createElement("div");
-    row.className="buyrow"; row.dataset.noob=nb.id;
+    row.className="buyrow noobcard"; row.dataset.noob=nb.id; row.dataset.idx=i;
     row.innerHTML=
-      `<div class="buy-ico">${nb.icon}</div>
-       <div class="buy-main">
-         <div class="buy-name">${nb.name} <span class="buy-cnt" data-cnt>${owned}</span></div>
-         <div class="buy-desc" data-prod></div>
+      `<div class="nc-top">
+         <div class="buy-ico">${nb.icon}</div>
+         <div class="buy-main">
+           <div class="buy-name">${nb.name}<span class="rankbadge" data-rank></span> <span class="buy-cnt" data-cnt>${owned}</span></div>
+           <div class="buy-desc" data-prod></div>
+         </div>
+         <div class="buy-right"><div class="buy-cost" data-cost></div><div class="buy-prod">+${fmt(nb.prod)} Oof/с</div></div>
        </div>
-       <div class="buy-right"><div class="buy-cost" data-cost></div><div class="buy-prod">+${fmt(nb.prod)} Oof/с</div></div>`;
-    row.addEventListener("click", ()=>buyNoob(nb.id));
-    let pt; row.addEventListener("pointerdown", ()=>{ pt=setTimeout(()=>buyMax(nb.id),500); });
-    row.addEventListener("pointerup", ()=>clearTimeout(pt));
-    row.addEventListener("pointerleave", ()=>clearTimeout(pt));
+       <div class="nc-foot">
+         <div class="nc-ms"><div class="nc-msbar"><div data-msfill></div></div><span class="nc-mstext" data-ms></span></div>
+         <button class="nc-rank" data-rankbtn></button>
+       </div>`;
+    const top=row.querySelector(".nc-top");
+    top.addEventListener("click", ()=>buyNoob(nb.id));
+    let pt; top.addEventListener("pointerdown", ()=>{ pt=setTimeout(()=>buyMax(nb.id),500); });
+    top.addEventListener("pointerup", ()=>clearTimeout(pt));
+    top.addEventListener("pointerleave", ()=>clearTimeout(pt));
+    row.querySelector("[data-rankbtn]").addEventListener("click", e=>{ e.stopPropagation(); buyRank(nb.id); });
     box.appendChild(row);
   });
   updateNoobLive();
 }
+function nextMilestone(owned){ for(const ms of NOOB_MILESTONES){ if(owned<ms.at) return ms; } return null; }
 function updateNoobLive(){
   recompute();
-  document.querySelectorAll("#noobList .buyrow").forEach(row=>{
-    const id=row.dataset.noob; const owned=save.noobs[id]||0;
-    const cost=noobCost(id,owned);
-    const afford=save.oof>=cost;
+  document.querySelectorAll("#noobList .noobcard").forEach(row=>{
+    const id=row.dataset.noob, idx=+row.dataset.idx, nb=NOOB[id];
+    const owned=save.noobs[id]||0, rank=save.ranks[id]||0;
+    const cost=noobCost(id,owned), afford=save.oof>=cost;
     row.classList.toggle("afford",afford); row.classList.toggle("locked",!afford&&owned===0);
-    row.querySelector("[data-cnt]").textContent=owned;
-    const cur=owned*NOOB[id].prod*(D.noobMul[id]||1)*D.global;
-    row.querySelector("[data-prod]").textContent = owned>0? ("даёт "+fmt(cur)+" Oof/с") : NOOB[id].name+" делает Oof сам";
-    const ce=row.querySelector("[data-cost]"); ce.textContent="🪙 "+fmt(cost);
-    ce.classList.toggle("cant",!afford);
+    row.querySelector("[data-cnt]").textContent=fmt(owned);
+    // ранг-бейдж
+    const rb=row.querySelector("[data-rank]"); rb.textContent=rank>0?(" ★"+rank):""; rb.title=rank>0?("×"+(1+rank)+" к нубу"):"";
+    // производство + синергия
+    const cur=owned*nb.prod*(D.noobEff[id]||1)*D.global*(1+(D.noobAllBonus||0));
+    let desc = owned>0? ("даёт "+fmt(cur)+" Oof/с") : (nb.name+" делает Oof сам");
+    if(idx>0 && owned>=SYN_AT){ desc += " · ↑ +"+Math.round(SYN_PCT*owned*100)+"% «"+NOOBS[idx-1].name+"»"; }
+    row.querySelector("[data-prod]").textContent=desc;
+    const ce=row.querySelector("[data-cost]"); ce.textContent="🪙 "+fmt(cost); ce.classList.toggle("cant",!afford);
+    // веха
+    const ms=nextMilestone(owned), fill=row.querySelector("[data-msfill]"), mt=row.querySelector("[data-ms]");
+    if(ms){ const prev=[...NOOB_MILESTONES].reverse().find(x=>x.at<=owned); const lo=prev?prev.at:0;
+      fill.style.width=Math.min(100,(owned-lo)/(ms.at-lo)*100)+"%";
+      mt.textContent="Веха "+fmt(ms.at)+": "+msLabel(ms, idx>0?NOOBS[idx-1].name:"—"); }
+    else { fill.style.width="100%"; mt.textContent="Все вехи взяты ✓"; }
+    // кнопка ранга
+    const rk=row.querySelector("[data-rankbtn]"), req=rankReq(rank), rc=rankCost(nb,rank);
+    if(rank>=MAX_RANK){ rk.textContent="★ Ранг МАКС"; rk.className="nc-rank maxed"; }
+    else if(owned<req){ rk.textContent="⬆ Ранг "+(rank+1)+": нужно "+fmt(req); rk.className="nc-rank need"; }
+    else { rk.textContent="⬆ Ранг "+(rank+1)+" · 🪙"+fmt(rc); rk.className="nc-rank"+(save.oof>=rc?" ready":" cant"); }
   });
 }
 
