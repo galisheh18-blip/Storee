@@ -140,6 +140,29 @@ b{font-variant-numeric:tabular-nums}
 #prismProg{height:100%;width:0;background:linear-gradient(90deg,var(--prism),var(--accent));transition:width .3s}
 .pc-note{font-size:12px;color:var(--muted);margin-bottom:12px}
 
+/* ---------- Авто-распыл рун ---------- */
+.salvage-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
+.salvage-row>span{font-size:12px;color:var(--muted)}
+.salvage-pick{display:flex;gap:6px;flex-wrap:wrap}
+.salv-btn{background:var(--card);border:1px solid var(--line);color:var(--muted);
+  border-radius:9px;padding:6px 9px;font-size:11px;font-weight:700}
+.salv-btn.on{background:var(--card2);color:var(--text);border-color:var(--accent)}
+.salv-btn:active{transform:scale(.95)}
+
+/* ---------- Достижения ---------- */
+.modal.ach{max-width:440px;text-align:left}
+.ach-sub{font-size:12px;color:var(--muted);margin:6px 0 14px}
+.ach-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.ach-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 10px;
+  text-align:center;opacity:.5;filter:grayscale(.7)}
+.ach-card.done{opacity:1;filter:none;border-color:var(--star);
+  background:linear-gradient(160deg,rgba(255,184,77,.12),var(--card))}
+.ach-card .a-ico{font-size:28px}
+.ach-card .a-name{font-weight:700;font-size:13px;margin-top:4px;line-height:1.15}
+.ach-card .a-desc{font-size:11px;color:var(--muted);margin-top:2px}
+.ach-card .a-buff{font-size:11px;color:var(--green);font-weight:700;margin-top:6px;min-height:14px}
+.ach-card:not(.done) .a-buff{color:var(--dim)}
+
 /* ---------- Мастерская ---------- */
 .workshop-farm{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
   background:linear-gradient(160deg,#2a2f5e,#1a1f42);border:1px solid var(--line);
