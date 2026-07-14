@@ -249,6 +249,40 @@ const POTIONS = [
 ];
 const POTION = Object.fromEntries(POTIONS.map(p=>[p.id,p]));
 
+// ---- Конвейер мутаций: скрещивание за руду+пыль+шестерёнки → вечные мутанты ----
+const MUTANTS = [
+  { id:"magnet", icon:"🧲", name:"Нуб-магнит",     desc:"+30% Oof/с навсегда",
+    cost:{ore:5e3, dust:200, gears:100}, apply:m=>m.global*=1.3 },
+  { id:"ice",    icon:"❄️", name:"Ледяной нуб",     desc:"+50% к тапу навсегда",
+    cost:{ore:4e3, dust:150, gears:80},  apply:m=>m.click*=1.5 },
+  { id:"lucky",  icon:"🍀", name:"Счастливый нуб",  desc:"+30% удача рун навсегда",
+    cost:{ore:6e3, dust:400, gears:120}, apply:m=>m._runeLuck+=0.3 },
+  { id:"king",   icon:"👑", name:"Королевский нуб", desc:"+40% ко всему навсегда",
+    cost:{ore:2e4, dust:800, gears:400}, apply:m=>m.global*=1.4 },
+  { id:"boom",   icon:"💥", name:"Взрывной нуб",    desc:"Раз в 60с — взрыв ≈ час дохода",
+    cost:{ore:1e4, dust:500, gears:250}, apply:()=>{} },
+];
+const MUTANT = Object.fromEntries(MUTANTS.map(x=>[x.id,x]));
+
+// ---- Хроно-биржа: обмен руды/пыли/шестерёнок на Oof по плавающему курсу ----
+const MARKET_RES = [
+  { id:"ore",   icon:"🪨", name:"Руда",        base:120 },
+  { id:"dust",  icon:"💠", name:"Пыль рун",    base:600 },
+  { id:"gears", icon:"⚙️", name:"Шестерёнки",  base:1500 },
+];
+const MARKET_EVENTS = [
+  { res:"ore",   mult:3.5, text:"⛏️ Дефицит руды: цена ×3.5" },
+  { res:"gears", mult:3.0, text:"⚙️ Спрос на шестерёнки: цена ×3" },
+  { res:"dust",  mult:0.3, text:"💠 Обвал пыли: цена ×0.3" },
+  { res:"ore",   mult:0.3, text:"🪨 Затоварка рудой: цена ×0.3" },
+  { res:"dust",  mult:3.5, text:"🔮 Магия в моде: пыль ×3.5" },
+];
+function marketPrice(res){
+  const m=save.market||{}; let f=m[res]||1;
+  if(m.event && m.event.res===res && Date.now()<m.event.until) f*=m.event.mult;
+  return MARKET_RES.find(r=>r.id===res).base * f;
+}
+
 // ---- Трансцендентность: ⚛️ кварки (3-й слой сброса) + Пантеон (синергии) ----
 function quarkGain(stars){ if(stars<1000) return 0; return Math.floor(Math.pow(stars/1000, 0.5)); }
 const QUARK_UPS = [
@@ -348,6 +382,7 @@ const DEFAULT = ()=>({
   pets:{}, potions:{},
   activeChallenge:null, chalDone:{},
   quarks:0, transcends:0, quarkUps:{}, corruption:0, corr:0, corrEver:0, corrUps:{},
+  mutants:{}, market:{ ore:1, dust:1, gears:1, nextDrift:0, event:null },
   lastTime:Date.now(), seen:{},
   admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }
 });
@@ -356,8 +391,9 @@ function load(){
   try{
     const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
     if(raw){ save=Object.assign(DEFAULT(),raw);
-      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","seen"]) if(!save[k]) save[k]={};
+      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","seen"]) if(!save[k]) save[k]={};
       if(typeof save.corruption!=="number") save.corruption=0;
+      if(!save.market) save.market={ ore:1, dust:1, gears:1, nextDrift:0, event:null };
       if(typeof save.salvageBelow!=="number") save.salvageBelow=-1;
       if(typeof save.gearsEver!=="number") save.gearsEver=save.gears||0;
       if(typeof save.miners!=="number") save.miners=0;
@@ -415,6 +451,8 @@ function recompute(){
   for(const p of POTIONS){ if((save.potions[p.id]||0)>now){ const b=p.buff;
     if(b.global) m.global*=b.global; if(b.click) m.click*=b.click;
     if(b.luck) m._runeLuck+=b.luck; if(b.ore) m._oreBoost+=(b.ore-1); } }
+  // мутанты (вечные)
+  for(const x of MUTANTS){ if(save.mutants[x.id] && x.apply) x.apply(m); }
   // кварки (трансценденция) + Пантеон-синергии
   for(const q of QUARK_UPS){ const l=save.quarkUps[q.id]||0; if(l>0 && q.apply) q.apply(m,l); }
   // улучшения искажения
@@ -814,12 +852,19 @@ function loop(now){
     if(g>=1 && g>=save.prisms*0.5+1){ doPrestige(true); } } }
   // испытания: проверка цели
   if(save.activeChallenge){ const c=CHAL[save.activeChallenge]; if(c && save.totalOof>=c.goal) completeChallenge(); }
+  // взрывной нуб-мутант
+  if(save.mutants.boom){ boomTimer+=edt; if(boomTimer>=60){ boomTimer=0; const bz=D.ops*3600;
+    if(bz>0){ gainOof(bz); toast("💥 Взрыв нуба: +"+fmt(bz)+" Oof"); } } }
+  // хроно-биржа: дрейф курсов
+  driftMarket();
+  // карманная реальность: тик портала (реальное время)
+  tickPortal(dt);
 
   render(dt);
 
   // периодические обновления UI (не каждый кадр)
   uiAcc+=dt;
-  if(uiAcc>0.12){ uiAcc=0; refreshTop(); refreshLive(); checkAchievements(); tickPotions(); updateChalLive(); }
+  if(uiAcc>0.12){ uiAcc=0; refreshTop(); refreshLive(); checkAchievements(); tickPotions(); updateChalLive(); if(mutOpen) updateMutLive(); }
   saveTimer-=dt; if(saveTimer<0 && saveTimer>-1){ saveTimer=-2; persist(); }
   save.lastTime=Date.now();
   requestAnimationFrame(loop);
@@ -828,6 +873,7 @@ let uiAcc=0;
 let abTimer=0;
 let apTimer=0;
 let mnTimer=0;
+let boomTimer=0;
 function autoBuyTick(){
   abTimer++; if(abTimer<20) return; abTimer=0;
   // покупаем самого дорогого доступного нуба
@@ -860,6 +906,9 @@ function refreshTop(){
   if(save.prestiges>=2 || save.activeChallenge || Object.keys(save.chalDone).length){
     $("chalBtn").classList.remove("hidden");
   }
+  if(save.prestiges>=2){ $("mktBtn").classList.remove("hidden"); }
+  if(save.prestiges>=3 || Object.keys(save.mutants).length){ $("mutBtn").classList.remove("hidden"); }
+  if(save.transcends>0 || save.corruption>0 || save.corr>0){ $("portalBtn").classList.remove("hidden"); }
   // бейджи «доступно»
   updateBadges();
 }
@@ -1340,6 +1389,124 @@ $("achBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden
 $("achClose").addEventListener("click", ()=>{ achOpen=false; $("achModal").classList.add("hidden"); });
 $("achModal").addEventListener("click", e=>{ if(e.target.id==="achModal"){ achOpen=false; $("achModal").classList.add("hidden"); } });
 
+/* ---- Мутации (конвейер) ---- */
+let mutOpen=false;
+function buyMutant(id){
+  const x=MUTANT[id]; if(save.mutants[id]) return; const c=x.cost;
+  if(save.ore<c.ore||save.dust<c.dust||save.gears<c.gears){ toast("Не хватает ресурсов"); return; }
+  save.ore-=c.ore; save.dust-=c.dust; save.gears-=c.gears; save.mutants[id]=1;
+  recompute(); refreshTop(); renderMutants(); queueSave();
+  toast(x.icon+" Создан: "+x.name);
+}
+function renderMutants(){
+  const box=$("mutList"); box.innerHTML="";
+  MUTANTS.forEach(x=>{
+    const done=!!save.mutants[x.id], c=x.cost;
+    const el=document.createElement("div"); el.className="buyrow"+(done?" afford":""); el.dataset.mut=x.id;
+    el.innerHTML=`<div class="buy-ico">${x.icon}</div>
+      <div class="buy-main"><div class="buy-name">${x.name}</div><div class="buy-desc">${x.desc}</div></div>
+      <div class="buy-right">${done?'<div class="chal-status" style="padding:0">✓</div>'
+        :`<div class="buy-cost ore" data-cost>🪨 ${fmt(c.ore)} · 💠 ${fmt(c.dust)} · ⚙️ ${fmt(c.gears)}</div>`}</div>`;
+    if(!done) el.addEventListener("click",()=>buyMutant(x.id));
+    box.appendChild(el);
+  });
+  updateMutLive();
+}
+function updateMutLive(){
+  document.querySelectorAll("#mutList .buyrow").forEach(row=>{
+    const x=MUTANT[row.dataset.mut]; if(save.mutants[x.id]) return;
+    const c=x.cost, ok=save.ore>=c.ore&&save.dust>=c.dust&&save.gears>=c.gears;
+    row.classList.toggle("afford",ok);
+    const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",!ok);
+  });
+}
+
+/* ---- Хроно-биржа ---- */
+let mktOpen=false;
+function driftMarket(){
+  const m=save.market; const now=Date.now();
+  if(now < (m.nextDrift||0)) return;
+  m.nextDrift = now + 18000;
+  for(const r of MARKET_RES){ let f=(m[r.id]||1)*(0.82+Math.random()*0.42); m[r.id]=Math.max(0.4,Math.min(2.6,f)); }
+  if(!m.event || now>=m.event.until){
+    if(Math.random()<0.4){ const e=MARKET_EVENTS[Math.floor(Math.random()*MARKET_EVENTS.length)];
+      m.event={ res:e.res, mult:e.mult, text:e.text, until:now+28000 }; }
+    else m.event=null;
+  }
+  if(mktOpen) renderMarket();
+}
+function sellRes(res){
+  const amt=save[res]||0; if(amt<=0){ toast("Нечего продавать"); return; }
+  const oof=amt*marketPrice(res);
+  save[res]=0; gainOof(oof);
+  refreshTop(); renderMarket(); queueSave();
+  toast("Продано "+fmt(amt)+" за "+fmt(oof)+" Oof");
+}
+function buyRes(res){
+  const spend=save.oof*0.1; if(spend<=0){ toast("Мало Oof"); return; }
+  const got=spend/marketPrice(res);
+  save.oof-=spend; save[res]=(save[res]||0)+got;
+  if(res==="ore") save.oreEver=(save.oreEver||0)+got; if(res==="gears") save.gearsEver=(save.gearsEver||0)+got;
+  refreshTop(); renderMarket(); queueSave();
+  toast("Куплено "+fmt(got)+" "+MARKET_RES.find(r=>r.id===res).name);
+}
+function renderMarket(){
+  const ev=$("mktEvent"); const m=save.market;
+  if(m.event && Date.now()<m.event.until){ ev.textContent=m.event.text; ev.classList.remove("hidden"); }
+  else ev.classList.add("hidden");
+  const box=$("mktList"); box.innerHTML="";
+  MARKET_RES.forEach(r=>{
+    const price=marketPrice(r.id), have=save[r.id]||0;
+    const row=document.createElement("div"); row.className="mkt-row";
+    row.innerHTML=`<div class="mkt-head"><span>${r.icon} ${r.name}</span><span class="mkt-price">💱 ${fmt(price)} Oof/шт</span></div>
+      <div class="mkt-have">В наличии: ${fmt(have)}</div>
+      <div class="mkt-btns">
+        <button class="adm-btn" data-sell="${r.id}">Продать всё</button>
+        <button class="adm-btn pri" data-buy="${r.id}">Купить на 10% Oof</button>
+      </div>`;
+    box.appendChild(row);
+  });
+  box.querySelectorAll("[data-sell]").forEach(b=>b.addEventListener("click",()=>sellRes(b.dataset.sell)));
+  box.querySelectorAll("[data-buy]").forEach(b=>b.addEventListener("click",()=>buyRes(b.dataset.buy)));
+}
+
+/* ---- Карманные реальности (глитч-портал) ---- */
+let portalActive=false, portalBalance=0, portalBase=0, portalTime=0, portalLastTap=0;
+const PORTAL_COST=50;
+function openPortal(){
+  if(portalActive) return;
+  if((save.corr||0)<PORTAL_COST){ toast("Нужно "+PORTAL_COST+" ⚫ искажения"); return; }
+  save.corr-=PORTAL_COST;
+  portalBase=Math.max(1e3, D.ops*20 + D.clickBase*50);
+  portalBalance=portalBase; portalTime=30; portalLastTap=Date.now(); portalActive=true;
+  $("portalModal").classList.remove("hidden"); refreshTop(); renderPortal(); queueSave();
+}
+function tapPortal(){
+  if(!portalActive) return;
+  portalBalance*=1.18; portalLastTap=Date.now();
+  burst(W/2, Hc*0.5);
+}
+function collectPortal(){
+  if(!portalActive) return;
+  const won=Math.floor(portalBalance);
+  gainOof(won);
+  portalActive=false; $("portalModal").classList.add("hidden");
+  refreshTop(); toast("🌀 Из портала: +"+fmt(won)+" Oof"); queueSave();
+}
+function renderPortal(){
+  $("portalBal").textContent=fmt(portalBalance);
+  $("portalTime").textContent=Math.ceil(portalTime)+"с";
+}
+function tickPortal(dt){
+  if(!portalActive) return;
+  portalTime-=dt;
+  if(Date.now()-portalLastTap>3000){ portalBalance=portalBase; } // застой сбрасывает
+  const stall=Math.max(0,1-(Date.now()-portalLastTap)/3000);
+  const sb=$("portalStall"); if(sb) sb.style.width=(stall*100)+"%";
+  renderPortal();
+  if(portalTime<=0) collectPortal();
+}
+
 /* ---- Испытания ---- */
 let chalOpen=false;
 function completeChallenge(){
@@ -1385,6 +1552,19 @@ function updateChalLive(){
 $("chalBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); chalOpen=true; renderChallenges(); $("chalModal").classList.remove("hidden"); });
 $("chalClose").addEventListener("click", ()=>{ chalOpen=false; $("chalModal").classList.add("hidden"); });
 $("chalModal").addEventListener("click", e=>{ if(e.target.id==="chalModal"){ chalOpen=false; $("chalModal").classList.add("hidden"); } });
+
+// Мутации
+$("mutBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); mutOpen=true; renderMutants(); $("mutModal").classList.remove("hidden"); });
+$("mutClose").addEventListener("click", ()=>{ mutOpen=false; $("mutModal").classList.add("hidden"); });
+$("mutModal").addEventListener("click", e=>{ if(e.target.id==="mutModal"){ mutOpen=false; $("mutModal").classList.add("hidden"); } });
+// Хроно-биржа
+$("mktBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); mktOpen=true; renderMarket(); $("mktModal").classList.remove("hidden"); });
+$("mktClose").addEventListener("click", ()=>{ mktOpen=false; $("mktModal").classList.add("hidden"); });
+$("mktModal").addEventListener("click", e=>{ if(e.target.id==="mktModal"){ mktOpen=false; $("mktModal").classList.add("hidden"); } });
+// Глитч-портал
+$("portalBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); openPortal(); });
+$("portalTap").addEventListener("click", tapPortal);
+$("portalCollect").addEventListener("click", collectPortal);
 $("howBtn2").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); $("howModal").classList.remove("hidden"); });
 $("howClose2").addEventListener("click", ()=>$("howModal").classList.add("hidden"));
 $("prestigeBtn").addEventListener("click", ()=>doPrestige());
