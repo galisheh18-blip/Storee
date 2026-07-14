@@ -225,6 +225,30 @@ function minerCost(){
   return MINER_BASE*Math.pow(MINER_MUL, save.miners)*red;
 }
 
+// ---- Алхимия: питомцы (вечные %) и зелья (временные баффы). Валюта: руда + пыль ----
+const PETS = [
+  { id:"cat",   icon:"🐈", name:"Кот-мемолов",   max:50, desc:l=>"Oof/с +"+(l*5)+"%",       apply:(m,l)=>m.global*=(1+l*0.05),
+    cost:l=>({ore:Math.ceil(200*Math.pow(1.4,l)),  dust:Math.ceil(5*Math.pow(1.3,l))}) },
+  { id:"fox",   icon:"🦊", name:"Лис-ловкач",     max:50, desc:l=>"Тап +"+(l*8)+"%",          apply:(m,l)=>m.click*=(1+l*0.08),
+    cost:l=>({ore:Math.ceil(150*Math.pow(1.4,l)),  dust:Math.ceil(4*Math.pow(1.3,l))}) },
+  { id:"dog",   icon:"🐕", name:"Пёс-нюхач",      max:50, desc:l=>"Удача рун +"+(l*4)+"%",     apply:(m,l)=>m._runeLuck+=l*0.04,
+    cost:l=>({ore:Math.ceil(180*Math.pow(1.45,l)), dust:Math.ceil(8*Math.pow(1.35,l))}) },
+  { id:"eagle", icon:"🦅", name:"Орёл-старатель", max:50, desc:l=>"Добыча руды +"+(l*10)+"%",  apply:(m,l)=>m._oreBoost+=l*0.1,
+    cost:l=>({ore:Math.ceil(300*Math.pow(1.5,l)),  dust:Math.ceil(3*Math.pow(1.3,l))}) },
+  { id:"owl",   icon:"🦉", name:"Сова-мудрец",    max:50, desc:l=>"Эффект рун +"+(l*5)+"%",    apply:(m,l)=>m._runePow+=l*0.05,
+    cost:l=>({ore:Math.ceil(250*Math.pow(1.45,l)), dust:Math.ceil(10*Math.pow(1.35,l))}) },
+  { id:"dragon",icon:"🐉", name:"Дракончик",      max:30, desc:l=>"Всё +"+(l*6)+"%",           apply:(m,l)=>m.global*=(1+l*0.06),
+    cost:l=>({ore:Math.ceil(1000*Math.pow(1.6,l)), dust:Math.ceil(40*Math.pow(1.5,l))}) },
+];
+const PET = Object.fromEntries(PETS.map(p=>[p.id,p]));
+const POTIONS = [
+  { id:"rush",  icon:"⚗️", name:"Зелье ярости",  dur:60,  desc:"×3 Oof/с на 60с",     cost:{ore:500, dust:20}, buff:{global:3} },
+  { id:"luck",  icon:"🧪", name:"Эликсир удачи",  dur:60,  desc:"+удача рун на 60с",    cost:{ore:400, dust:30}, buff:{luck:4} },
+  { id:"mine",  icon:"🍶", name:"Настой шахтёра", dur:120, desc:"×4 добыча на 120с",    cost:{ore:300, dust:15}, buff:{ore:3} },
+  { id:"party", icon:"🍾", name:"Праздник Oof",   dur:30,  desc:"×10 тап на 30с",       cost:{ore:800, dust:50}, buff:{click:10} },
+];
+const POTION = Object.fromEntries(POTIONS.map(p=>[p.id,p]));
+
 // ---- Достижения / Вехи (вечные бонусы, не сбрасываются) ----
 function totalNoobs(){ let t=0; for(const nb of NOOBS) t+=(save.noobs[nb.id]||0); return t; }
 const ACHS = [
@@ -269,6 +293,7 @@ const DEFAULT = ()=>({
   runes:[], dust:0, energy:5, stars:0, ascends:0, starUps:{},
   gears:0, gearsEver:0, workshopUps:{}, salvageBelow:-1, achieved:{},
   miners:0, ore:0, oreEver:0, miningUps:{},
+  pets:{}, potions:{},
   lastTime:Date.now(), seen:{},
   admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }
 });
@@ -277,7 +302,7 @@ function load(){
   try{
     const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
     if(raw){ save=Object.assign(DEFAULT(),raw);
-      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","seen"]) if(!save[k]) save[k]={};
+      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","seen"]) if(!save[k]) save[k]={};
       if(typeof save.salvageBelow!=="number") save.salvageBelow=-1;
       if(typeof save.gearsEver!=="number") save.gearsEver=save.gears||0;
       if(typeof save.miners!=="number") save.miners=0;
@@ -307,7 +332,7 @@ let D = {}; // derived
 function recompute(){
   const m = { global:1, click:1, clickFromPs:0, crit:0, critPow:1.5, cost:1,
     prism:1, runeRegen:1, offline:0, autoClick:0, autoBuy:false, autoPrestige:false,
-    _runePow:0, _runeLuck:0, _megaClick:0, _bonusSlots:0, noob:{} };
+    _runePow:0, _runeLuck:0, _megaClick:0, _bonusSlots:0, _oreBoost:0, noob:{} };
   // обычные улучшения
   for(const id in save.ups){ if(save.ups[id] && UP[id]) UP[id].apply(m); }
   // призматические
@@ -324,9 +349,17 @@ function recompute(){
   let ag=0,ac=0,ap=0,arp=0;
   for(const a of ACHS){ if(save.achieved[a.id]){ const b=a.buff; ag+=b.global||0; ac+=b.click||0; ap+=b.prism||0; arp+=b.runePow||0; } }
   m.global*=(1+ag); m.click*=(1+ac); m.prism*=(1+ap); m._runePow+=arp;
+  // питомцы (вечные бонусы)
+  for(const p of PETS){ const l=save.pets[p.id]||0; if(l>0) p.apply(m,l); }
+  // зелья (временные баффы)
+  const now=Date.now();
+  for(const p of POTIONS){ if((save.potions[p.id]||0)>now){ const b=p.buff;
+    if(b.global) m.global*=b.global; if(b.click) m.click*=b.click;
+    if(b.luck) m._runeLuck+=b.luck; if(b.ore) m._oreBoost+=(b.ore-1); } }
   // шахта: руда усиливает основную экономику
   let oreMul=1, miningGlob=1;
   for(const mu of MINING_UPS){ const l=save.miningUps[mu.id]||0; if(l>0){ if(mu.rate) oreMul*=mu.rate(l); if(mu.glob) miningGlob*=mu.glob(l); } }
+  oreMul *= (1 + Math.max(0, m._oreBoost));
   m.global *= miningGlob;
   D.oreRate = (save.miners||0)*MINER_RATE*oreMul;
   D.autoMiner = (save.miningUps.auto||0)>0;
@@ -687,7 +720,7 @@ function loop(now){
 
   // периодические обновления UI (не каждый кадр)
   uiAcc+=dt;
-  if(uiAcc>0.12){ uiAcc=0; refreshTop(); refreshLive(); checkAchievements(); }
+  if(uiAcc>0.12){ uiAcc=0; refreshTop(); refreshLive(); checkAchievements(); tickPotions(); }
   saveTimer-=dt; if(saveTimer<0 && saveTimer>-1){ saveTimer=-2; persist(); }
   save.lastTime=Date.now();
   requestAnimationFrame(loop);
@@ -721,6 +754,9 @@ function refreshTop(){
   if(save.prestiges>=2 || save.miners>0 || save.ore>0){
     $("tabMining").classList.remove("hidden");
   }
+  if(save.prestiges>=3 || Object.keys(save.pets).length || Object.keys(save.potions).length){
+    $("tabAlchemy").classList.remove("hidden");
+  }
   // бейджи «доступно»
   updateBadges();
 }
@@ -739,6 +775,7 @@ function refreshLive(){
   else if(curTab==="runes") updateRuneLive();
   else if(curTab==="workshop") updateWorkshopLive();
   else if(curTab==="mining") updateMiningLive();
+  else if(curTab==="alchemy") updateAlchemyLive();
 }
 
 /* ---- Нубы ---- */
@@ -1022,6 +1059,74 @@ function updateMiningLive(){
   });
 }
 
+/* ---- Алхимия: питомцы и зелья ---- */
+let potionState="";
+function buyPet(id){
+  const p=PET[id]; const l=save.pets[id]||0;
+  if(l>=p.max) return; const c=p.cost(l);
+  if(save.ore<c.ore || save.dust<c.dust){ toast("Не хватает руды/пыли"); return; }
+  save.ore-=c.ore; save.dust-=c.dust; save.pets[id]=l+1;
+  recompute(); renderAlchemy(); refreshTop(); queueSave();
+}
+function brewPotion(id){
+  const p=POTION[id], c=p.cost;
+  if(save.ore<c.ore || save.dust<c.dust){ toast("Не хватает руды/пыли"); return; }
+  save.ore-=c.ore; save.dust-=c.dust;
+  const now=Date.now();
+  const base=(save.potions[id]||0)>now ? save.potions[id] : now;
+  save.potions[id]=base + p.dur*1000;
+  potionState=""; recompute(); renderAlchemy(); refreshTop(); queueSave();
+  toast(p.icon+" "+p.name+" активно!");
+}
+function renderAlchemy(){
+  const pbox=$("petList"); pbox.innerHTML="";
+  PETS.forEach(p=>{
+    const l=save.pets[p.id]||0, maxed=l>=p.max, c=maxed?null:p.cost(l);
+    const costTxt = maxed?"МАКС":("🪨 "+fmt(c.ore)+" · 💠 "+fmt(c.dust));
+    const row=document.createElement("div"); row.className="buyrow"; row.dataset.pet=p.id;
+    row.innerHTML=`<div class="buy-ico">${p.icon}</div>
+      <div class="buy-main"><div class="buy-name">${p.name} ${l>0?'<span class="buy-cnt">ур.'+l+'</span>':''}</div>
+        <div class="buy-desc">${p.desc(l)}</div></div>
+      <div class="buy-right"><div class="buy-cost ore" data-cost>${costTxt}</div></div>`;
+    if(!maxed) row.addEventListener("click", ()=>buyPet(p.id));
+    pbox.appendChild(row);
+  });
+  const bbox=$("potionList"); bbox.innerHTML="";
+  POTIONS.forEach(p=>{
+    const row=document.createElement("div"); row.className="buyrow"; row.dataset.potion=p.id;
+    row.innerHTML=`<div class="buy-ico">${p.icon}</div>
+      <div class="buy-main"><div class="buy-name">${p.name}</div>
+        <div class="buy-desc">${p.desc}</div></div>
+      <div class="buy-right"><div class="buy-cost ore">🪨 ${fmt(p.cost.ore)} · 💠 ${fmt(p.cost.dust)}</div>
+        <div class="buy-prod" data-timer></div></div>`;
+    row.addEventListener("click", ()=>brewPotion(p.id));
+    bbox.appendChild(row);
+  });
+  updateAlchemyLive();
+}
+function updateAlchemyLive(){
+  const now=Date.now();
+  document.querySelectorAll("#petList .buyrow").forEach(row=>{
+    const p=PET[row.dataset.pet]; const l=save.pets[p.id]||0; if(l>=p.max) return;
+    const c=p.cost(l), ok=save.ore>=c.ore&&save.dust>=c.dust;
+    row.classList.toggle("afford",ok);
+    const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",!ok);
+  });
+  document.querySelectorAll("#potionList .buyrow").forEach(row=>{
+    const p=POTION[row.dataset.potion], c=p.cost, ok=save.ore>=c.ore&&save.dust>=c.dust;
+    row.classList.toggle("afford",ok);
+    const exp=save.potions[p.id]||0, t=row.querySelector("[data-timer]");
+    if(exp>now){ t.textContent="⏳ "+Math.ceil((exp-now)/1000)+"с"; t.classList.add("active"); }
+    else { t.textContent=""; t.classList.remove("active"); }
+  });
+}
+function tickPotions(){
+  const now=Date.now();
+  const key=POTIONS.map(p=>(save.potions[p.id]||0)>now?"1":"0").join("");
+  if(key!==potionState){ potionState=key; recompute(); refreshTop(); if(curTab==="alchemy") renderAlchemy(); }
+  else if(curTab==="alchemy") updateAlchemyLive();
+}
+
 /* ============ Вкладки/навигация ============ */
 let curTab="noobs";
 function switchTab(t){
@@ -1034,13 +1139,14 @@ function switchTab(t){
   else if(t==="prestige") renderPrestige();
   else if(t==="workshop") renderWorkshop();
   else if(t==="mining") renderMining();
+  else if(t==="alchemy") renderAlchemy();
 }
 document.querySelectorAll("#tabbar .tab").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
 
 function renderAll(){ renderNoobs();
   if(curTab==="ups")renderUps(); if(curTab==="runes")renderRunes();
   if(curTab==="prestige")renderPrestige(); if(curTab==="workshop")renderWorkshop();
-  if(curTab==="mining")renderMining(); }
+  if(curTab==="mining")renderMining(); if(curTab==="alchemy")renderAlchemy(); }
 
 /* ============ Тосты/подсказка ============ */
 function toast(msg){
