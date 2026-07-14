@@ -208,11 +208,14 @@
       </div>
       <button class="btn btn-ghost" id="achBtn">🏆 Достижения <span id="achCount" class="dim"></span></button>
       <button class="btn btn-ghost hidden" id="chalBtn">🎯 Испытания</button>
+      <button class="btn btn-ghost hidden" id="mktBtn">🔄 Хроно-биржа</button>
+      <button class="btn btn-ghost hidden" id="mutBtn">🧬 Конвейер мутаций</button>
+      <button class="btn btn-ghost hidden" id="portalBtn">🌀 Глитч-портал</button>
       <button class="btn btn-ghost" id="howBtn2">❓ Как играть</button>
       <button class="btn btn-ghost" id="adminBtn">🛠️ Админ-панель</button>
       <button class="btn btn-ghost" id="wipeBtn">🗑️ Сбросить всё</button>
       <button class="btn btn-primary" id="closeMenu">Закрыть</button>
-      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v10</span></div>
+      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v11</span></div>
     </div>
   </div>
 
@@ -265,6 +268,38 @@
       </div>
       <p class="ach-sub">Забег с ограничением ради вечного перка. Вход сбрасывает текущий прогресс забега.</p>
       <div id="chalList"></div>
+    </div>
+  </div>
+
+  <!-- КОНВЕЙЕР МУТАЦИЙ -->
+  <div id="mutModal" class="overlay hidden">
+    <div class="modal ach">
+      <div class="admin-head"><h1>🧬 Конвейер мутаций</h1><button class="icon-btn" id="mutClose">✕</button></div>
+      <p class="ach-sub">Скрещивай ресурсы в мутантов с уникальными вечными эффектами.</p>
+      <div id="mutList" class="list"></div>
+    </div>
+  </div>
+
+  <!-- ХРОНО-БИРЖА -->
+  <div id="mktModal" class="overlay hidden">
+    <div class="modal ach">
+      <div class="admin-head"><h1>🔄 Хроно-биржа</h1><button class="icon-btn" id="mktClose">✕</button></div>
+      <p class="ach-sub">Курсы плавают. Покупай дёшево, продавай дорого.</p>
+      <div id="mktEvent" class="mkt-event hidden"></div>
+      <div id="mktList"></div>
+    </div>
+  </div>
+
+  <!-- ГЛИТЧ-ПОРТАЛ -->
+  <div id="portalModal" class="overlay hidden">
+    <div class="modal portal">
+      <h1>🌀 Глитч-портал</h1>
+      <p class="ach-sub">Тапай, чтобы растить баланс (×1.18 за тап). Пауза дольше 3с — сброс!</p>
+      <div class="portal-bal">😵 <b id="portalBal">0</b></div>
+      <div class="portal-stallbar"><div id="portalStall"></div></div>
+      <div class="portal-time">Осталось: <b id="portalTime">30с</b></div>
+      <button class="btn btn-primary portal-tap" id="portalTap">ТАП!</button>
+      <button class="btn btn-ghost" id="portalCollect">Забрать сейчас</button>
     </div>
   </div>
 
