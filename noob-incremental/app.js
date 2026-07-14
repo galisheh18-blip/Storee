@@ -211,6 +211,36 @@ const PRISM_UPS = [
 const PRISM_UP = Object.fromEntries(PRISM_UPS.map(p=>[p.id,p]));
 function startOof(l){ return l<=0?0: 100*Math.pow(6,l); }
 
+/* ---- Углубление престижа: вехи (B), реликвии (C), сила престижа (D) ---- */
+// D — компаундинг-множитель от всех призм за всё время
+function prestigePower(){ return 1 + Math.log10(1+(save.prismsEver||0))*0.2; }
+// B — вехи за количество престижей (вечные)
+const PRESTIGE_MS = [
+  { at:1,    g:0.1 },
+  { at:5,    p:0.25 },
+  { at:10,   g:0.5 },
+  { at:25,   g:0.25, slots:1 },
+  { at:50,   g:1.0, p:0.25 },
+  { at:100,  g:2.0 },
+  { at:250,  g:2.0, p:0.5 },
+  { at:500,  g:5.0 },
+  { at:1000, g:10, slots:1 },
+];
+function prestigeMsText(ms){ const p=[]; if(ms.g)p.push("+"+Math.round(ms.g*100)+"% всего"); if(ms.p)p.push("+"+Math.round(ms.p*100)+"% призм"); if(ms.slots)p.push("+"+ms.slots+" слот рун"); return p.join(", "); }
+// C — реликвии (лучшая по каждому типу, вечные, дропают за сброс)
+const RELIC_TYPES = [
+  { id:"gld",  icon:"🪙", name:"Реликвия богатства", base:0.15, fmt:v=>"+"+Math.round(v*100)+"% Oof/с",  apply:(m,v)=>m.global*=(1+v) },
+  { id:"prg",  icon:"💎", name:"Реликвия призм",     base:0.12, fmt:v=>"+"+Math.round(v*100)+"% призм",   apply:(m,v)=>m.prism*=(1+v) },
+  { id:"tap",  icon:"👆", name:"Реликвия силы",      base:0.2,  fmt:v=>"+"+Math.round(v*100)+"% тап",     apply:(m,v)=>m.click*=(1+v) },
+  { id:"crt",  icon:"💥", name:"Реликвия крита",     base:0.05, fmt:v=>"+"+(v*100).toFixed(1)+"% крит",   apply:(m,v)=>m.crit+=v },
+  { id:"ore",  icon:"🪨", name:"Реликвия недр",      base:0.2,  fmt:v=>"+"+Math.round(v*100)+"% добыча",  apply:(m,v)=>m._oreBoost+=v },
+  { id:"luck", icon:"🍀", name:"Реликвия удачи",     base:0.15, fmt:v=>"+"+Math.round(v*100)+"% удача рун",apply:(m,v)=>m._runeLuck+=v },
+  { id:"all",  icon:"🌌", name:"Реликвия вечности",  base:0.08, fmt:v=>"+"+Math.round(v*100)+"% валют престижа", apply:(m,v)=>{ m._allCur=(m._allCur||0)+v; } },
+];
+const RELIC_T = Object.fromEntries(RELIC_TYPES.map(r=>[r.id,r]));
+function relicValue(tid, rar){ return RELIC_T[tid].base * RARITIES[rar].mul; }
+function relicChance(){ return Math.min(0.25 + (save.prestiges||0)*0.002, 0.6); }
+
 // ---- Звёздные улучшения (вознесение) ----
 const STAR_UPS = [
   { id:"sshine", icon:"⭐", name:"Звёздный блеск", max:200, desc:l=>"Всё ×"+(1+0.3*l).toFixed(1),
@@ -331,7 +361,7 @@ function marketPrice(res){
 }
 
 // ---- Трансцендентность: ⚛️ кварки (3-й слой сброса) + Пантеон (синергии) ----
-function quarkGain(stars){ if(stars<1000) return 0; return Math.floor(Math.pow(stars/1000, 0.5)); }
+function quarkGain(stars){ if(stars<1000) return 0; return Math.floor(Math.pow(stars/1000, 0.5) * (D.allCurMul||1)); }
 const QUARK_UPS = [
   { id:"qall",  icon:"⚛️", name:"Квантовый множитель", max:500, desc:l=>"Всё ×"+fmt(1+0.5*l),
     cost:l=>Math.ceil(3*Math.pow(1.4,l)), apply:(m,l)=>m.global*=(1+0.5*l) },
@@ -431,7 +461,7 @@ const DEFAULT = ()=>({
   quarks:0, transcends:0, quarkUps:{}, corruption:0, corr:0, corrEver:0, corrUps:{},
   mutants:{}, market:{ ore:1, dust:1, gears:1, nextDrift:0, event:null },
   dustUps:{}, auto:{ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false },
-  ranks:{},
+  ranks:{}, prismsEver:0, relics:{},
   lastTime:Date.now(), seen:{},
   admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }
 });
@@ -440,7 +470,8 @@ function load(){
   try{
     const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
     if(raw){ save=Object.assign(DEFAULT(),raw);
-      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","dustUps","ranks","seen"]) if(!save[k]) save[k]={};
+      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","dustUps","ranks","relics","seen"]) if(!save[k]) save[k]={};
+      if(typeof save.prismsEver!=="number") save.prismsEver=0;
       if(typeof save.corruption!=="number") save.corruption=0;
       if(!save.market) save.market={ ore:1, dust:1, gears:1, nextDrift:0, event:null };
       save.auto=Object.assign({ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false }, save.auto||{});
@@ -473,7 +504,7 @@ let D = {}; // derived
 function recompute(){
   const m = { global:1, click:1, clickFromPs:0, crit:0, critPow:1.5, cost:1,
     prism:1, runeRegen:1, offline:0, autoClick:0, autoBuy:false, autoPrestige:false,
-    _runePow:0, _runeLuck:0, _megaClick:0, _bonusSlots:0, _oreBoost:0, noob:{} };
+    _runePow:0, _runeLuck:0, _megaClick:0, _bonusSlots:0, _oreBoost:0, _allCur:0, noob:{} };
   const cr = save.activeChallenge ? ((CHAL[save.activeChallenge]||{}).restrict||{}) : {};
   // обычные улучшения
   if(!cr.noUps) for(const id in save.ups){ if(save.ups[id] && UP[id]) UP[id].apply(m); }
@@ -511,6 +542,11 @@ function recompute(){
   for(const c of CORR_UPS){ const l=save.corrUps[c.id]||0; if(l>0 && c.apply) c.apply(m,l); }
   // дебафф искажения
   if(save.corruption>0) m.global /= (1+save.corruption*0.4);
+  // престиж: сила престижа (D) + вехи (B) + реликвии (C)
+  const ppow=prestigePower(); m.global*=ppow; D.prestigePow=ppow;
+  for(const ms of PRESTIGE_MS){ if((save.prestiges||0)>=ms.at){ if(ms.g)m.global*=(1+ms.g); if(ms.p)m.prism*=(1+ms.p); if(ms.slots)m._bonusSlots+=ms.slots; } }
+  for(const tid in save.relics){ const rt=RELIC_T[tid]; if(rt) rt.apply(m, relicValue(tid, save.relics[tid])); }
+  D.allCurMul = 1 + (m._allCur||0);
   // шахта: руда усиливает основную экономику
   let oreMul=1, miningGlob=1;
   for(const mu of MINING_UPS){ const l=save.miningUps[mu.id]||0; if(l>0){ if(mu.rate) oreMul*=mu.rate(l); if(mu.glob) miningGlob*=mu.glob(l); } }
@@ -575,11 +611,11 @@ function recompute(){
 function noobCost(id, owned){ return NOOB[id].base * Math.pow(COST_MUL, owned) * D.costMul; }
 function prismGain(total){ // призмы за престиж
   if(total < 1e6) return 0;
-  return Math.floor(Math.pow(total/1e6, 0.5) * D.prismMul);
+  return Math.floor(Math.pow(total/1e6, 0.5) * D.prismMul * (D.allCurMul||1));
 }
 function starGain(prisms){
   if(prisms < 500) return 0;
-  return Math.floor(Math.pow(prisms/500, 0.6));
+  return Math.floor(Math.pow(prisms/500, 0.6) * (D.allCurMul||1));
 }
 
 /* ============ Действия ============ */
@@ -676,6 +712,9 @@ function doPrestige(auto){
   if(g<1) return;
   const wasUnlocked = save.prestiges>=1;
   save.prisms+=g; save.prestiges++;
+  save.prismsEver=(save.prismsEver||0)+g;
+  // Реликвия — шанс дропа за сброс
+  if(Math.random()<relicChance()) dropRelic();
   // Мастерская: шестерёнки за престиж
   const conv=0.5+(save.workshopUps.wconv||0)*0.25;
   const gg=Math.floor(g*conv); if(gg>0){ save.gears+=gg; save.gearsEver=(save.gearsEver||0)+gg; }
@@ -744,6 +783,26 @@ function buyWorkshopUp(id){
   if(save.gears<cost) return;
   save.gears-=cost; save.workshopUps[id]=l+1;
   recompute(); renderWorkshop(); refreshTop(); queueSave();
+}
+function dropRelic(){
+  const t=RELIC_TYPES[Math.floor(Math.random()*RELIC_TYPES.length)];
+  const rar=pickRarity();
+  const cur=save.relics[t.id];
+  if(cur===undefined || rar>cur){ save.relics[t.id]=rar;
+    toast("✨ Реликвия: "+t.name+" — "+RARITIES[rar].name+(cur===undefined?"":" (лучше!)")); }
+  else { save.prisms+=Math.ceil((rar+1)*(save.prestiges>10?3:1)); } // дубликат → тихий рефанд призм
+}
+function renderRelics(){
+  const box=$("relicGrid"); if(!box) return; box.innerHTML="";
+  RELIC_TYPES.forEach(t=>{
+    const has=save.relics[t.id]!==undefined, rar=has?save.relics[t.id]:-1;
+    const el=document.createElement("div");
+    el.className="relic"+(has?(" filled "+RARITIES[rar].cls):" empty");
+    el.innerHTML=has
+      ? `<div class="r-ico">${t.icon}</div><div class="r-name">${RARITIES[rar].name}</div><div class="r-eff">${t.fmt(relicValue(t.id,rar))}</div>`
+      : `<div class="r-ico">❔</div><div class="r-name">${t.name}</div><div class="r-eff dim">не найдена</div>`;
+    box.appendChild(el);
+  });
 }
 function softReset(){
   // Наследие нубов — оставляем часть армии
@@ -1188,6 +1247,7 @@ function renderPrestige(){
   // призма
   const g=prismGain(save.totalOof);
   $("prismGain").textContent=fmt(g);
+  renderRelics();
   pbox_render();
   // вознесение
   const canAsc = save.prisms>=500 || save.ascends>0 || save.stars>0;
@@ -1248,6 +1308,16 @@ function updatePrestigeLive(){
   const g=prismGain(save.totalOof);
   $("prismGain").textContent=fmt(g);
   $("prestigeBtn").disabled = g<1;
+  // сила престижа + вехи
+  const pp=$("prestigePower"); if(pp) pp.textContent="⚡ Сила престижа: ×"+fmt(D.prestigePow||1)+"  ·  "+fmt(save.prismsEver||0)+" 💎 за всё время";
+  const nextMs=PRESTIGE_MS.find(x=>(save.prestiges||0)<x.at);
+  const mb=$("prestigeMsBar"), mn=$("msNext");
+  if(mb){ const prev=[...PRESTIGE_MS].reverse().find(x=>(save.prestiges||0)>=x.at); const lo=prev?prev.at:0;
+    const div=mb.firstElementChild;
+    if(nextMs){ if(div) div.style.width=Math.min(100,((save.prestiges||0)-lo)/(nextMs.at-lo)*100)+"%";
+      if(mn) mn.textContent=(save.prestiges||0)+"/"+nextMs.at+" → "+prestigeMsText(nextMs); }
+    else { if(div) div.style.width="100%"; if(mn) mn.textContent="все вехи взяты ✓ ("+(save.prestiges||0)+")"; }
+  }
   const need=1e6;
   const prog=Math.min(100, Math.pow(save.totalOof/need,0.5)*100/1); // грубый прогресс к 1-й призме
   $("prismProg").style.width=Math.min(100, save.totalOof<need? save.totalOof/need*100 : 100)+"%";

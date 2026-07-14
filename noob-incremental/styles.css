@@ -204,6 +204,20 @@ b{font-variant-numeric:tabular-nums}
 .tg .knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s}
 .tg.on .knob{left:22px}
 
+/* ---------- Углубление престижа ---------- */
+.prestige-power{background:linear-gradient(90deg,#2a2350,#1a1740);border:1px solid var(--line);
+  border-radius:12px;padding:10px 12px;font-size:13px;font-weight:700;color:var(--prism);margin-bottom:12px;text-align:center}
+#prestigeMsBar{height:8px;margin-bottom:6px}
+.relic-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px;margin-bottom:6px}
+.relic{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:10px 8px;text-align:center;
+  display:flex;flex-direction:column;gap:3px;align-items:center}
+.relic.empty{opacity:.5;border-style:dashed}
+.relic.filled{border-color:var(--rc)}
+.relic .r-ico{font-size:26px}
+.relic.filled .r-ico{filter:drop-shadow(0 0 6px var(--rc))}
+.relic .r-name{font-size:11px;font-weight:700}
+.relic .r-eff{font-size:11px;color:var(--green);font-weight:700;line-height:1.2}
+
 /* ---------- Испытания ---------- */
 #chalList{display:flex;flex-direction:column;gap:12px}
 .chal-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}

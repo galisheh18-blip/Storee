@@ -81,6 +81,8 @@
     <div class="tabpage hidden" data-page="prestige">
       <div class="page-head"><h2>💎 Престиж</h2><span class="page-hint">Сбрось прогресс — получи призмы навсегда</span></div>
 
+      <div class="prestige-power" id="prestigePower"></div>
+
       <div class="prestige-card">
         <div class="pc-top">
           <span class="pc-ico">💎</span>
@@ -94,6 +96,12 @@
         <div class="pc-note" id="prismNote">Нужно ещё Oof</div>
         <button class="btn btn-primary" id="prestigeBtn" disabled>💎 Престиж</button>
       </div>
+
+      <div class="sect-lab">🏆 Вехи престижа <span class="dim" id="msNext"></span></div>
+      <div id="prestigeMsBar" class="pc-prog"><div></div></div>
+
+      <div class="sect-lab">💠 Реликвии <span class="dim">— вечные, дропают за сброс</span></div>
+      <div id="relicGrid" class="relic-grid"></div>
 
       <div class="sect-lab">Призматические улучшения</div>
       <button class="btn btn-ghost massbtn" id="massPrism">🛒 Купить всё за призмы</button>
@@ -227,7 +235,7 @@
       <button class="btn btn-ghost" id="adminBtn">🛠️ Админ-панель</button>
       <button class="btn btn-ghost" id="wipeBtn">🗑️ Сбросить всё</button>
       <button class="btn btn-primary" id="closeMenu">Закрыть</button>
-      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v14</span></div>
+      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v15</span></div>
     </div>
   </div>
 
