@@ -1,7 +1,7 @@
 :root{
   --bg:#0b0e24; --bg2:#111743; --panel:#141a3c; --card:#1b2350; --card2:#232c66;
   --line:#2c3670; --text:#eef1ff; --muted:#9aa3d4; --dim:#6d76ab;
-  --oof:#ffd23f; --prism:#7cf3ff; --star:#ffb84d; --gear:#c7b8ff;
+  --oof:#ffd23f; --prism:#7cf3ff; --star:#ffb84d; --gear:#c7b8ff; --ore:#e0b083;
   --green:#3ddc84; --red:#ff5d6c; --accent:#7b6cff; --accent2:#b06cff;
   --shadow:0 6px 20px rgba(0,0,0,.35);
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -75,7 +75,7 @@ b{font-variant-numeric:tabular-nums}
 .buy-right{text-align:right;flex-shrink:0}
 .buy-cost{font-size:14px;font-weight:800;color:var(--oof);white-space:nowrap}
 .buy-cost.cant{color:var(--red)}
-.buy-cost.prism{color:var(--prism)} .buy-cost.star{color:var(--star)} .buy-cost.gear{color:var(--gear)}
+.buy-cost.prism{color:var(--prism)} .buy-cost.star{color:var(--star)} .buy-cost.gear{color:var(--gear)} .buy-cost.ore{color:var(--ore)}
 .buy-prod{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap}
 
 .upcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px;
@@ -170,6 +170,8 @@ b{font-variant-numeric:tabular-nums}
 .workshop-farm .wf-big{font-size:26px;font-weight:800}
 .workshop-farm .wf-big b{color:var(--gear)}
 .workshop-farm .wf-rate{font-size:14px;color:var(--gear);font-weight:700}
+.ore-farm{background:linear-gradient(160deg,#3a2f26,#241d16)}
+.ore-farm .wf-big b,.ore-farm .wf-rate{color:var(--ore)}
 .wf-note{font-size:12px;color:var(--muted);line-height:1.45;margin:12px 2px 0}
 
 /* ---------- Модалки ---------- */
