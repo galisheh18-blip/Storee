@@ -158,6 +158,8 @@ const PRISM_UPS = [
     cost:l=>Math.ceil(8*Math.pow(1.45,l)), apply:(m,l)=>{ m._megaClick+=l*0.02; } },
   { id:"runepow", icon:"🔮", name:"Резонанс рун", max:40, desc:l=>"Эффект рун +"+(l*5)+"%",
     cost:l=>Math.ceil(7*Math.pow(1.5,l)), apply:(m,l)=>{ m._runePow+=l*0.05; } },
+  { id:"runeluck",icon:"🍀", name:"Удача рун", max:50, desc:l=>"Шанс редких рун сильнее (+"+(l*6)+"%)",
+    cost:l=>Math.ceil(6*Math.pow(1.4,l)), apply:(m,l)=>{ m._runeLuck+=l*0.06; } },
 ];
 const PRISM_UP = Object.fromEntries(PRISM_UPS.map(p=>[p.id,p]));
 function startOof(l){ return l<=0?0: 100*Math.pow(6,l); }
@@ -201,6 +203,38 @@ const WORKSHOP_UPS = [
 ];
 const WORKSHOP_UP = Object.fromEntries(WORKSHOP_UPS.map(w=>[w.id,w]));
 
+// ---- Достижения / Вехи (вечные бонусы, не сбрасываются) ----
+function totalNoobs(){ let t=0; for(const nb of NOOBS) t+=(save.noobs[nb.id]||0); return t; }
+const ACHS = [
+  { id:"clk1", icon:"👆", name:"Первые тычки",    desc:"100 тапов",        cond:()=>save.lifetimeClicks>=100,   buff:{click:0.1} },
+  { id:"clk2", icon:"👆", name:"Тыкающий мастер", desc:"5 000 тапов",      cond:()=>save.lifetimeClicks>=5000,  buff:{click:0.25} },
+  { id:"clk3", icon:"👆", name:"Палец-легенда",   desc:"50 000 тапов",     cond:()=>save.lifetimeClicks>=50000, buff:{click:0.5} },
+  { id:"oof1", icon:"😵", name:"Первый миллион",  desc:"1e6 Oof всего",    cond:()=>save.lifetimeOof>=1e6,  buff:{global:0.05} },
+  { id:"oof2", icon:"😵", name:"Мемный магнат",   desc:"1e9 Oof всего",    cond:()=>save.lifetimeOof>=1e9,  buff:{global:0.1} },
+  { id:"oof3", icon:"😵", name:"Oof-император",   desc:"1e12 Oof всего",   cond:()=>save.lifetimeOof>=1e12, buff:{global:0.15} },
+  { id:"oof4", icon:"😵", name:"Oof-божество",    desc:"1e15 Oof всего",   cond:()=>save.lifetimeOof>=1e15, buff:{global:0.25} },
+  { id:"oof5", icon:"🌌", name:"Сингулярность Oof",desc:"1e18 Oof всего",  cond:()=>save.lifetimeOof>=1e18, buff:{global:0.4} },
+  { id:"nb1",  icon:"🧍", name:"Толпа",           desc:"50 нубов",         cond:()=>totalNoobs()>=50,   buff:{global:0.05} },
+  { id:"nb2",  icon:"🧍", name:"Армия",           desc:"250 нубов",        cond:()=>totalNoobs()>=250,  buff:{global:0.1} },
+  { id:"nb3",  icon:"🧍", name:"Легион",          desc:"1000 нубов",       cond:()=>totalNoobs()>=1000, buff:{global:0.2} },
+  { id:"pr1",  icon:"💎", name:"Новичок престижа",desc:"1 престиж",        cond:()=>save.prestiges>=1,  buff:{global:0.1} },
+  { id:"pr2",  icon:"💎", name:"Мастер сброса",   desc:"10 престижей",     cond:()=>save.prestiges>=10, buff:{global:0.25, prism:0.1} },
+  { id:"pr3",  icon:"💎", name:"Король призм",    desc:"50 престижей",     cond:()=>save.prestiges>=50, buff:{global:0.5, prism:0.25} },
+  { id:"as1",  icon:"⭐", name:"Вознёсшийся",     desc:"1 вознесение",     cond:()=>save.ascends>=1,    buff:{global:0.3} },
+  { id:"as2",  icon:"⭐", name:"Звёздный лорд",   desc:"25 звёзд собрано", cond:()=>save.stars>=25,     buff:{global:0.5} },
+  { id:"ru1",  icon:"🔮", name:"Рунолог",         desc:"Мифическая руна в слоте", cond:()=>save.runes.some(r=>r&&r.rar>=5), buff:{runePow:0.15} },
+  { id:"gr1",  icon:"⚙️", name:"Механик",         desc:"1e3 шестерёнок собрано", cond:()=>(save.gearsEver||0)>=1e3, buff:{global:0.1} },
+  { id:"gr2",  icon:"⚙️", name:"Инженер",         desc:"1e6 шестерёнок собрано", cond:()=>(save.gearsEver||0)>=1e6, buff:{global:0.25} },
+];
+function achBuffText(b){
+  const p=[];
+  if(b.global) p.push("+"+Math.round(b.global*100)+"% всего");
+  if(b.click)  p.push("+"+Math.round(b.click*100)+"% тапу");
+  if(b.prism)  p.push("+"+Math.round(b.prism*100)+"% призм");
+  if(b.runePow)p.push("+"+Math.round(b.runePow*100)+"% рун");
+  return p.join(", ");
+}
+
 function toRoman(n){ const r=["","I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"]; return r[n]||n; }
 
 /* ============ Сохранение ============ */
@@ -209,7 +243,7 @@ const DEFAULT = ()=>({
   oof:0, totalOof:0, lifetimeOof:0, lifetimeClicks:0,
   noobs:{}, ups:{}, prisms:0, prestiges:0, prismUps:{},
   runes:[], dust:0, energy:5, stars:0, ascends:0, starUps:{},
-  gears:0, workshopUps:{},
+  gears:0, gearsEver:0, workshopUps:{}, salvageBelow:-1, achieved:{},
   lastTime:Date.now(), seen:{},
   admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }
 });
@@ -218,7 +252,9 @@ function load(){
   try{
     const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
     if(raw){ save=Object.assign(DEFAULT(),raw);
-      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","seen"]) if(!save[k]) save[k]={};
+      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","seen"]) if(!save[k]) save[k]={};
+      if(typeof save.salvageBelow!=="number") save.salvageBelow=-1;
+      if(typeof save.gearsEver!=="number") save.gearsEver=save.gears||0;
       if(!Array.isArray(save.runes)) save.runes=[];
       save.admin=Object.assign({ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }, save.admin||{});
     }
@@ -243,7 +279,7 @@ let D = {}; // derived
 function recompute(){
   const m = { global:1, click:1, clickFromPs:0, crit:0, critPow:1.5, cost:1,
     prism:1, runeRegen:1, offline:0, autoClick:0, autoBuy:false, autoPrestige:false,
-    _runePow:0, _megaClick:0, _bonusSlots:0, noob:{} };
+    _runePow:0, _runeLuck:0, _megaClick:0, _bonusSlots:0, noob:{} };
   // обычные улучшения
   for(const id in save.ups){ if(save.ups[id] && UP[id]) UP[id].apply(m); }
   // призматические
@@ -256,6 +292,10 @@ function recompute(){
   let noobUp=0;  for(const id in save.ups){ if(save.ups[id]&&UP[id]&&UP[id].kind==="noob") noobUp++; }
   const ctx={ prismLv, starLv, noobUp };
   for(const w of WORKSHOP_UPS){ const l=save.workshopUps[w.id]||0; if(l>0 && w.apply) w.apply(m,l,ctx); }
+  // достижения — вечные бонусы
+  let ag=0,ac=0,ap=0,arp=0;
+  for(const a of ACHS){ if(save.achieved[a.id]){ const b=a.buff; ag+=b.global||0; ac+=b.click||0; ap+=b.prism||0; arp+=b.runePow||0; } }
+  m.global*=(1+ag); m.click*=(1+ac); m.prism*=(1+ap); m._runePow+=arp;
   // руны (усиливаются резонансом/крепежом)
   const rp = 1 + Math.max(0, m._runePow);
   for(const r of save.runes){ if(r) RTYPE[r.type].apply(m, runeValue(r)*rp); }
@@ -271,6 +311,7 @@ function recompute(){
   D.crit=Math.min(m.crit,1); D.critPow=m.critPow; D.costMul=Math.max(m.cost,0.02);
   D.prismMul=m.prism; D.runeRegen=m.runeRegen; D.offline=m.offline;
   D.autoClick=m.autoClick; D.autoBuy=m.autoBuy; D.autoPrestige=m.autoPrestige; D.noobMul=m.noob;
+  D.runeLuck=Math.max(0, m._runeLuck);
   D.slots = 3 + (save.prismUps.slots||0) + Math.max(0, m._bonusSlots);
 
   // Oof/с
@@ -343,12 +384,18 @@ function rollRune(){
   save.energy--;
   const rar=pickRarity(), type=RUNE_TYPES[Math.floor(Math.random()*RUNE_TYPES.length)];
   const r={ type:type.id, rar:rar, lvl:1 };
+  // авто-распыл рун ниже выбранной редкости
+  if(save.salvageBelow>=0 && rar<save.salvageBelow){
+    scrapRune(r); updateRuneLive(); queueSave(); return;
+  }
   showDrop(r);
   queueSave();
 }
 function pickRarity(){
-  const tot=RARITIES.reduce((s,r)=>s+r.w,0); let x=Math.random()*tot;
-  for(let i=0;i<RARITIES.length;i++){ x-=RARITIES[i].w; if(x<=0) return i; }
+  const luck=1+(D.runeLuck||0);
+  const w=RARITIES.map((r,i)=> r.w*Math.pow(luck,i)); // удача сильнее двигает к редким
+  const tot=w.reduce((s,x)=>s+x,0); let x=Math.random()*tot;
+  for(let i=0;i<w.length;i++){ x-=w[i]; if(x<=0) return i; }
   return 0;
 }
 function equipRune(r, slot){
@@ -376,7 +423,7 @@ function doPrestige(auto){
   save.prisms+=g; save.prestiges++;
   // Мастерская: шестерёнки за престиж
   const conv=0.5+(save.workshopUps.wconv||0)*0.25;
-  const gg=Math.floor(g*conv); if(gg>0) save.gears+=gg;
+  const gg=Math.floor(g*conv); if(gg>0){ save.gears+=gg; save.gearsEver=(save.gearsEver||0)+gg; }
   softReset();
   recompute(); syncNoobSprites();
   toast("💎 +"+fmt(g)+" призм"+(gg>0?"  ·  ⚙️ +"+fmt(gg):"")+(!wasUnlocked?"  ·  ⚙️ Мастерская открыта!":""));
@@ -590,7 +637,7 @@ function loop(now){
   // авто-покупка нубов
   if(D.autoBuy){ autoBuyTick(); }
   // фарм шестерёнок мастерской
-  if(D.gearRate>0) save.gears += D.gearRate*edt;
+  if(D.gearRate>0){ const g=D.gearRate*edt; save.gears+=g; save.gearsEver=(save.gearsEver||0)+g; }
   // авто-престиж (звёздный автопилот)
   if(D.autoPrestige){ apTimer+=edt; if(apTimer>=4){ apTimer=0;
     const g=prismGain(save.totalOof);
@@ -600,7 +647,7 @@ function loop(now){
 
   // периодические обновления UI (не каждый кадр)
   uiAcc+=dt;
-  if(uiAcc>0.12){ uiAcc=0; refreshTop(); refreshLive(); }
+  if(uiAcc>0.12){ uiAcc=0; refreshTop(); refreshLive(); checkAchievements(); }
   saveTimer-=dt; if(saveTimer<0 && saveTimer>-1){ saveTimer=-2; persist(); }
   save.lastTime=Date.now();
   requestAnimationFrame(loop);
@@ -718,7 +765,20 @@ function updateUpLive(){
 }
 
 /* ---- Руны ---- */
+function renderSalvage(){
+  const box=$("salvagePick"); if(!box) return; box.innerHTML="";
+  const opts=[{v:-1,l:"Выкл"}].concat(RARITIES.slice(1).map((r,i)=>({v:i+1,l:r.name})));
+  opts.forEach(o=>{
+    const b=document.createElement("button");
+    b.className="salv-btn"+(save.salvageBelow===o.v?" on":"");
+    b.textContent=o.l;
+    b.addEventListener("click", ()=>{ save.salvageBelow=o.v; renderSalvage(); queueSave();
+      toast(o.v<0?"Авто-распыл выкл":"Распыляю ниже: "+o.l); });
+    box.appendChild(b);
+  });
+}
 function renderRunes(){
+  renderSalvage();
   $("slotInfo").textContent="("+save.runes.filter(Boolean).length+"/"+D.slots+")";
   $("dustVal").textContent=fmt(save.dust);
   const box=$("runeSlots"); box.innerHTML="";
@@ -894,9 +954,40 @@ $("menuBtn").addEventListener("click", ()=>{
   $("mStatPrest").textContent=fmt(save.prestiges);
   let tot=0; for(const nb of NOOBS) tot+=(save.noobs[nb.id]||0);
   $("mStatNoobs").textContent=fmt(tot);
+  $("achCount").textContent="("+achDone()+"/"+ACHS.length+")";
   $("menuModal").classList.remove("hidden");
 });
 $("closeMenu").addEventListener("click", ()=>$("menuModal").classList.add("hidden"));
+
+/* ---- Достижения ---- */
+let achOpen=false;
+function checkAchievements(){
+  const got=[];
+  for(const a of ACHS){ if(!save.achieved[a.id] && a.cond()){ save.achieved[a.id]=1; got.push(a.name); } }
+  if(got.length){
+    if(got.length<=2) got.forEach(n=>toast("🏆 "+n));
+    else toast("🏆 +"+got.length+" достижений!");
+    recompute(); refreshTop(); queueSave(); if(achOpen) renderAch();
+  }
+}
+function achDone(){ let n=0; for(const a of ACHS) if(save.achieved[a.id]) n++; return n; }
+function renderAch(){
+  $("achCount").textContent="("+achDone()+"/"+ACHS.length+")";
+  const box=$("achGrid"); box.innerHTML="";
+  ACHS.forEach(a=>{
+    const done=!!save.achieved[a.id];
+    const el=document.createElement("div");
+    el.className="ach-card"+(done?" done":"");
+    el.innerHTML=`<div class="a-ico">${done?a.icon:"🔒"}</div>
+      <div class="a-name">${a.name}</div>
+      <div class="a-desc">${a.desc}</div>
+      <div class="a-buff">${achBuffText(a.buff)}</div>`;
+    box.appendChild(el);
+  });
+}
+$("achBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); achOpen=true; renderAch(); $("achModal").classList.remove("hidden"); });
+$("achClose").addEventListener("click", ()=>{ achOpen=false; $("achModal").classList.add("hidden"); });
+$("achModal").addEventListener("click", e=>{ if(e.target.id==="achModal"){ achOpen=false; $("achModal").classList.add("hidden"); } });
 $("howBtn2").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); $("howModal").classList.remove("hidden"); });
 $("howClose2").addEventListener("click", ()=>$("howModal").classList.add("hidden"));
 $("prestigeBtn").addEventListener("click", ()=>doPrestige());
@@ -1051,6 +1142,7 @@ function init(){
   resize();
   applyOffline();
   recompute();
+  checkAchievements();
   syncNoobSprites();
   switchTab("noobs");
   refreshTop();
