@@ -111,6 +111,18 @@
       </div>
     </div>
 
+    <!-- ШАХТА -->
+    <div class="tabpage hidden" data-page="mining">
+      <div class="page-head"><h2>⛏️ Шахта</h2><span class="page-hint">Шахтёры копают руду — руда усиливает всё</span></div>
+      <div class="workshop-farm ore-farm">
+        <div class="wf-big">🪨 <b id="oreBig">0</b></div>
+        <div class="wf-rate" id="oreRateTxt">+0 🪨/с</div>
+      </div>
+      <div id="minerRow" class="list"></div>
+      <div class="sect-lab">Улучшения шахты</div>
+      <div id="miningList" class="list"></div>
+    </div>
+
     <!-- МАСТЕРСКАЯ -->
     <div class="tabpage hidden" data-page="workshop">
       <div class="page-head"><h2>⚙️ Мастерская</h2><span class="page-hint">Фарми шестерёнки — усиливай уже вложенное</span></div>
@@ -131,6 +143,7 @@
     <button class="tab" data-tab="runes"><span>🔮</span>Руны</button>
     <button class="tab" data-tab="prestige"><span>💎</span>Престиж<i class="badge hidden" id="prBadge"></i></button>
     <button class="tab hidden" data-tab="workshop" id="tabWorkshop"><span>⚙️</span>Мастер.</button>
+    <button class="tab hidden" data-tab="mining" id="tabMining"><span>⛏️</span>Шахта</button>
   </nav>
 
   <!-- РУНА-РЕЗУЛЬТАТ -->
@@ -160,7 +173,7 @@
       <button class="btn btn-ghost" id="adminBtn">🛠️ Админ-панель</button>
       <button class="btn btn-ghost" id="wipeBtn">🗑️ Сбросить всё</button>
       <button class="btn btn-primary" id="closeMenu">Закрыть</button>
-      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v7</span></div>
+      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v8</span></div>
     </div>
   </div>
 

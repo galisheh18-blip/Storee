@@ -203,6 +203,28 @@ const WORKSHOP_UPS = [
 ];
 const WORKSHOP_UP = Object.fromEntries(WORKSHOP_UPS.map(w=>[w.id,w]));
 
+// ---- Шахта: 🪨 руда (шахтёры копают, руда усиливает всё) ----
+const MINER_BASE = 60, MINER_MUL = 1.18, MINER_RATE = 0.2;
+const MINING_UPS = [
+  { id:"pick", icon:"⛏️", name:"Крепкие кирки", max:100, desc:l=>"Добыча ×"+(1+0.15*l).toFixed(2),
+    cost:l=>Math.ceil(20*Math.pow(1.35,l)), rate:l=>1+0.15*l },
+  { id:"boom", icon:"🧨", name:"Взрывчатка", max:100, desc:l=>"Добыча ×"+(1+0.25*l).toFixed(2),
+    cost:l=>Math.ceil(50*Math.pow(1.4,l)), rate:l=>1+0.25*l },
+  { id:"vein", icon:"🌋", name:"Глубокая жила", max:50, desc:l=>"Добыча ×"+(1+l),
+    cost:l=>Math.ceil(200*Math.pow(1.6,l)), rate:l=>1+l },
+  { id:"rich", icon:"🪙", name:"Ценная руда", max:100, desc:l=>"Oof/с +"+(l*4)+"% (от шахты)",
+    cost:l=>Math.ceil(80*Math.pow(1.45,l)), glob:l=>1+0.04*l },
+  { id:"cheap",icon:"👷", name:"Профсоюз", max:35, desc:l=>"Шахтёры дешевле "+Math.min(l*2,70)+"%",
+    cost:l=>Math.ceil(60*Math.pow(1.5,l)) },
+  { id:"auto", icon:"🛒", name:"Автошахтёр", max:1, desc:l=>l?"Сам нанимает шахтёров за Oof":"Заблокировано",
+    cost:()=>800 },
+];
+const MINING_UP = Object.fromEntries(MINING_UPS.map(m=>[m.id,m]));
+function minerCost(){
+  const l=save.miningUps.cheap||0, red=1-Math.min(l*0.02,0.7);
+  return MINER_BASE*Math.pow(MINER_MUL, save.miners)*red;
+}
+
 // ---- Достижения / Вехи (вечные бонусы, не сбрасываются) ----
 function totalNoobs(){ let t=0; for(const nb of NOOBS) t+=(save.noobs[nb.id]||0); return t; }
 const ACHS = [
@@ -225,6 +247,8 @@ const ACHS = [
   { id:"ru1",  icon:"🔮", name:"Рунолог",         desc:"Мифическая руна в слоте", cond:()=>save.runes.some(r=>r&&r.rar>=5), buff:{runePow:0.15} },
   { id:"gr1",  icon:"⚙️", name:"Механик",         desc:"1e3 шестерёнок собрано", cond:()=>(save.gearsEver||0)>=1e3, buff:{global:0.1} },
   { id:"gr2",  icon:"⚙️", name:"Инженер",         desc:"1e6 шестерёнок собрано", cond:()=>(save.gearsEver||0)>=1e6, buff:{global:0.25} },
+  { id:"ore1", icon:"🪨", name:"Шахтёр",          desc:"1e3 руды всего",   cond:()=>(save.oreEver||0)>=1e3, buff:{global:0.1} },
+  { id:"ore2", icon:"🪨", name:"Магнат руды",     desc:"1e6 руды всего",   cond:()=>(save.oreEver||0)>=1e6, buff:{global:0.25} },
 ];
 function achBuffText(b){
   const p=[];
@@ -244,6 +268,7 @@ const DEFAULT = ()=>({
   noobs:{}, ups:{}, prisms:0, prestiges:0, prismUps:{},
   runes:[], dust:0, energy:5, stars:0, ascends:0, starUps:{},
   gears:0, gearsEver:0, workshopUps:{}, salvageBelow:-1, achieved:{},
+  miners:0, ore:0, oreEver:0, miningUps:{},
   lastTime:Date.now(), seen:{},
   admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }
 });
@@ -252,9 +277,12 @@ function load(){
   try{
     const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
     if(raw){ save=Object.assign(DEFAULT(),raw);
-      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","seen"]) if(!save[k]) save[k]={};
+      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","seen"]) if(!save[k]) save[k]={};
       if(typeof save.salvageBelow!=="number") save.salvageBelow=-1;
       if(typeof save.gearsEver!=="number") save.gearsEver=save.gears||0;
+      if(typeof save.miners!=="number") save.miners=0;
+      if(typeof save.ore!=="number") save.ore=0;
+      if(typeof save.oreEver!=="number") save.oreEver=save.ore||0;
       if(!Array.isArray(save.runes)) save.runes=[];
       save.admin=Object.assign({ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }, save.admin||{});
     }
@@ -296,6 +324,12 @@ function recompute(){
   let ag=0,ac=0,ap=0,arp=0;
   for(const a of ACHS){ if(save.achieved[a.id]){ const b=a.buff; ag+=b.global||0; ac+=b.click||0; ap+=b.prism||0; arp+=b.runePow||0; } }
   m.global*=(1+ag); m.click*=(1+ac); m.prism*=(1+ap); m._runePow+=arp;
+  // шахта: руда усиливает основную экономику
+  let oreMul=1, miningGlob=1;
+  for(const mu of MINING_UPS){ const l=save.miningUps[mu.id]||0; if(l>0){ if(mu.rate) oreMul*=mu.rate(l); if(mu.glob) miningGlob*=mu.glob(l); } }
+  m.global *= miningGlob;
+  D.oreRate = (save.miners||0)*MINER_RATE*oreMul;
+  D.autoMiner = (save.miningUps.auto||0)>0;
   // руны (усиливаются резонансом/крепежом)
   const rp = 1 + Math.max(0, m._runePow);
   for(const r of save.runes){ if(r) RTYPE[r.type].apply(m, runeValue(r)*rp); }
@@ -487,6 +521,8 @@ function applyOffline(){
     const earn=D.ops*rate*dt;
     if(earn>0){ gainOof(earn); setTimeout(()=>toast("🌙 Оффлайн: +"+fmt(earn)+" Oof"),400); }
   }
+  // руда копится оффлайн (шахтёры работают всегда)
+  if(D.oreRate>0){ const o=D.oreRate*dt; save.ore+=o; save.oreEver=(save.oreEver||0)+o; }
   // энергия рун копится и оффлайн
   save.energy=Math.min(D.slots+2, (save.energy||0) + dt/ (60/D.runeRegen));
 }
@@ -638,6 +674,10 @@ function loop(now){
   if(D.autoBuy){ autoBuyTick(); }
   // фарм шестерёнок мастерской
   if(D.gearRate>0){ const g=D.gearRate*edt; save.gears+=g; save.gearsEver=(save.gearsEver||0)+g; }
+  // добыча руды в шахте
+  if(D.oreRate>0){ const o=D.oreRate*edt; save.ore+=o; save.oreEver=(save.oreEver||0)+o; }
+  if(D.autoMiner){ mnTimer+=edt; if(mnTimer>=0.5){ mnTimer=0; const c=minerCost();
+    if(save.oof>=c && save.oof-c>c*0.5){ save.oof-=c; save.miners++; recompute(); } } }
   // авто-престиж (звёздный автопилот)
   if(D.autoPrestige){ apTimer+=edt; if(apTimer>=4){ apTimer=0;
     const g=prismGain(save.totalOof);
@@ -655,6 +695,7 @@ function loop(now){
 let uiAcc=0;
 let abTimer=0;
 let apTimer=0;
+let mnTimer=0;
 function autoBuyTick(){
   abTimer++; if(abTimer<20) return; abTimer=0;
   // покупаем самого дорогого доступного нуба
@@ -677,6 +718,9 @@ function refreshTop(){
     $("gearWrap").classList.remove("hidden"); $("gearVal").textContent=fmt(save.gears);
     $("tabWorkshop").classList.remove("hidden");
   }
+  if(save.prestiges>=2 || save.miners>0 || save.ore>0){
+    $("tabMining").classList.remove("hidden");
+  }
   // бейджи «доступно»
   updateBadges();
 }
@@ -694,6 +738,7 @@ function refreshLive(){
   else if(curTab==="prestige") updatePrestigeLive();
   else if(curTab==="runes") updateRuneLive();
   else if(curTab==="workshop") updateWorkshopLive();
+  else if(curTab==="mining") updateMiningLive();
 }
 
 /* ---- Нубы ---- */
@@ -922,6 +967,61 @@ function updateWorkshopLive(){
   });
 }
 
+/* ---- Шахта ---- */
+function buyMiner(){
+  const c=minerCost(); if(save.oof<c) return;
+  save.oof-=c; save.miners++;
+  recompute(); renderMining(); refreshTop(); queueSave();
+}
+function buyMinerMax(){
+  let n=0; while(n<1000){ const c=minerCost(); if(save.oof<c) break; save.oof-=c; save.miners++; n++; }
+  if(n){ recompute(); renderMining(); refreshTop(); queueSave(); toast("Нанято "+n+" шахтёров"); }
+}
+function buyMiningUp(id){
+  const mu=MINING_UP[id]; const l=save.miningUps[id]||0;
+  if(l>=mu.max) return; const cost=mu.cost(l);
+  if(save.ore<cost) return;
+  save.ore-=cost; save.miningUps[id]=l+1;
+  recompute(); renderMining(); refreshTop(); queueSave();
+}
+function renderMining(){
+  $("oreBig").textContent=fmt(save.ore);
+  $("oreRateTxt").textContent="+"+fmt(D.oreRate||0)+" 🪨/с";
+  const mr=$("minerRow"); mr.innerHTML="";
+  const row=document.createElement("div"); row.className="buyrow"; row.id="minerBuy";
+  row.innerHTML=`<div class="buy-ico">👷</div>
+    <div class="buy-main"><div class="buy-name">Шахтёр <span class="buy-cnt" data-cnt>${fmt(save.miners)}</span></div>
+      <div class="buy-desc">Копает руду · удержи для найма пачкой</div></div>
+    <div class="buy-right"><div class="buy-cost" data-cost></div><div class="buy-prod">+${fmt(MINER_RATE)} 🪨/с</div></div>`;
+  row.addEventListener("click", buyMiner);
+  let pt; row.addEventListener("pointerdown",()=>{pt=setTimeout(buyMinerMax,500);});
+  row.addEventListener("pointerup",()=>clearTimeout(pt)); row.addEventListener("pointerleave",()=>clearTimeout(pt));
+  mr.appendChild(row);
+  const box=$("miningList"); box.innerHTML="";
+  MINING_UPS.forEach(mu=>{
+    const l=save.miningUps[mu.id]||0, maxed=l>=mu.max, cost=mu.cost(l);
+    const r2=document.createElement("div"); r2.className="buyrow"; r2.dataset.miningup=mu.id;
+    r2.innerHTML=upRowHTML(mu.icon, mu.name+" "+(l>0?"("+l+(mu.max<50?"/"+mu.max:"")+")":""), mu.desc(l), l, mu.max, maxed?"МАКС":"🪨 "+fmt(cost), "ore");
+    if(!maxed) r2.addEventListener("click", ()=>buyMiningUp(mu.id));
+    box.appendChild(r2);
+  });
+  updateMiningLive();
+}
+function updateMiningLive(){
+  const ob=$("oreBig"); if(ob) ob.textContent=fmt(save.ore);
+  const rt=$("oreRateTxt"); if(rt) rt.textContent="+"+fmt(D.oreRate||0)+" 🪨/с";
+  const mb=$("minerBuy"); if(mb){ const c=minerCost();
+    mb.classList.toggle("afford",save.oof>=c);
+    mb.querySelector("[data-cnt]").textContent=fmt(save.miners);
+    const ce=mb.querySelector("[data-cost]"); ce.textContent="🪙 "+fmt(c); ce.classList.toggle("cant",save.oof<c); }
+  document.querySelectorAll("#miningList .buyrow").forEach(row=>{
+    const mu=MINING_UP[row.dataset.miningup]; const l=save.miningUps[mu.id]||0;
+    if(l>=mu.max) return; const cost=mu.cost(l);
+    row.classList.toggle("afford",save.ore>=cost);
+    const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",save.ore<cost);
+  });
+}
+
 /* ============ Вкладки/навигация ============ */
 let curTab="noobs";
 function switchTab(t){
@@ -933,12 +1033,14 @@ function switchTab(t){
   else if(t==="runes") renderRunes();
   else if(t==="prestige") renderPrestige();
   else if(t==="workshop") renderWorkshop();
+  else if(t==="mining") renderMining();
 }
 document.querySelectorAll("#tabbar .tab").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
 
 function renderAll(){ renderNoobs();
   if(curTab==="ups")renderUps(); if(curTab==="runes")renderRunes();
-  if(curTab==="prestige")renderPrestige(); if(curTab==="workshop")renderWorkshop(); }
+  if(curTab==="prestige")renderPrestige(); if(curTab==="workshop")renderWorkshop();
+  if(curTab==="mining")renderMining(); }
 
 /* ============ Тосты/подсказка ============ */
 function toast(msg){
@@ -1050,6 +1152,7 @@ function buildAdmin(){
   secR.appendChild(admResRow("Призмы", "prisms", ["10","1000","1e6","1e9"]));
   secR.appendChild(admResRow("Звёзды", "stars", ["10","100","1000"]));
   secR.appendChild(admResRow("Шестерёнки", "gears", ["100","1e4","1e6"]));
+  secR.appendChild(admResRow("Руда", "ore", ["100","1e4","1e6"]));
   secR.appendChild(admResRow("Пыль рун", "dust", ["100","1e4","1e6"]));
   const en=document.createElement("div"); en.className="adm-row";
   en.innerHTML=`<label>Энергия рун</label>`;
