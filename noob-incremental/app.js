@@ -249,6 +249,58 @@ const POTIONS = [
 ];
 const POTION = Object.fromEntries(POTIONS.map(p=>[p.id,p]));
 
+// ---- Трансцендентность: ⚛️ кварки (3-й слой сброса) + Пантеон (синергии) ----
+function quarkGain(stars){ if(stars<1000) return 0; return Math.floor(Math.pow(stars/1000, 0.5)); }
+const QUARK_UPS = [
+  { id:"qall",  icon:"⚛️", name:"Квантовый множитель", max:500, desc:l=>"Всё ×"+fmt(1+l),
+    cost:l=>Math.ceil(1*Math.pow(1.3,l)), apply:(m,l)=>m.global*=(1+l) },
+  { id:"qprism",icon:"💎", name:"Призменный резонанс", max:100, desc:l=>"Призм +"+(l*20)+"%",
+    cost:l=>Math.ceil(2*Math.pow(1.4,l)), apply:(m,l)=>m.prism*=(1+l*0.2) },
+  { id:"qkeep", icon:"⭐", name:"Квантовая память", max:20, desc:l=>"Оставляй "+(l*3)+"% звёзд при трансценденции",
+    cost:l=>Math.ceil(3*Math.pow(1.6,l)) },
+  // Пантеон — синергии между механиками
+  { id:"synRuneMine", icon:"🔗", name:"Созвездие: Руны↔Шахта", max:1, desc:l=>l?"Каждая руна +2% добыча руды":"Соедини механики",
+    cost:()=>10, apply:(m,l)=>{ if(l) m._oreBoost += save.runes.filter(Boolean).length*0.02; } },
+  { id:"synPet", icon:"🔗", name:"Созвездие: Питомцы", max:1, desc:l=>l?"Каждый ур. питомца +0.5% всего":"Соедини механики",
+    cost:()=>15, apply:(m,l)=>{ if(l){ let t=0; for(const p of PETS) t+=(save.pets[p.id]||0); m.global*=(1+t*0.005); } } },
+  { id:"synGear", icon:"🔗", name:"Созвездие: Мастерская↔Тап", max:1, desc:l=>l?"log10(шестерёнок) ×множитель тапа":"Соедини механики",
+    cost:()=>20, apply:(m,l)=>{ if(l) m.click*=(1+Math.max(0,Math.log10(1+save.gearsEver))*0.5); } },
+];
+const QUARK_UP = Object.fromEntries(QUARK_UPS.map(q=>[q.id,q]));
+
+// ---- Искажение: ⚫ добровольный дебафф ради тёмной валюты ----
+const CORR_UPS = [
+  { id:"cpow",  icon:"⚫", name:"Сила искажения", max:300, desc:l=>"Всё ×"+(1+0.5*l).toFixed(1),
+    cost:l=>Math.ceil(5*Math.pow(1.28,l)), apply:(m,l)=>m.global*=(1+0.5*l) },
+  { id:"cmine", icon:"🕳️", name:"Тёмная руда", max:100, desc:l=>"Добыча ×"+(1+0.3*l).toFixed(1),
+    cost:l=>Math.ceil(8*Math.pow(1.35,l)), apply:(m,l)=>m._oreBoost+=0.3*l },
+  { id:"cluck", icon:"🩸", name:"Проклятая удача", max:50, desc:l=>"Удача рун +"+(l*10)+"%",
+    cost:l=>Math.ceil(6*Math.pow(1.4,l)), apply:(m,l)=>m._runeLuck+=l*0.1 },
+  { id:"ctap",  icon:"👊", name:"Гнев", max:200, desc:l=>"Тап ×"+(1+0.6*l).toFixed(1),
+    cost:l=>Math.ceil(5*Math.pow(1.3,l)), apply:(m,l)=>m.click*=(1+0.6*l) },
+];
+const CORR_UP = Object.fromEntries(CORR_UPS.map(c=>[c.id,c]));
+
+// ---- Испытания: забеги с ограничениями за вечные перки ----
+const CHALLENGES = [
+  { id:"noPassive", icon:"✋", name:"Только руки", goal:1e5,
+    desc:"Нубы не приносят Oof — только тапы", rewardText:"+100% к тапу навсегда",
+    restrict:{noPassive:true}, reward:{click:1.0} },
+  { id:"noUps", icon:"⛔", name:"Голые руки", goal:1e6,
+    desc:"Обычные улучшения отключены", rewardText:"+50% ко всему навсегда",
+    restrict:{noUps:true}, reward:{global:0.5} },
+  { id:"noRunes", icon:"🚱", name:"Без магии", goal:5e6,
+    desc:"Руны и их эффекты отключены", rewardText:"+50% к нубам навсегда",
+    restrict:{noRunes:true}, reward:{global:0.5} },
+  { id:"expensive", icon:"💸", name:"Инфляция", goal:1e7,
+    desc:"Нубы дороже в 6 раз", rewardText:"-20% цена нубов навсегда",
+    restrict:{costX:6}, reward:{cost:0.2} },
+  { id:"weak", icon:"🥀", name:"Слабость", goal:1e6,
+    desc:"Вся выработка ÷12", rewardText:"+150% ко всему навсегда",
+    restrict:{weak:12}, reward:{global:1.5} },
+];
+const CHAL = Object.fromEntries(CHALLENGES.map(c=>[c.id,c]));
+
 // ---- Достижения / Вехи (вечные бонусы, не сбрасываются) ----
 function totalNoobs(){ let t=0; for(const nb of NOOBS) t+=(save.noobs[nb.id]||0); return t; }
 const ACHS = [
@@ -294,6 +346,8 @@ const DEFAULT = ()=>({
   gears:0, gearsEver:0, workshopUps:{}, salvageBelow:-1, achieved:{},
   miners:0, ore:0, oreEver:0, miningUps:{},
   pets:{}, potions:{},
+  activeChallenge:null, chalDone:{},
+  quarks:0, transcends:0, quarkUps:{}, corruption:0, corr:0, corrEver:0, corrUps:{},
   lastTime:Date.now(), seen:{},
   admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }
 });
@@ -302,7 +356,8 @@ function load(){
   try{
     const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
     if(raw){ save=Object.assign(DEFAULT(),raw);
-      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","seen"]) if(!save[k]) save[k]={};
+      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","seen"]) if(!save[k]) save[k]={};
+      if(typeof save.corruption!=="number") save.corruption=0;
       if(typeof save.salvageBelow!=="number") save.salvageBelow=-1;
       if(typeof save.gearsEver!=="number") save.gearsEver=save.gears||0;
       if(typeof save.miners!=="number") save.miners=0;
@@ -333,8 +388,9 @@ function recompute(){
   const m = { global:1, click:1, clickFromPs:0, crit:0, critPow:1.5, cost:1,
     prism:1, runeRegen:1, offline:0, autoClick:0, autoBuy:false, autoPrestige:false,
     _runePow:0, _runeLuck:0, _megaClick:0, _bonusSlots:0, _oreBoost:0, noob:{} };
+  const cr = save.activeChallenge ? ((CHAL[save.activeChallenge]||{}).restrict||{}) : {};
   // обычные улучшения
-  for(const id in save.ups){ if(save.ups[id] && UP[id]) UP[id].apply(m); }
+  if(!cr.noUps) for(const id in save.ups){ if(save.ups[id] && UP[id]) UP[id].apply(m); }
   // призматические
   for(const p of PRISM_UPS){ const l=save.prismUps[p.id]||0; if(l>0 && p.apply) p.apply(m,l); }
   // звёздные
@@ -349,6 +405,9 @@ function recompute(){
   let ag=0,ac=0,ap=0,arp=0;
   for(const a of ACHS){ if(save.achieved[a.id]){ const b=a.buff; ag+=b.global||0; ac+=b.click||0; ap+=b.prism||0; arp+=b.runePow||0; } }
   m.global*=(1+ag); m.click*=(1+ac); m.prism*=(1+ap); m._runePow+=arp;
+  // награды за пройденные испытания (вечные)
+  for(const c of CHALLENGES){ if(save.chalDone[c.id]){ const r=c.reward;
+    if(r.global) m.global*=(1+r.global); if(r.click) m.click*=(1+r.click); if(r.cost) m.cost*=(1-r.cost); } }
   // питомцы (вечные бонусы)
   for(const p of PETS){ const l=save.pets[p.id]||0; if(l>0) p.apply(m,l); }
   // зелья (временные баффы)
@@ -356,6 +415,12 @@ function recompute(){
   for(const p of POTIONS){ if((save.potions[p.id]||0)>now){ const b=p.buff;
     if(b.global) m.global*=b.global; if(b.click) m.click*=b.click;
     if(b.luck) m._runeLuck+=b.luck; if(b.ore) m._oreBoost+=(b.ore-1); } }
+  // кварки (трансценденция) + Пантеон-синергии
+  for(const q of QUARK_UPS){ const l=save.quarkUps[q.id]||0; if(l>0 && q.apply) q.apply(m,l); }
+  // улучшения искажения
+  for(const c of CORR_UPS){ const l=save.corrUps[c.id]||0; if(l>0 && c.apply) c.apply(m,l); }
+  // дебафф искажения
+  if(save.corruption>0) m.global /= (1+save.corruption*0.4);
   // шахта: руда усиливает основную экономику
   let oreMul=1, miningGlob=1;
   for(const mu of MINING_UPS){ const l=save.miningUps[mu.id]||0; if(l>0){ if(mu.rate) oreMul*=mu.rate(l); if(mu.glob) miningGlob*=mu.glob(l); } }
@@ -365,10 +430,13 @@ function recompute(){
   D.autoMiner = (save.miningUps.auto||0)>0;
   // руны (усиливаются резонансом/крепежом)
   const rp = 1 + Math.max(0, m._runePow);
-  for(const r of save.runes){ if(r) RTYPE[r.type].apply(m, runeValue(r)*rp); }
+  if(!cr.noRunes) for(const r of save.runes){ if(r) RTYPE[r.type].apply(m, runeValue(r)*rp); }
   // мощь толпы: тап растёт от числа видов нубов
   let ownedTypes=0; for(const nb of NOOBS){ if((save.noobs[nb.id]||0)>0) ownedTypes++; }
   m.click *= (1 + m._megaClick*ownedTypes);
+  // ограничения испытания
+  if(cr.costX) m.cost*=cr.costX;
+  if(cr.weak) m.global/=cr.weak;
   // админ-множители
   const a=save.admin||{};
   m.global *= (a.oofMul||1); m.click *= (a.clickMul||1);
@@ -385,6 +453,7 @@ function recompute(){
   let ops=0;
   for(const nb of NOOBS){ const c=save.noobs[nb.id]||0; if(c>0) ops += c*nb.prod*(m.noob[nb.id]||1); }
   ops *= m.global;
+  if(cr.noPassive) ops=0;
   D.ops=ops;
   D.clickBase = (1*m.click + ops*m.clickFromPs) * m.global;
 
@@ -392,6 +461,8 @@ function recompute(){
   D.gearRate = save.prestiges>=1
     ? 0.05*(1 + 0.2*save.prestiges + save.stars)*(1 + (save.workshopUps.wrate||0)*0.2)
     : 0;
+  // тёмная валюта: генерится при искажении, пропорц. дебаффу и производству
+  D.corrRate = save.corruption>0 ? save.corruption*0.05*(1+Math.max(0,Math.log10(1+Math.max(0,D.ops)))) : 0;
 }
 
 function noobCost(id, owned){ return NOOB[id].base * Math.pow(COST_MUL, owned) * D.costMul; }
@@ -523,6 +594,30 @@ function buyStarUp(id){
   const cost=s.cost(l);
   if(save.stars<cost) return;
   save.stars-=cost; save.starUps[id]=l+1;
+  recompute(); renderPrestige(); refreshTop(); queueSave();
+}
+function doTranscend(){
+  const g=quarkGain(save.stars); if(g<1) return;
+  save.quarks+=g; save.transcends=(save.transcends||0)+1;
+  const keep=Math.floor(save.stars*(save.quarkUps.qkeep||0)*0.03);
+  save.stars=keep; save.prisms=0; save.prismUps={}; save.starUps={};
+  softReset(); recompute(); syncNoobSprites();
+  toast("⚛️ +"+fmt(g)+" кварков!"); switchTab("prestige"); renderAll(); refreshTop(); persist();
+}
+function buyQuarkUp(id){
+  const q=QUARK_UP[id], l=save.quarkUps[id]||0; if(l>=q.max) return;
+  const cost=q.cost(l); if(save.quarks<cost) return;
+  save.quarks-=cost; save.quarkUps[id]=l+1;
+  recompute(); renderPrestige(); refreshTop(); queueSave();
+}
+function setCorruption(d){
+  save.corruption=Math.max(0,Math.min(50,(save.corruption||0)+d));
+  recompute(); renderPrestige(); refreshTop(); queueSave();
+}
+function buyCorrUp(id){
+  const c=CORR_UP[id], l=save.corrUps[id]||0; if(l>=c.max) return;
+  const cost=c.cost(l); if(save.corr<cost) return;
+  save.corr-=cost; save.corrUps[id]=l+1;
   recompute(); renderPrestige(); refreshTop(); queueSave();
 }
 function buyWorkshopUp(id){
@@ -709,18 +804,22 @@ function loop(now){
   if(D.gearRate>0){ const g=D.gearRate*edt; save.gears+=g; save.gearsEver=(save.gearsEver||0)+g; }
   // добыча руды в шахте
   if(D.oreRate>0){ const o=D.oreRate*edt; save.ore+=o; save.oreEver=(save.oreEver||0)+o; }
+  // тёмная валюта искажения
+  if(D.corrRate>0){ const cc=D.corrRate*edt; save.corr+=cc; save.corrEver=(save.corrEver||0)+cc; }
   if(D.autoMiner){ mnTimer+=edt; if(mnTimer>=0.5){ mnTimer=0; const c=minerCost();
     if(save.oof>=c && save.oof-c>c*0.5){ save.oof-=c; save.miners++; recompute(); } } }
   // авто-престиж (звёздный автопилот)
   if(D.autoPrestige){ apTimer+=edt; if(apTimer>=4){ apTimer=0;
     const g=prismGain(save.totalOof);
     if(g>=1 && g>=save.prisms*0.5+1){ doPrestige(true); } } }
+  // испытания: проверка цели
+  if(save.activeChallenge){ const c=CHAL[save.activeChallenge]; if(c && save.totalOof>=c.goal) completeChallenge(); }
 
   render(dt);
 
   // периодические обновления UI (не каждый кадр)
   uiAcc+=dt;
-  if(uiAcc>0.12){ uiAcc=0; refreshTop(); refreshLive(); checkAchievements(); tickPotions(); }
+  if(uiAcc>0.12){ uiAcc=0; refreshTop(); refreshLive(); checkAchievements(); tickPotions(); updateChalLive(); }
   saveTimer-=dt; if(saveTimer<0 && saveTimer>-1){ saveTimer=-2; persist(); }
   save.lastTime=Date.now();
   requestAnimationFrame(loop);
@@ -747,6 +846,7 @@ function refreshTop(){
   $("opsVal").textContent=fmt(D.ops||0);
   $("prismVal").textContent=fmt(save.prisms);
   if(save.stars>0 || save.ascends>0){ $("starWrap").classList.remove("hidden"); $("starVal").textContent=fmt(save.stars); }
+  if(save.quarks>0 || save.transcends>0){ $("quarkWrap").classList.remove("hidden"); $("quarkVal").textContent=fmt(save.quarks); }
   if(save.prestiges>0 || save.gears>0){
     $("gearWrap").classList.remove("hidden"); $("gearVal").textContent=fmt(save.gears);
     $("tabWorkshop").classList.remove("hidden");
@@ -756,6 +856,9 @@ function refreshTop(){
   }
   if(save.prestiges>=3 || Object.keys(save.pets).length || Object.keys(save.potions).length){
     $("tabAlchemy").classList.remove("hidden");
+  }
+  if(save.prestiges>=2 || save.activeChallenge || Object.keys(save.chalDone).length){
+    $("chalBtn").classList.remove("hidden");
   }
   // бейджи «доступно»
   updateBadges();
@@ -938,6 +1041,29 @@ function renderPrestige(){
       sbox.appendChild(row);
     });
   }
+  // трансценденция
+  const canTrans = save.stars>=1000 || save.transcends>0 || save.quarks>0;
+  $("transWrap").classList.toggle("hidden", !canTrans);
+  if(canTrans){
+    $("quarkGain").textContent=fmt(quarkGain(save.stars));
+    const qbox=$("quarkUpList"); qbox.innerHTML="";
+    QUARK_UPS.forEach(q=>{ const l=save.quarkUps[q.id]||0, maxed=l>=q.max, cost=q.cost(l);
+      const row=document.createElement("div"); row.className="buyrow"; row.dataset.qup=q.id;
+      row.innerHTML=upRowHTML(q.icon,q.name+" "+(l>0?"("+l+(q.max<50?"/"+q.max:"")+")":""),q.desc(l),l,q.max,maxed?"МАКС":"⚛️ "+fmt(cost),"quark");
+      if(!maxed) row.addEventListener("click",()=>buyQuarkUp(q.id)); qbox.appendChild(row); });
+  }
+  // искажение
+  const canCorr = save.transcends>0 || save.corruption>0 || save.corr>0;
+  $("corrWrap").classList.toggle("hidden", !canCorr);
+  if(canCorr){
+    $("corrLvl").textContent=save.corruption;
+    $("corrVal").textContent=fmt(save.corr);
+    const cbox=$("corrUpList"); cbox.innerHTML="";
+    CORR_UPS.forEach(c=>{ const l=save.corrUps[c.id]||0, maxed=l>=c.max, cost=c.cost(l);
+      const row=document.createElement("div"); row.className="buyrow"; row.dataset.cup=c.id;
+      row.innerHTML=upRowHTML(c.icon,c.name+" "+(l>0?"("+l+(c.max<50?"/"+c.max:"")+")":""),c.desc(l),l,c.max,maxed?"МАКС":"⚫ "+fmt(cost),"corr");
+      if(!maxed) row.addEventListener("click",()=>buyCorrUp(c.id)); cbox.appendChild(row); });
+  }
   updatePrestigeLive();
 }
 function pbox_render(){
@@ -977,6 +1103,23 @@ function updatePrestigeLive(){
     const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",save.stars<cost);
   });
   const g2=starGain(save.prisms); const ab=$("ascendBtn"); if(ab) ab.disabled=g2<1;
+  // трансценденция
+  const qg=quarkGain(save.stars), tb=$("transBtn");
+  if(tb){ tb.disabled=qg<1; $("quarkGain").textContent=fmt(qg);
+    $("transNote").textContent=qg<1?("Нужно 1000 звёзд (есть "+fmt(save.stars)+")"):"Сбрасывает призмы, звёзды и их улучшения ради кварков"; }
+  document.querySelectorAll("#quarkUpList .buyrow").forEach(row=>{ const q=QUARK_UP[row.dataset.qup]; const l=save.quarkUps[q.id]||0;
+    if(l>=q.max) return; const cost=q.cost(l); row.classList.toggle("afford",save.quarks>=cost);
+    const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",save.quarks<cost); });
+  // искажение
+  const cn=$("corrNote");
+  if(cn) cn.textContent = (save.corruption||0)>0
+    ? ("Выработка ÷"+(1+save.corruption*0.4).toFixed(1)+" · тёмная валюта +"+fmt(D.corrRate||0)+"/с")
+    : "Подними уровень, чтобы копить ⚫ (ценой производства)";
+  const cv=$("corrVal"); if(cv) cv.textContent=fmt(save.corr);
+  const cl=$("corrLvl"); if(cl) cl.textContent=save.corruption||0;
+  document.querySelectorAll("#corrUpList .buyrow").forEach(row=>{ const c=CORR_UP[row.dataset.cup]; const l=save.corrUps[c.id]||0;
+    if(l>=c.max) return; const cost=c.cost(l); row.classList.toggle("afford",save.corr>=cost);
+    const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",save.corr<cost); });
 }
 
 /* ---- Мастерская ---- */
@@ -1196,10 +1339,59 @@ function renderAch(){
 $("achBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); achOpen=true; renderAch(); $("achModal").classList.remove("hidden"); });
 $("achClose").addEventListener("click", ()=>{ achOpen=false; $("achModal").classList.add("hidden"); });
 $("achModal").addEventListener("click", e=>{ if(e.target.id==="achModal"){ achOpen=false; $("achModal").classList.add("hidden"); } });
+
+/* ---- Испытания ---- */
+let chalOpen=false;
+function completeChallenge(){
+  const id=save.activeChallenge, c=CHAL[id]; if(!c) return;
+  save.chalDone[id]=1; save.activeChallenge=null;
+  softReset(); recompute(); syncNoobSprites(); refreshTop(); renderAll();
+  toast("🎯 Пройдено: "+c.name+" — "+c.rewardText); persist();
+  if(chalOpen) renderChallenges();
+}
+function enterChallenge(id){
+  if(save.activeChallenge) return;
+  save.activeChallenge=id; softReset(); recompute(); syncNoobSprites(); refreshTop(); renderAll();
+  toast(CHAL[id].icon+" Испытание: "+CHAL[id].name); renderChallenges(); persist();
+}
+function abandonChallenge(){
+  save.activeChallenge=null; softReset(); recompute(); syncNoobSprites(); refreshTop(); renderAll();
+  renderChallenges(); persist();
+}
+function renderChallenges(){
+  const box=$("chalList"); box.innerHTML="";
+  CHALLENGES.forEach(c=>{
+    const done=!!save.chalDone[c.id], active=save.activeChallenge===c.id;
+    const el=document.createElement("div"); el.className="chal-card"+(done?" done":"")+(active?" active":"");
+    let btn;
+    if(done) btn=`<div class="chal-status">✓ Пройдено</div>`;
+    else if(active) btn=`<button class="btn btn-ghost chal-b" data-abandon>Выйти из испытания</button>`;
+    else btn=`<button class="btn btn-primary chal-b" data-enter="${c.id}" ${save.activeChallenge?'disabled':''}>Войти</button>`;
+    el.innerHTML=`<div class="chal-top"><span class="chal-ico">${c.icon}</span>
+        <div><div class="chal-name">${c.name}</div><div class="chal-desc">${c.desc}</div></div></div>
+      <div class="chal-goal">Цель: ${fmt(c.goal)} Oof · Награда: <b>${c.rewardText}</b></div>
+      ${active?`<div class="chal-prog"><div style="width:${Math.min(100,save.totalOof/c.goal*100)}%"></div></div>`:''}
+      ${btn}`;
+    box.appendChild(el);
+  });
+  box.querySelectorAll("[data-enter]").forEach(b=>b.addEventListener("click",()=>enterChallenge(b.dataset.enter)));
+  box.querySelectorAll("[data-abandon]").forEach(b=>b.addEventListener("click",abandonChallenge));
+}
+function updateChalLive(){
+  if(!chalOpen||!save.activeChallenge) return;
+  const c=CHAL[save.activeChallenge], bar=document.querySelector(".chal-card.active .chal-prog>div");
+  if(bar) bar.style.width=Math.min(100,save.totalOof/c.goal*100)+"%";
+}
+$("chalBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); chalOpen=true; renderChallenges(); $("chalModal").classList.remove("hidden"); });
+$("chalClose").addEventListener("click", ()=>{ chalOpen=false; $("chalModal").classList.add("hidden"); });
+$("chalModal").addEventListener("click", e=>{ if(e.target.id==="chalModal"){ chalOpen=false; $("chalModal").classList.add("hidden"); } });
 $("howBtn2").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); $("howModal").classList.remove("hidden"); });
 $("howClose2").addEventListener("click", ()=>$("howModal").classList.add("hidden"));
 $("prestigeBtn").addEventListener("click", ()=>doPrestige());
 $("ascendBtn").addEventListener("click", ()=>askConfirm("Вознестись? Призмы и призматические улучшения сбросятся ради звёзд.", doAscend));
+$("transBtn").addEventListener("click", ()=>askConfirm("Трансцендировать? Призмы, звёзды и их улучшения сбросятся ради кварков.", doTranscend));
+$("corrMinus").addEventListener("click", ()=>setCorruption(-1));
+$("corrPlus").addEventListener("click", ()=>setCorruption(1));
 $("rollBtn").addEventListener("click", rollRune);
 $("wipeBtn").addEventListener("click", ()=>askConfirm("Стереть весь прогресс безвозвратно?", wipeSave));
 
@@ -1259,6 +1451,8 @@ function buildAdmin(){
   secR.appendChild(admResRow("Звёзды", "stars", ["10","100","1000"]));
   secR.appendChild(admResRow("Шестерёнки", "gears", ["100","1e4","1e6"]));
   secR.appendChild(admResRow("Руда", "ore", ["100","1e4","1e6"]));
+  secR.appendChild(admResRow("Кварки", "quarks", ["10","100","1000"]));
+  secR.appendChild(admResRow("Искажение ⚫", "corr", ["100","1e4","1e6"]));
   secR.appendChild(admResRow("Пыль рун", "dust", ["100","1e4","1e6"]));
   const en=document.createElement("div"); en.className="adm-row";
   en.innerHTML=`<label>Энергия рун</label>`;
