@@ -227,7 +227,15 @@ function load(){
 let saveTimer=0;
 let wiping=false; // при полном сбросе не даём перезаписать пустое сохранение
 function persist(){ if(wiping) return; try{ localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }catch(e){} }
-function wipeSave(){ wiping=true; try{ localStorage.removeItem(SAVE_KEY); }catch(e){} location.reload(); }
+async function wipeSave(){
+  wiping=true;
+  try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+  try{ localStorage.clear(); }catch(e){}
+  // жёсткий сброс: чистим кэш и снимаем service worker, чтобы точно загрузилась свежая версия
+  try{ if(window.caches){ const ks=await caches.keys(); await Promise.all(ks.map(k=>caches.delete(k))); } }catch(e){}
+  try{ if(navigator.serviceWorker){ const rs=await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map(r=>r.unregister())); } }catch(e){}
+  location.replace(location.pathname + "?r=" + Date.now());
+}
 function queueSave(){ saveTimer=1.2; }
 
 /* ============ Производные характеристики ============ */
@@ -1054,6 +1062,15 @@ function init(){
   document.addEventListener("visibilitychange", ()=>{ if(document.hidden){ save.lastTime=Date.now(); persist(); } });
   window.addEventListener("pagehide", persist);
   // SW
-  if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
+  if("serviceWorker" in navigator){
+    navigator.serviceWorker.register("sw.js").then(reg=>{ try{ reg.update(); }catch(e){} }).catch(()=>{});
+    // авто-перезагрузка, когда активировался новый service worker (кроме первого захвата)
+    let hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener("controllerchange", ()=>{
+      if(!hadController){ hadController=true; return; }
+      if(window.__swReloaded) return; window.__swReloaded=true;
+      location.reload();
+    });
+  }
 }
 init();
