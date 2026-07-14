@@ -75,7 +75,7 @@ b{font-variant-numeric:tabular-nums}
 .buy-right{text-align:right;flex-shrink:0}
 .buy-cost{font-size:14px;font-weight:800;color:var(--oof);white-space:nowrap}
 .buy-cost.cant{color:var(--red)}
-.buy-cost.prism{color:var(--prism)} .buy-cost.star{color:var(--star)} .buy-cost.gear{color:var(--gear)} .buy-cost.ore{color:var(--ore)} .buy-cost.quark{color:var(--quark)} .buy-cost.corr{color:var(--corr)}
+.buy-cost.prism{color:var(--prism)} .buy-cost.star{color:var(--star)} .buy-cost.gear{color:var(--gear)} .buy-cost.ore{color:var(--ore)} .buy-cost.quark{color:var(--quark)} .buy-cost.corr{color:var(--corr)} .buy-cost.dust{color:#9ecbff}
 .buy-prod{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap}
 .buy-prod.active{color:var(--green);font-weight:800}
 
@@ -169,6 +169,24 @@ b{font-variant-numeric:tabular-nums}
 .ach-card .a-desc{font-size:11px;color:var(--muted);margin-top:2px}
 .ach-card .a-buff{font-size:11px;color:var(--green);font-weight:700;margin-top:6px;min-height:14px}
 .ach-card:not(.done) .a-buff{color:var(--dim)}
+
+/* ---------- Массовая покупка ---------- */
+.massbtn{margin:0 0 10px;padding:11px;font-size:14px}
+
+/* ---------- Автоматизация ---------- */
+#autoList{display:flex;flex-direction:column;gap:10px}
+.auto-row{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);
+  border-radius:14px;padding:12px}
+.auto-row.locked{opacity:.55}
+.auto-ico{font-size:24px}
+.auto-main{flex:1;min-width:0}
+.auto-name{font-weight:700;font-size:14px}
+.auto-hint{font-size:12px;color:var(--muted);margin-top:2px}
+.tg{width:46px;height:26px;border-radius:14px;background:var(--card2);border:1px solid var(--line);
+  position:relative;flex-shrink:0;transition:background .2s}
+.tg.on{background:var(--accent)}
+.tg .knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s}
+.tg.on .knob{left:22px}
 
 /* ---------- Испытания ---------- */
 #chalList{display:flex;flex-direction:column;gap:12px}

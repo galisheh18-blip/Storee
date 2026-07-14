@@ -43,12 +43,14 @@
     <!-- НУБЫ -->
     <div class="tabpage" data-page="noobs">
       <div class="page-head"><h2>🧍 Нубы</h2><span class="page-hint">Покупай нубов — они делают Oof сами</span></div>
+      <button class="btn btn-ghost massbtn" id="massNoobs">🛒 Купить всё доступное</button>
       <div id="noobList" class="list"></div>
     </div>
 
     <!-- АПГРЕЙДЫ -->
     <div class="tabpage hidden" data-page="ups">
       <div class="page-head"><h2>⚡ Улучшения</h2><span class="page-hint" id="upCount">0 доступно</span></div>
+      <button class="btn btn-ghost massbtn" id="massUps">🛒 Купить все доступные</button>
       <div id="upList" class="grid"></div>
       <div id="upEmpty" class="empty hidden">Пока нечего улучшать.<br>Покупай нубов и копи Oof — появятся новые улучшения.</div>
     </div>
@@ -70,6 +72,9 @@
       <div class="sect-lab">Слоты рун <span id="slotInfo" class="dim"></span></div>
       <div id="runeSlots" class="rune-slots"></div>
       <div class="dust-line">💠 Пыль рун: <b id="dustVal">0</b></div>
+      <div class="sect-lab">💠 Пыльцевые улучшения <span class="dim">— трать пыль на Oof</span></div>
+      <button class="btn btn-ghost massbtn" id="massDust">🛒 Купить всё за пыль</button>
+      <div id="dustUpList" class="list"></div>
     </div>
 
     <!-- ПРЕСТИЖ -->
@@ -91,6 +96,7 @@
       </div>
 
       <div class="sect-lab">Призматические улучшения</div>
+      <button class="btn btn-ghost massbtn" id="massPrism">🛒 Купить всё за призмы</button>
       <div id="prismUpList" class="list"></div>
 
       <div id="ascendWrap" class="hidden">
@@ -108,6 +114,7 @@
           <button class="btn btn-primary" id="ascendBtn" disabled>⭐ Вознестись</button>
         </div>
         <div class="sect-lab">Звёздные улучшения</div>
+        <button class="btn btn-ghost massbtn" id="massStar">🛒 Купить всё за звёзды</button>
         <div id="starUpList" class="list"></div>
       </div>
 
@@ -122,6 +129,7 @@
           <button class="btn btn-primary" id="transBtn" disabled>⚛️ Трансцендировать</button>
         </div>
         <div class="sect-lab">Кварковые улучшения · Пантеон</div>
+        <button class="btn btn-ghost massbtn" id="massQuark">🛒 Купить всё за кварки</button>
         <div id="quarkUpList" class="list"></div>
       </div>
 
@@ -135,6 +143,7 @@
           <div class="pc-note" id="corrNote"></div>
         </div>
         <div class="sect-lab">Улучшения искажения · ⚫ <b id="corrVal">0</b></div>
+        <button class="btn btn-ghost massbtn" id="massCorr">🛒 Купить всё за искажение</button>
         <div id="corrUpList" class="list"></div>
       </div>
     </div>
@@ -147,6 +156,7 @@
         <div class="wf-rate" id="oreRateTxt">+0 🪨/с</div>
       </div>
       <div id="minerRow" class="list"></div>
+      <button class="btn btn-ghost massbtn" id="massMining">🛒 Купить всё за руду</button>
       <div class="sect-lab">Улучшения шахты</div>
       <div id="miningList" class="list"></div>
     </div>
@@ -160,6 +170,7 @@
       </div>
       <p class="wf-note">Шестерёнки капают сами (быстрее с престижами и звёздами) и падают за каждый престиж. Их улучшения усиливают твои призматические, звёздные и обычные улучшения.</p>
       <div class="sect-lab">Улучшения мастерской</div>
+      <button class="btn btn-ghost massbtn" id="massWorkshop">🛒 Купить всё за шестерёнки</button>
       <div id="workshopList" class="list"></div>
     </div>
 
@@ -207,6 +218,7 @@
         <div><b id="mStatNoobs">0</b><span>Нубов</span></div>
       </div>
       <button class="btn btn-ghost" id="achBtn">🏆 Достижения <span id="achCount" class="dim"></span></button>
+      <button class="btn btn-ghost hidden" id="autoBtn">🤖 Автоматизация</button>
       <button class="btn btn-ghost hidden" id="chalBtn">🎯 Испытания</button>
       <button class="btn btn-ghost hidden" id="mktBtn">🔄 Хроно-биржа</button>
       <button class="btn btn-ghost hidden" id="mutBtn">🧬 Конвейер мутаций</button>
@@ -215,7 +227,7 @@
       <button class="btn btn-ghost" id="adminBtn">🛠️ Админ-панель</button>
       <button class="btn btn-ghost" id="wipeBtn">🗑️ Сбросить всё</button>
       <button class="btn btn-primary" id="closeMenu">Закрыть</button>
-      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v11</span></div>
+      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v12</span></div>
     </div>
   </div>
 
@@ -268,6 +280,15 @@
       </div>
       <p class="ach-sub">Забег с ограничением ради вечного перка. Вход сбрасывает текущий прогресс забега.</p>
       <div id="chalList"></div>
+    </div>
+  </div>
+
+  <!-- АВТОМАТИЗАЦИЯ -->
+  <div id="autoModal" class="overlay hidden">
+    <div class="modal ach">
+      <div class="admin-head"><h1>🤖 Автоматизация</h1><button class="icon-btn" id="autoClose">✕</button></div>
+      <p class="ach-sub">Включай и выключай автопроцессы. Открываются по мере прогресса.</p>
+      <div id="autoList"></div>
     </div>
   </div>
 
