@@ -69,7 +69,8 @@
         <span>♻️ Авто-распыл ниже:</span>
         <div id="salvagePick" class="salvage-pick"></div>
       </div>
-      <div class="sect-lab">Слоты рун <span id="slotInfo" class="dim"></span></div>
+      <div id="runeSets" class="rune-sets"></div>
+      <div class="sect-lab">Слоты рун <span id="slotInfo" class="dim"></span> <span class="dim">· тап по руне — детали</span></div>
       <div id="runeSlots" class="rune-slots"></div>
       <div class="dust-line">💠 Пыль рун: <b id="dustVal">0</b></div>
       <div class="sect-lab">💠 Пыльцевые улучшения <span class="dim">— трать пыль на Oof</span></div>
@@ -214,6 +215,7 @@
       <div class="rune-drop" id="dropCard"></div>
       <div class="modal-btns">
         <button class="btn btn-primary" id="equipBtn">Поставить</button>
+        <button class="btn btn-ghost hidden" id="fuseBtn">⭐ Слить</button>
         <button class="btn btn-ghost" id="scrapBtn">💠 Разобрать</button>
       </div>
       <div id="slotPick" class="slot-pick hidden"></div>
@@ -231,6 +233,7 @@
         <div><b id="mStatNoobs">0</b><span>Нубов</span></div>
       </div>
       <button class="btn btn-ghost" id="achBtn">🏆 Достижения <span id="achCount" class="dim"></span></button>
+      <button class="btn btn-ghost" id="codexBtn">🔮 Кодекс рун</button>
       <button class="btn btn-ghost hidden" id="autoBtn">🤖 Автоматизация</button>
       <button class="btn btn-ghost hidden" id="chalBtn">🎯 Испытания</button>
       <button class="btn btn-ghost hidden" id="mktBtn">🔄 Хроно-биржа</button>
@@ -240,7 +243,7 @@
       <button class="btn btn-ghost" id="adminBtn">🛠️ Админ-панель</button>
       <button class="btn btn-ghost" id="wipeBtn">🗑️ Сбросить всё</button>
       <button class="btn btn-primary" id="closeMenu">Закрыть</button>
-      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v16</span></div>
+      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v17</span></div>
     </div>
   </div>
 
@@ -269,6 +272,28 @@
       </div>
       <p class="admin-warn">Читерский режим. Крути значения как хочешь — прогресс сохраняется.</p>
       <div id="adminBody"></div>
+    </div>
+  </div>
+
+  <!-- ДЕТАЛИ РУНЫ -->
+  <div id="runeDetailModal" class="overlay hidden">
+    <div class="modal">
+      <div class="rune-drop" id="rdCard"></div>
+      <button class="btn btn-primary" id="rdUp">⬆ Уровень</button>
+      <div class="modal-btns">
+        <button class="btn btn-ghost" id="rdSubs">🎲 Сабы</button>
+        <button class="btn btn-ghost" id="rdType">🔁 Тип</button>
+      </div>
+      <button class="btn btn-ghost" id="rdClose">Закрыть</button>
+    </div>
+  </div>
+
+  <!-- КОДЕКС РУН -->
+  <div id="codexModal" class="overlay hidden">
+    <div class="modal ach">
+      <div class="admin-head"><h1>🔮 Кодекс рун</h1><button class="icon-btn" id="codexClose">✕</button></div>
+      <p class="ach-sub">Мастерство типов и найденные редкости. Вечные бонусы.</p>
+      <div id="codexList"></div>
     </div>
   </div>
 

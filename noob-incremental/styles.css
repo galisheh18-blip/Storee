@@ -133,12 +133,28 @@ b{font-variant-numeric:tabular-nums}
 .rune .r-up{font-size:11px;background:var(--card2);border:1px solid var(--line);color:var(--text);
   border-radius:8px;padding:4px 6px;margin-top:2px;width:100%}
 .rune .r-up:active{transform:scale(.95)}
+.rune .r-star{color:#ffd23f;font-size:10px}
+.rune-sets{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 12px;
+  font-size:12px;color:var(--muted);margin:12px 0 4px;text-align:center}
+.rune-sets.active{border-color:var(--green);color:var(--green);font-weight:700}
+.rd-subs{margin-top:10px;border-top:1px solid var(--line);padding-top:8px;text-align:left}
+.rd-sub{font-size:12px;color:#9ecbff;font-weight:600}
+.codex-row{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:10px 12px;margin-bottom:8px;opacity:.6}
+.codex-row.seen{opacity:1}
+.codex-row .cx-ico{font-size:24px}
+.codex-row .cx-main{flex:1;min-width:0}
+.codex-row .cx-name{font-weight:700;font-size:14px}
+.codex-row .cx-sub{font-size:12px;color:var(--muted)}
+.codex-row .cx-mast{font-size:12px;font-weight:700;color:var(--prism);white-space:nowrap}
+.codex-total{text-align:center;margin-top:10px;font-weight:800;color:var(--green)}
 .dust-line{margin-top:14px;text-align:center;color:var(--muted);font-size:13px}
 .dust-line b{color:#9ecbff}
 
 /* rarities */
 .rar-0{--rc:#9aa3d4} .rar-1{--rc:#5be36a} .rar-2{--rc:#5b9bff}
 .rar-3{--rc:#b06cff} .rar-4{--rc:#ffb02e} .rar-5{--rc:#ff4d8d}
+.rar-6{--rc:#ff7a3d} .rar-7{--rc:#ff3d5e} .rar-8{--rc:#7afcff}
 .rune.filled{border-color:var(--rc)}
 .rune.filled .r-ico{filter:drop-shadow(0 0 6px var(--rc))}
 
