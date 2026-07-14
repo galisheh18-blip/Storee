@@ -121,6 +121,26 @@ const RUNE_TYPES = [
   { id:"all",   icon:"✨", name:"руна силы",      base:4,   fmt:v=>"+"+v.toFixed(0)+"% всего",    apply:(m,v)=>{m.global*=(1+v/100);m.click*=(1+v/100);} },
 ];
 const RTYPE = Object.fromEntries(RUNE_TYPES.map(r=>[r.id,r]));
+// пыльцевые улучшения — тратишь пыль рун на основную характеристику
+const DUST_UPS = [
+  { id:"dpow",  icon:"💠", name:"Пыльца силы", max:100, desc:l=>"Oof/с +"+(l*5)+"%",
+    cost:l=>Math.ceil(20*Math.pow(1.4,l)), apply:(m,l)=>m.global*=(1+l*0.05) },
+  { id:"dtap",  icon:"✨", name:"Пыльца тапа", max:100, desc:l=>"Тап +"+(l*8)+"%",
+    cost:l=>Math.ceil(15*Math.pow(1.4,l)), apply:(m,l)=>m.click*=(1+l*0.08) },
+  { id:"drune", icon:"🌟", name:"Пыльца резонанса", max:50, desc:l=>"Эффект рун +"+(l*4)+"%",
+    cost:l=>Math.ceil(30*Math.pow(1.5,l)), apply:(m,l)=>m._runePow+=l*0.04 },
+];
+const DUST_UP = Object.fromEntries(DUST_UPS.map(d=>[d.id,d]));
+
+// ---- Автоматизация (открывается по прогрессу, включается/выключается) ----
+const AUTOS = [
+  { id:"click",    icon:"🤖", name:"Автокликер",           unlock:()=>((save.prismUps||{}).autoc||0)>0, hint:"Куплен в призмах" },
+  { id:"noobs",    icon:"🧍", name:"Автопокупка нубов",     unlock:()=>((save.prismUps||{}).autob||0)>0, hint:"Куплена в призмах" },
+  { id:"ups",      icon:"⚡", name:"Автопокупка улучшений", unlock:()=>save.prestiges>=3, hint:"С 3 престижей" },
+  { id:"mining",   icon:"⛏️", name:"Автошахта",            unlock:()=>((save.miningUps||{}).auto||0)>0, hint:"Автошахтёр в шахте" },
+  { id:"workshop", icon:"⚙️", name:"Автомастерская",       unlock:()=>save.prestiges>=5||save.transcends>0, hint:"С 5 престижей" },
+  { id:"potions",  icon:"⚗️", name:"Автоварка зелий",      unlock:()=>save.transcends>0, hint:"С 1 трансценденции" },
+];
 function runeValue(r){ // сила руны по типу/редкости/уровню
   const t=RTYPE[r.type], rar=RARITIES[r.rar];
   return t.base * rar.mul * (1 + 0.25*(r.lvl-1));
@@ -166,8 +186,8 @@ function startOof(l){ return l<=0?0: 100*Math.pow(6,l); }
 
 // ---- Звёздные улучшения (вознесение) ----
 const STAR_UPS = [
-  { id:"sshine", icon:"⭐", name:"Звёздный блеск", max:200, desc:l=>"Всё ×"+(1+0.5*l).toFixed(1),
-    cost:l=>Math.ceil(1*Math.pow(1.4,l)), apply:(m,l)=>m.global*=(1+0.5*l) },
+  { id:"sshine", icon:"⭐", name:"Звёздный блеск", max:200, desc:l=>"Всё ×"+(1+0.3*l).toFixed(1),
+    cost:l=>Math.ceil(1*Math.pow(1.45,l)), apply:(m,l)=>m.global*=(1+0.3*l) },
   { id:"skeep",  icon:"💎", name:"Хранитель призм", max:50, desc:l=>"Оставляй "+(l*2)+"% призм при вознесении",
     cost:l=>Math.ceil(2*Math.pow(1.5,l)), apply:()=>{} },
   { id:"spmul",  icon:"💫", name:"Звёздный поток", max:100, desc:l=>"Призм и Oof +"+(l*15)+"%",
@@ -210,8 +230,8 @@ const MINING_UPS = [
     cost:l=>Math.ceil(20*Math.pow(1.35,l)), rate:l=>1+0.15*l },
   { id:"boom", icon:"🧨", name:"Взрывчатка", max:100, desc:l=>"Добыча ×"+(1+0.25*l).toFixed(2),
     cost:l=>Math.ceil(50*Math.pow(1.4,l)), rate:l=>1+0.25*l },
-  { id:"vein", icon:"🌋", name:"Глубокая жила", max:50, desc:l=>"Добыча ×"+(1+l),
-    cost:l=>Math.ceil(200*Math.pow(1.6,l)), rate:l=>1+l },
+  { id:"vein", icon:"🌋", name:"Глубокая жила", max:50, desc:l=>"Добыча ×"+(1+0.5*l).toFixed(1),
+    cost:l=>Math.ceil(200*Math.pow(1.6,l)), rate:l=>1+0.5*l },
   { id:"rich", icon:"🪙", name:"Ценная руда", max:100, desc:l=>"Oof/с +"+(l*4)+"% (от шахты)",
     cost:l=>Math.ceil(80*Math.pow(1.45,l)), glob:l=>1+0.04*l },
   { id:"cheap",icon:"👷", name:"Профсоюз", max:35, desc:l=>"Шахтёры дешевле "+Math.min(l*2,70)+"%",
@@ -286,8 +306,8 @@ function marketPrice(res){
 // ---- Трансцендентность: ⚛️ кварки (3-й слой сброса) + Пантеон (синергии) ----
 function quarkGain(stars){ if(stars<1000) return 0; return Math.floor(Math.pow(stars/1000, 0.5)); }
 const QUARK_UPS = [
-  { id:"qall",  icon:"⚛️", name:"Квантовый множитель", max:500, desc:l=>"Всё ×"+fmt(1+l),
-    cost:l=>Math.ceil(1*Math.pow(1.3,l)), apply:(m,l)=>m.global*=(1+l) },
+  { id:"qall",  icon:"⚛️", name:"Квантовый множитель", max:500, desc:l=>"Всё ×"+fmt(1+0.5*l),
+    cost:l=>Math.ceil(3*Math.pow(1.4,l)), apply:(m,l)=>m.global*=(1+0.5*l) },
   { id:"qprism",icon:"💎", name:"Призменный резонанс", max:100, desc:l=>"Призм +"+(l*20)+"%",
     cost:l=>Math.ceil(2*Math.pow(1.4,l)), apply:(m,l)=>m.prism*=(1+l*0.2) },
   { id:"qkeep", icon:"⭐", name:"Квантовая память", max:20, desc:l=>"Оставляй "+(l*3)+"% звёзд при трансценденции",
@@ -304,8 +324,8 @@ const QUARK_UP = Object.fromEntries(QUARK_UPS.map(q=>[q.id,q]));
 
 // ---- Искажение: ⚫ добровольный дебафф ради тёмной валюты ----
 const CORR_UPS = [
-  { id:"cpow",  icon:"⚫", name:"Сила искажения", max:300, desc:l=>"Всё ×"+(1+0.5*l).toFixed(1),
-    cost:l=>Math.ceil(5*Math.pow(1.28,l)), apply:(m,l)=>m.global*=(1+0.5*l) },
+  { id:"cpow",  icon:"⚫", name:"Сила искажения", max:300, desc:l=>"Всё ×"+(1+0.35*l).toFixed(2),
+    cost:l=>Math.ceil(5*Math.pow(1.3,l)), apply:(m,l)=>m.global*=(1+0.35*l) },
   { id:"cmine", icon:"🕳️", name:"Тёмная руда", max:100, desc:l=>"Добыча ×"+(1+0.3*l).toFixed(1),
     cost:l=>Math.ceil(8*Math.pow(1.35,l)), apply:(m,l)=>m._oreBoost+=0.3*l },
   { id:"cluck", icon:"🩸", name:"Проклятая удача", max:50, desc:l=>"Удача рун +"+(l*10)+"%",
@@ -383,6 +403,7 @@ const DEFAULT = ()=>({
   activeChallenge:null, chalDone:{},
   quarks:0, transcends:0, quarkUps:{}, corruption:0, corr:0, corrEver:0, corrUps:{},
   mutants:{}, market:{ ore:1, dust:1, gears:1, nextDrift:0, event:null },
+  dustUps:{}, auto:{ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false },
   lastTime:Date.now(), seen:{},
   admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }
 });
@@ -391,9 +412,10 @@ function load(){
   try{
     const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
     if(raw){ save=Object.assign(DEFAULT(),raw);
-      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","seen"]) if(!save[k]) save[k]={};
+      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","dustUps","seen"]) if(!save[k]) save[k]={};
       if(typeof save.corruption!=="number") save.corruption=0;
       if(!save.market) save.market={ ore:1, dust:1, gears:1, nextDrift:0, event:null };
+      save.auto=Object.assign({ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false }, save.auto||{});
       if(typeof save.salvageBelow!=="number") save.salvageBelow=-1;
       if(typeof save.gearsEver!=="number") save.gearsEver=save.gears||0;
       if(typeof save.miners!=="number") save.miners=0;
@@ -437,6 +459,8 @@ function recompute(){
   let noobUp=0;  for(const id in save.ups){ if(save.ups[id]&&UP[id]&&UP[id].kind==="noob") noobUp++; }
   const ctx={ prismLv, starLv, noobUp };
   for(const w of WORKSHOP_UPS){ const l=save.workshopUps[w.id]||0; if(l>0 && w.apply) w.apply(m,l,ctx); }
+  // пыльцевые улучшения (пыль → основная характеристика)
+  for(const d of DUST_UPS){ const l=save.dustUps[d.id]||0; if(l>0) d.apply(m,l); }
   // достижения — вечные бонусы
   let ag=0,ac=0,ap=0,arp=0;
   for(const a of ACHS){ if(save.achieved[a.id]){ const b=a.buff; ag+=b.global||0; ac+=b.click||0; ap+=b.prism||0; arp+=b.runePow||0; } }
@@ -830,14 +854,16 @@ function loop(now){
   // экономика
   if(D.ops) gainOof(D.ops*edt);
   // авто-клик
-  if(D.autoClick>0){ save._acc=(save._acc||0)+D.autoClick*edt;
+  if(D.autoClick>0 && save.auto.click!==false){ save._acc=(save._acc||0)+D.autoClick*edt;
     while(save._acc>=1){ save._acc--; const a=D.clickBase; gainOof(a); save.lifetimeClicks++; }
   }
   // энергия рун
   const emax=D.slots+2;
   if(save.energy<emax){ save.energy=Math.min(emax, save.energy + edt/(60/D.runeRegen)); }
   // авто-покупка нубов
-  if(D.autoBuy){ autoBuyTick(); }
+  if(D.autoBuy && save.auto.noobs!==false){ autoBuyTick(); }
+  // автоматизация процессов (улучшения/шахта/цех/зелья)
+  runAutomation(edt);
   // фарм шестерёнок мастерской
   if(D.gearRate>0){ const g=D.gearRate*edt; save.gears+=g; save.gearsEver=(save.gearsEver||0)+g; }
   // добыча руды в шахте
@@ -909,6 +935,7 @@ function refreshTop(){
   if(save.prestiges>=2){ $("mktBtn").classList.remove("hidden"); }
   if(save.prestiges>=3 || Object.keys(save.mutants).length){ $("mutBtn").classList.remove("hidden"); }
   if(save.transcends>0 || save.corruption>0 || save.corr>0){ $("portalBtn").classList.remove("hidden"); }
+  if(AUTOS.some(a=>a.unlock())){ $("autoBtn").classList.remove("hidden"); }
   // бейджи «доступно»
   updateBadges();
 }
@@ -1013,6 +1040,7 @@ function renderSalvage(){
 }
 function renderRunes(){
   renderSalvage();
+  renderDustUps();
   $("slotInfo").textContent="("+save.runes.filter(Boolean).length+"/"+D.slots+")";
   $("dustVal").textContent=fmt(save.dust);
   const box=$("runeSlots"); box.innerHTML="";
@@ -1039,6 +1067,11 @@ function updateRuneLive(){
   $("energyMax").textContent=emax;
   $("energyFill").style.width=Math.min(100,save.energy/emax*100)+"%";
   $("rollBtn").disabled = save.energy<1;
+  document.querySelectorAll("#dustUpList .buyrow").forEach(row=>{
+    const d=DUST_UP[row.dataset.dup]; const l=save.dustUps[d.id]||0; if(l>=d.max) return;
+    const cost=d.cost(l); row.classList.toggle("afford",save.dust>=cost);
+    const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",save.dust<cost);
+  });
 }
 
 /* руна-дроп модалка */
@@ -1565,6 +1598,91 @@ $("mktModal").addEventListener("click", e=>{ if(e.target.id==="mktModal"){ mktOp
 $("portalBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); openPortal(); });
 $("portalTap").addEventListener("click", tapPortal);
 $("portalCollect").addEventListener("click", collectPortal);
+
+/* ---- Пыльцевые улучшения (пыль → основная характеристика) ---- */
+function renderDustUps(){
+  const box=$("dustUpList"); if(!box) return; box.innerHTML="";
+  DUST_UPS.forEach(d=>{ const l=save.dustUps[d.id]||0, maxed=l>=d.max, cost=d.cost(l);
+    const row=document.createElement("div"); row.className="buyrow"; row.dataset.dup=d.id;
+    row.innerHTML=upRowHTML(d.icon, d.name+" "+(l>0?"("+l+"/"+d.max+")":""), d.desc(l), l, d.max, maxed?"МАКС":"💠 "+fmt(cost), "dust");
+    if(!maxed) row.addEventListener("click",()=>buyDustUp(d.id)); box.appendChild(row); });
+}
+function buyDustUp(id){
+  const d=DUST_UP[id], l=save.dustUps[id]||0; if(l>=d.max) return;
+  const cost=d.cost(l); if(save.dust<cost) return;
+  save.dust-=cost; save.dustUps[id]=l+1; recompute(); renderRunes(); refreshTop(); queueSave();
+}
+
+/* ---- Массовая покупка «Купить всё» ---- */
+function massLeveled(defs,storeKey,curKey){
+  let n=0,ch=true; while(ch&&n<5000){ ch=false;
+    for(const d of defs){ const l=save[storeKey][d.id]||0; if(l>=d.max) continue; const cost=d.cost(l);
+      if((save[curKey]||0)>=cost){ save[curKey]-=cost; save[storeKey][d.id]=l+1; n++; ch=true; } } }
+  return n;
+}
+function buyAllNoobs(){
+  let n=0; while(n<20000){ let best=null,bc=Infinity;
+    for(const nb of NOOBS){ const c=noobCost(nb.id,save.noobs[nb.id]||0); if(c<=save.oof&&c<bc){bc=c;best=nb.id;} }
+    if(!best) break; save.oof-=bc; save.noobs[best]=(save.noobs[best]||0)+1; n++; }
+  if(n){ recompute(); syncNoobSprites(); renderNoobs(); refreshTop(); queueSave(); toast("Куплено нубов: "+n); }
+  else toast("Не хватает Oof");
+}
+function buyAllUps(){
+  let n=0,ch=true; while(ch&&n<2000){ ch=false;
+    for(const u of UPS){ if(!save.ups[u.id]&&u.req()&&save.oof>=u.cost){ save.oof-=u.cost; save.ups[u.id]=true; n++; ch=true; } } }
+  if(n){ recompute(); renderUps(); refreshTop(); queueSave(); toast("Куплено улучшений: "+n); } else toast("Нечего купить");
+}
+function buyAllMining(){ buyMinerMax(); const n=massLeveled(MINING_UPS,'miningUps','ore'); recompute(); renderMining(); refreshTop(); queueSave(); if(n) toast("Улучшений шахты: "+n); }
+function buyAllWorkshop(){ const n=massLeveled(WORKSHOP_UPS,'workshopUps','gears'); if(n){ recompute(); renderWorkshop(); refreshTop(); queueSave(); toast("Улучшений цеха: "+n); } else toast("Не хватает шестерёнок"); }
+function buyAllDust(){ const n=massLeveled(DUST_UPS,'dustUps','dust'); if(n){ recompute(); renderRunes(); refreshTop(); queueSave(); toast("Пыльцы: "+n); } else toast("Не хватает пыли"); }
+function buyAllPrism(){ if(massLeveled(PRISM_UPS,'prismUps','prisms')){ recompute(); renderPrestige(); refreshTop(); queueSave(); } }
+function buyAllStar(){ if(massLeveled(STAR_UPS,'starUps','stars')){ recompute(); renderPrestige(); refreshTop(); queueSave(); } }
+function buyAllQuark(){ if(massLeveled(QUARK_UPS,'quarkUps','quarks')){ recompute(); renderPrestige(); refreshTop(); queueSave(); } }
+function buyAllCorr(){ if(massLeveled(CORR_UPS,'corrUps','corr')){ recompute(); renderPrestige(); refreshTop(); queueSave(); } }
+
+/* ---- Автоматизация ---- */
+let autoOpen=false, autoTimer=0;
+function renderAuto(){
+  const box=$("autoList"); box.innerHTML="";
+  AUTOS.forEach(a=>{ const un=a.unlock(), on=un&&save.auto[a.id]!==false;
+    const row=document.createElement("div"); row.className="auto-row"+(un?"":" locked");
+    row.innerHTML=`<div class="auto-ico">${a.icon}</div>
+      <div class="auto-main"><div class="auto-name">${a.name}</div>
+        <div class="auto-hint">${un?(on?'Включено':'Выключено'):('🔒 '+a.hint)}</div></div>
+      <span class="tg ${on?'on':''}"><span class="knob"></span></span>`;
+    if(un) row.addEventListener("click",()=>{ save.auto[a.id]=!on; renderAuto(); queueSave(); });
+    box.appendChild(row); });
+}
+function runAutomation(edt){
+  autoTimer+=edt; if(autoTimer<1) return; autoTimer=0;
+  let changed=false;
+  if(save.prestiges>=3 && save.auto.ups!==false){
+    for(const u of UPS){ if(!save.ups[u.id]&&u.req()&&save.oof>=u.cost){ save.oof-=u.cost; save.ups[u.id]=true; changed=true; } } }
+  if(((save.miningUps||{}).auto>0) && save.auto.mining!==false){
+    let c=minerCost(),k=0; while(save.oof>=c && save.oof-c>c*0.4 && k<100){ save.oof-=c; save.miners++; c=minerCost(); k++; changed=true; }
+    for(const d of MINING_UPS){ const l=save.miningUps[d.id]||0; if(l<d.max && save.ore>=d.cost(l)){ save.ore-=d.cost(l); save.miningUps[d.id]=l+1; changed=true; } } }
+  if((save.prestiges>=5||save.transcends>0) && save.auto.workshop!==false){
+    for(const d of WORKSHOP_UPS){ const l=save.workshopUps[d.id]||0; if(l<d.max && save.gears>=d.cost(l)){ save.gears-=d.cost(l); save.workshopUps[d.id]=l+1; changed=true; } } }
+  if(save.transcends>0 && save.auto.potions){
+    const now=Date.now();
+    for(const p of POTIONS){ if((save.potions[p.id]||0)<=now && save.ore>=p.cost.ore && save.dust>=p.cost.dust){
+      save.ore-=p.cost.ore; save.dust-=p.cost.dust; save.potions[p.id]=now+p.dur*1000; potionState=""; changed=true; } } }
+  if(changed){ recompute(); syncNoobSprites(); refreshTop(); if(!menuIsOpen()) renderAll(); }
+}
+function menuIsOpen(){ return !$("menuModal").classList.contains("hidden"); }
+$("autoBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); autoOpen=true; renderAuto(); $("autoModal").classList.remove("hidden"); });
+$("autoClose").addEventListener("click", ()=>{ autoOpen=false; $("autoModal").classList.add("hidden"); });
+$("autoModal").addEventListener("click", e=>{ if(e.target.id==="autoModal"){ autoOpen=false; $("autoModal").classList.add("hidden"); } });
+// mass-buy кнопки
+$("massNoobs").addEventListener("click", buyAllNoobs);
+$("massUps").addEventListener("click", buyAllUps);
+$("massMining").addEventListener("click", buyAllMining);
+$("massWorkshop").addEventListener("click", buyAllWorkshop);
+$("massDust").addEventListener("click", buyAllDust);
+$("massPrism").addEventListener("click", buyAllPrism);
+$("massStar").addEventListener("click", buyAllStar);
+$("massQuark").addEventListener("click", buyAllQuark);
+$("massCorr").addEventListener("click", buyAllCorr);
 $("howBtn2").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); $("howModal").classList.remove("hidden"); });
 $("howClose2").addEventListener("click", ()=>$("howModal").classList.add("hidden"));
 $("prestigeBtn").addEventListener("click", ()=>doPrestige());
