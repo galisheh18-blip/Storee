@@ -241,6 +241,34 @@ const RELIC_T = Object.fromEntries(RELIC_TYPES.map(r=>[r.id,r]));
 function relicValue(tid, rar){ return RELIC_T[tid].base * RARITIES[rar].mul; }
 function relicChance(){ return Math.min(0.25 + (save.prestiges||0)*0.002, 0.6); }
 
+// A+F — ветки/доски призм-улучшений + гейтинг (пререквизиты)
+const PRISM_BRANCH = { shine:"prod", click:"prod", pmul:"prod", critmass:"prod", megaclick:"prod",
+  offline:"auto", autoc:"auto", autob:"auto",
+  start:"comfort", disc:"comfort", keepnoob:"comfort",
+  slots:"runes", fastr:"runes", runepow:"runes", runeluck:"runes" };
+const PRISM_REQ = { autob:{id:"autoc",lvl:1}, offline:{id:"start",lvl:1}, megaclick:{id:"click",lvl:3},
+  runepow:{id:"slots",lvl:1}, pmul:{id:"shine",lvl:5} };
+const PRISM_BRANCHES = [["prod","🏭 Производство"],["auto","🤖 Автоматизация"],["comfort","🧭 Комфорт"],["runes","🔮 Руны"]];
+function prismReqMet(id){ const rq=PRISM_REQ[id]; return !rq || (save.prismUps[rq.id]||0)>=rq.lvl; }
+
+// G — цели забега (обнуляются с престижем): выполнил → +% к призмам за этот сброс
+const RUN_GOALS = [
+  { id:"g1", icon:"😵", text:"1e9 Oof за забег",   bonus:0.15, done:()=>save.totalOof>=1e9 },
+  { id:"g2", icon:"🧍", text:"300 нубов",          bonus:0.15, done:()=>totalNoobs()>=300 },
+  { id:"g3", icon:"⚡", text:"15 улучшений за забег",bonus:0.10, done:()=>Object.keys(save.ups).length>=15 },
+  { id:"g4", icon:"🔥", text:"1e12 Oof за забег",   bonus:0.20, done:()=>save.totalOof>=1e12 },
+];
+function runGoalBonus(){ let b=0; for(const g of RUN_GOALS) if(g.done()) b+=g.bonus; return b; }
+
+// I — призмы в других системах (кросс-улучшения за призмы)
+const CROSS_UPS = [
+  { id:"pbore", tab:"mining",   icon:"💎", name:"Призм-бур",      max:100, desc:l=>"Добыча ×"+(1+0.5*l).toFixed(1)+" · +"+(l*5)+"% Oof/с",
+    cost:l=>Math.ceil(5*Math.pow(1.5,l)), apply:(m,l)=>{ m._oreBoost+=0.5*l; m.global*=(1+0.05*l); } },
+  { id:"pgear", tab:"workshop", icon:"💎", name:"Призм-редуктор", max:100, desc:l=>"Всё ×"+(1+0.2*l).toFixed(1),
+    cost:l=>Math.ceil(6*Math.pow(1.5,l)), apply:(m,l)=>m.global*=(1+0.2*l) },
+];
+const CROSS_UP = Object.fromEntries(CROSS_UPS.map(c=>[c.id,c]));
+
 // ---- Звёздные улучшения (вознесение) ----
 const STAR_UPS = [
   { id:"sshine", icon:"⭐", name:"Звёздный блеск", max:200, desc:l=>"Всё ×"+(1+0.3*l).toFixed(1),
@@ -461,7 +489,7 @@ const DEFAULT = ()=>({
   quarks:0, transcends:0, quarkUps:{}, corruption:0, corr:0, corrEver:0, corrUps:{},
   mutants:{}, market:{ ore:1, dust:1, gears:1, nextDrift:0, event:null },
   dustUps:{}, auto:{ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false },
-  ranks:{}, prismsEver:0, relics:{},
+  ranks:{}, prismsEver:0, relics:{}, crossUps:{}, apMult:2,
   lastTime:Date.now(), seen:{},
   admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }
 });
@@ -470,8 +498,9 @@ function load(){
   try{
     const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
     if(raw){ save=Object.assign(DEFAULT(),raw);
-      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","dustUps","ranks","relics","seen"]) if(!save[k]) save[k]={};
+      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","dustUps","ranks","relics","crossUps","seen"]) if(!save[k]) save[k]={};
       if(typeof save.prismsEver!=="number") save.prismsEver=0;
+      if(typeof save.apMult!=="number") save.apMult=2;
       if(typeof save.corruption!=="number") save.corruption=0;
       if(!save.market) save.market={ ore:1, dust:1, gears:1, nextDrift:0, event:null };
       save.auto=Object.assign({ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false }, save.auto||{});
@@ -547,6 +576,8 @@ function recompute(){
   for(const ms of PRESTIGE_MS){ if((save.prestiges||0)>=ms.at){ if(ms.g)m.global*=(1+ms.g); if(ms.p)m.prism*=(1+ms.p); if(ms.slots)m._bonusSlots+=ms.slots; } }
   for(const tid in save.relics){ const rt=RELIC_T[tid]; if(rt) rt.apply(m, relicValue(tid, save.relics[tid])); }
   D.allCurMul = 1 + (m._allCur||0);
+  // кросс-улучшения за призмы (шахта/мастерская)
+  for(const c of CROSS_UPS){ const l=save.crossUps[c.id]||0; if(l>0) c.apply(m,l); }
   // шахта: руда усиливает основную экономику
   let oreMul=1, miningGlob=1;
   for(const mu of MINING_UPS){ const l=save.miningUps[mu.id]||0; if(l>0){ if(mu.rate) oreMul*=mu.rate(l); if(mu.glob) miningGlob*=mu.glob(l); } }
@@ -611,7 +642,7 @@ function recompute(){
 function noobCost(id, owned){ return NOOB[id].base * Math.pow(COST_MUL, owned) * D.costMul; }
 function prismGain(total){ // призмы за престиж
   if(total < 1e6) return 0;
-  return Math.floor(Math.pow(total/1e6, 0.5) * D.prismMul * (D.allCurMul||1));
+  return Math.floor(Math.pow(total/1e6, 0.5) * D.prismMul * (D.allCurMul||1) * (1+runGoalBonus()));
 }
 function starGain(prisms){
   if(prisms < 500) return 0;
@@ -726,11 +757,31 @@ function doPrestige(auto){
 }
 function buyPrismUp(id){
   const p=PRISM_UP[id]; const l=save.prismUps[id]||0;
-  if(l>=p.max) return;
+  if(l>=p.max || !prismReqMet(id)) return;
   const cost=p.cost(l);
   if(save.prisms<cost) return;
   save.prisms-=cost; save.prismUps[id]=l+1;
   recompute(); renderPrestige(); refreshTop(); queueSave();
+}
+function buyCrossUp(id){
+  const c=CROSS_UP[id], l=save.crossUps[id]||0; if(l>=c.max) return;
+  const cost=c.cost(l); if(save.prisms<cost) return;
+  save.prisms-=cost; save.crossUps[id]=l+1;
+  recompute(); if(c.tab==="mining")renderMining(); else renderWorkshop(); refreshTop(); queueSave();
+}
+function crossRow(c){
+  const l=save.crossUps[c.id]||0, maxed=l>=c.max, cost=c.cost(l);
+  const row=document.createElement("div"); row.className="buyrow"; row.dataset.crossup=c.id;
+  row.innerHTML=upRowHTML(c.icon, c.name+" "+(l>0?"("+l+")":""), c.desc(l), l, c.max, maxed?"МАКС":"💎 "+fmt(cost), "prism");
+  if(!maxed) row.addEventListener("click", ()=>buyCrossUp(c.id));
+  return row;
+}
+function crossLive(sel){
+  document.querySelectorAll(sel+" [data-crossup]").forEach(row=>{
+    const c=CROSS_UP[row.dataset.crossup], l=save.crossUps[c.id]||0; if(l>=c.max) return;
+    const cost=c.cost(l); row.classList.toggle("afford",save.prisms>=cost);
+    const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",save.prisms<cost);
+  });
 }
 function doAscend(){
   recompute();
@@ -792,6 +843,16 @@ function dropRelic(){
     toast("✨ Реликвия: "+t.name+" — "+RARITIES[rar].name+(cur===undefined?"":" (лучше!)")); }
   else { save.prisms+=Math.ceil((rar+1)*(save.prestiges>10?3:1)); } // дубликат → тихий рефанд призм
 }
+function renderRunGoals(){
+  const box=$("runGoals"); if(!box) return; box.innerHTML="";
+  RUN_GOALS.forEach(g=>{
+    const done=g.done();
+    const el=document.createElement("div"); el.className="run-goal"+(done?" done":"");
+    el.innerHTML=`<span class="rg-ico">${done?"✅":"⬜"}</span><span class="rg-txt">${g.icon} ${g.text}</span><span class="rg-bonus">+${Math.round(g.bonus*100)}%</span>`;
+    box.appendChild(el);
+  });
+}
+function setApMult(d){ save.apMult=Math.max(1.5,Math.min(20,(save.apMult||2)+d)); updatePrestigeLive(); queueSave(); }
 function renderRelics(){
   const box=$("relicGrid"); if(!box) return; box.innerHTML="";
   RELIC_TYPES.forEach(t=>{
@@ -876,18 +937,30 @@ function burst(x,y){
   for(let i=0;i<14;i++){ const a=Math.random()*6.28, s=40+Math.random()*120;
     particles.push({ x,y, vx:Math.cos(a)*s, vy:Math.sin(a)*s-30, life:1, c:i%2?"#ffd23f":"#ff5d6c" }); }
 }
+function prestigeTier(){
+  if((save.transcends||0)>0) return 4;
+  if((save.stars||0)>0 || (save.ascends||0)>0) return 3;
+  if((save.prestiges||0)>=50) return 2;
+  if((save.prestiges||0)>=10) return 1;
+  return 0;
+}
+function auraColor(t){ return ["255,210,63","255,184,77","255,120,60","124,243,255","192,108,255"][t]||"255,210,63"; }
 function drawHero(){
-  const h=hero(); const s=1+Math.sin(heroPulse)*0.03 + (heroClick>0?heroClick*0.12:0);
+  const h=hero(); const tier=prestigeTier();
+  const s=1+Math.sin(heroPulse)*0.03 + (heroClick>0?heroClick*0.12:0);
   ctx.save();
   ctx.translate(h.x,h.y);
   ctx.scale(s,s);
-  // тень/аура
-  const glow=ctx.createRadialGradient(0,0,h.r*0.3,0,0,h.r*1.7);
-  glow.addColorStop(0,"rgba(255,210,63,.22)"); glow.addColorStop(1,"rgba(255,210,63,0)");
-  ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(0,0,h.r*1.7,0,6.29); ctx.fill();
+  // аура — цвет и размер растут со слоем престижа
+  const ac=auraColor(tier), ar=1.7+tier*0.2, ai=0.22+tier*0.05;
+  const glow=ctx.createRadialGradient(0,0,h.r*0.3,0,0,h.r*ar);
+  glow.addColorStop(0,"rgba("+ac+","+ai+")"); glow.addColorStop(1,"rgba("+ac+",0)");
+  ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(0,0,h.r*ar,0,6.29); ctx.fill();
   drawNoobBody(0,0,h.r,"#ffd23f");
+  // корона появляется и растёт с престижем
+  if(tier>=1){ ctx.font=(h.r*(0.78+tier*0.12))+"px serif"; ctx.textAlign="center"; ctx.textBaseline="alphabetic";
+    ctx.fillText(tier>=3?"👑":"🤴", 0, -h.r*0.96); }
   ctx.restore();
-  // подпись Oof/с
 }
 function drawNoobBody(x,y,r,col){
   ctx.save(); ctx.translate(x,y);
@@ -988,8 +1061,8 @@ function loop(now){
     if(save.oof>=c && save.oof-c>c*0.5){ save.oof-=c; save.miners++; recompute(); } } }
   // авто-престиж (звёздный автопилот)
   if(D.autoPrestige){ apTimer+=edt; if(apTimer>=4){ apTimer=0;
-    const g=prismGain(save.totalOof);
-    if(g>=1 && g>=save.prisms*0.5+1){ doPrestige(true); } } }
+    const g=prismGain(save.totalOof), thr=save.prisms*((save.apMult||2)-1)+1;
+    if(g>=1 && g>=thr){ doPrestige(true); } } }
   // испытания: проверка цели
   if(save.activeChallenge){ const c=CHAL[save.activeChallenge]; if(c && save.totalOof>=c.goal) completeChallenge(); }
   // взрывной нуб-мутант
@@ -1248,6 +1321,7 @@ function renderPrestige(){
   const g=prismGain(save.totalOof);
   $("prismGain").textContent=fmt(g);
   renderRelics();
+  renderRunGoals();
   pbox_render();
   // вознесение
   const canAsc = save.prisms>=500 || save.ascends>0 || save.stars>0;
@@ -1291,13 +1365,20 @@ function renderPrestige(){
 }
 function pbox_render(){
   const pbox=$("prismUpList"); pbox.innerHTML="";
-  PRISM_UPS.forEach(p=>{
-    const l=save.prismUps[p.id]||0, maxed=l>=p.max, cost=p.cost(l);
-    const row=document.createElement("div"); row.className="buyrow"; row.dataset.prismup=p.id;
-    row.innerHTML=upRowHTML(p.icon,p.name+" "+(l>0?"("+l+(p.max<50?"/"+p.max:"")+")":""),p.desc(l),l,p.max,maxed?"МАКС":"💎 "+fmt(cost),"prism");
-    if(!maxed) row.addEventListener("click", ()=>buyPrismUp(p.id));
-    pbox.appendChild(row);
-  });
+  for(const [br,label] of PRISM_BRANCHES){
+    const items=PRISM_UPS.filter(p=>PRISM_BRANCH[p.id]===br);
+    if(!items.length) continue;
+    const h=document.createElement("div"); h.className="branch-lab"; h.textContent=label; pbox.appendChild(h);
+    items.forEach(p=>{
+      const l=save.prismUps[p.id]||0, maxed=l>=p.max, cost=p.cost(l);
+      const rq=PRISM_REQ[p.id], locked=rq && (save.prismUps[rq.id]||0)<rq.lvl;
+      const row=document.createElement("div"); row.className="buyrow"+(locked?" locked":""); row.dataset.prismup=p.id;
+      const costTxt = locked ? ("🔒 «"+PRISM_UP[rq.id].name+"» ур."+rq.lvl) : (maxed?"МАКС":"💎 "+fmt(cost));
+      row.innerHTML=upRowHTML(p.icon,p.name+" "+(l>0?"("+l+(p.max<50?"/"+p.max:"")+")":""),p.desc(l),l,p.max,costTxt,"prism");
+      if(!maxed && !locked) row.addEventListener("click", ()=>buyPrismUp(p.id));
+      pbox.appendChild(row);
+    });
+  }
 }
 function upRowHTML(icon,name,desc,lvl,max,costTxt,cur){
   return `<div class="buy-ico">${icon}</div>
@@ -1310,6 +1391,11 @@ function updatePrestigeLive(){
   $("prestigeBtn").disabled = g<1;
   // сила престижа + вехи
   const pp=$("prestigePower"); if(pp) pp.textContent="⚡ Сила престижа: ×"+fmt(D.prestigePow||1)+"  ·  "+fmt(save.prismsEver||0)+" 💎 за всё время";
+  // цели забега
+  renderRunGoals();
+  const gb=$("goalBonus"); if(gb){ const b=runGoalBonus(); gb.textContent=b>0?("+"+Math.round(b*100)+"% к призмам"):""; }
+  // контроль авто-престижа
+  const apc=$("apCtrl"); if(apc){ apc.classList.toggle("hidden", !D.autoPrestige); $("apMultVal").textContent=(save.apMult||2); }
   const nextMs=PRESTIGE_MS.find(x=>(save.prestiges||0)<x.at);
   const mb=$("prestigeMsBar"), mn=$("msNext");
   if(mb){ const prev=[...PRESTIGE_MS].reverse().find(x=>(save.prestiges||0)>=x.at); const lo=prev?prev.at:0;
@@ -1325,7 +1411,7 @@ function updatePrestigeLive(){
   // цены доступность
   document.querySelectorAll("#prismUpList .buyrow").forEach(row=>{
     const p=PRISM_UP[row.dataset.prismup]; const l=save.prismUps[p.id]||0;
-    if(l>=p.max) return; const cost=p.cost(l);
+    if(l>=p.max || !prismReqMet(p.id)) return; const cost=p.cost(l);
     row.classList.toggle("afford",save.prisms>=cost);
     const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",save.prisms<cost);
   });
@@ -1360,6 +1446,7 @@ function renderWorkshop(){
   $("gearBig").textContent=fmt(save.gears);
   $("gearRateTxt").textContent="+"+fmt(D.gearRate||0)+" ⚙️/с";
   const box=$("workshopList"); box.innerHTML="";
+  if(save.prestiges>=1) CROSS_UPS.filter(c=>c.tab==="workshop").forEach(c=>box.appendChild(crossRow(c)));
   WORKSHOP_UPS.forEach(w=>{
     const l=save.workshopUps[w.id]||0, maxed=l>=w.max, cost=w.cost(l);
     const row=document.createElement("div"); row.className="buyrow"; row.dataset.wup=w.id;
@@ -1373,11 +1460,12 @@ function updateWorkshopLive(){
   const gb=$("gearBig"); if(gb) gb.textContent=fmt(save.gears);
   const rt=$("gearRateTxt"); if(rt) rt.textContent="+"+fmt(D.gearRate||0)+" ⚙️/с";
   document.querySelectorAll("#workshopList .buyrow").forEach(row=>{
-    const w=WORKSHOP_UP[row.dataset.wup]; const l=save.workshopUps[w.id]||0;
+    const w=WORKSHOP_UP[row.dataset.wup]; if(!w) return; const l=save.workshopUps[w.id]||0;
     if(l>=w.max) return; const cost=w.cost(l);
     row.classList.toggle("afford",save.gears>=cost);
     const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",save.gears<cost);
   });
+  crossLive("#workshopList");
 }
 
 /* ---- Шахта ---- */
@@ -1411,6 +1499,7 @@ function renderMining(){
   row.addEventListener("pointerup",()=>clearTimeout(pt)); row.addEventListener("pointerleave",()=>clearTimeout(pt));
   mr.appendChild(row);
   const box=$("miningList"); box.innerHTML="";
+  if(save.prestiges>=1) CROSS_UPS.filter(c=>c.tab==="mining").forEach(c=>box.appendChild(crossRow(c)));
   MINING_UPS.forEach(mu=>{
     const l=save.miningUps[mu.id]||0, maxed=l>=mu.max, cost=mu.cost(l);
     const r2=document.createElement("div"); r2.className="buyrow"; r2.dataset.miningup=mu.id;
@@ -1428,11 +1517,12 @@ function updateMiningLive(){
     mb.querySelector("[data-cnt]").textContent=fmt(save.miners);
     const ce=mb.querySelector("[data-cost]"); ce.textContent="🪙 "+fmt(c); ce.classList.toggle("cant",save.oof<c); }
   document.querySelectorAll("#miningList .buyrow").forEach(row=>{
-    const mu=MINING_UP[row.dataset.miningup]; const l=save.miningUps[mu.id]||0;
+    const mu=MINING_UP[row.dataset.miningup]; if(!mu) return; const l=save.miningUps[mu.id]||0;
     if(l>=mu.max) return; const cost=mu.cost(l);
     row.classList.toggle("afford",save.ore>=cost);
     const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",save.ore<cost);
   });
+  crossLive("#miningList");
 }
 
 /* ---- Алхимия: питомцы и зелья ---- */
@@ -1841,6 +1931,8 @@ on("ascendBtn","click", ()=>askConfirm("Вознестись? Призмы и п
 on("transBtn","click", ()=>askConfirm("Трансцендировать? Призмы, звёзды и их улучшения сбросятся ради кварков.", doTranscend));
 on("corrMinus","click", ()=>setCorruption(-1));
 on("corrPlus","click", ()=>setCorruption(1));
+on("apMinus","click", ()=>setApMult(-0.5));
+on("apPlus","click", ()=>setApMult(0.5));
 on("rollBtn","click", rollRune);
 on("wipeBtn","click", ()=>askConfirm("Стереть весь прогресс безвозвратно?", wipeSave));
 

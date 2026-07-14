@@ -204,6 +204,20 @@ b{font-variant-numeric:tabular-nums}
 .tg .knob{position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s}
 .tg.on .knob{left:22px}
 
+/* ---------- Углубление престижа 2 ---------- */
+.branch-lab{font-size:12px;font-weight:800;color:var(--muted);margin:12px 2px 2px;text-transform:uppercase;letter-spacing:.04em}
+.branch-lab:first-child{margin-top:2px}
+.run-goals{display:flex;flex-direction:column;gap:7px;margin-bottom:4px}
+.run-goal{display:flex;align-items:center;gap:9px;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:9px 11px;font-size:13px}
+.run-goal.done{border-color:var(--green)}
+.run-goal .rg-txt{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.run-goal .rg-bonus{color:var(--prism);font-weight:800;font-size:12px}
+.run-goal.done .rg-bonus{color:var(--green)}
+.ap-ctrl{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px;font-size:13px;color:var(--muted)}
+.ap-ctrl b{color:var(--prism);font-size:16px;min-width:22px;text-align:center}
+.ap-ctrl .adm-btn{width:34px;height:34px;font-size:18px;padding:0}
+
 /* ---------- Углубление престижа ---------- */
 .prestige-power{background:linear-gradient(90deg,#2a2350,#1a1740);border:1px solid var(--line);
   border-radius:12px;padding:10px 12px;font-size:13px;font-weight:700;color:var(--prism);margin-bottom:12px;text-align:center}
