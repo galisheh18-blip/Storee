@@ -913,6 +913,8 @@ function autoBuyTick(){
 
 /* ============ РЕНДЕР UI ============ */
 const $=id=>document.getElementById(id);
+// безопасная привязка: не падаем, если элемента нет (напр. рассинхрон кэша)
+function on(id, ev, fn){ const el=$(id); if(el) el.addEventListener(ev, fn); }
 function refreshTop(){
   $("oofVal").textContent=fmt(save.oof);
   $("opsVal").textContent=fmt(D.ops||0);
@@ -1087,7 +1089,7 @@ function showDrop(r){
   updateRuneLive();
 }
 function closeDrop(){ $("runeModal").classList.add("hidden"); pendingRune=null; }
-$("equipBtn").addEventListener("click", ()=>{
+on("equipBtn","click", ()=>{
   if(!pendingRune) return;
   const empty=[]; for(let i=0;i<D.slots;i++) if(!save.runes[i]) empty.push(i);
   if(empty.length){ equipRune(pendingRune, empty[0]); closeDrop(); return; }
@@ -1100,7 +1102,7 @@ $("equipBtn").addEventListener("click", ()=>{
     pick.appendChild(b);
   }
 });
-$("scrapBtn").addEventListener("click", ()=>{ if(pendingRune){ scrapRune(pendingRune); closeDrop(); } });
+on("scrapBtn","click", ()=>{ if(pendingRune){ scrapRune(pendingRune); closeDrop(); } });
 
 /* ---- Престиж ---- */
 function renderPrestige(){
@@ -1382,7 +1384,7 @@ let hintHidden=false;
 function hideHint(){ if(!hintHidden){ hintHidden=true; const h=$("tapHint"); h.style.opacity=0; } }
 
 /* ============ Кнопки меню ============ */
-$("menuBtn").addEventListener("click", ()=>{
+on("menuBtn","click", ()=>{
   $("mStatLife").textContent=fmt(save.lifetimeOof);
   $("mStatPrest").textContent=fmt(save.prestiges);
   let tot=0; for(const nb of NOOBS) tot+=(save.noobs[nb.id]||0);
@@ -1390,7 +1392,7 @@ $("menuBtn").addEventListener("click", ()=>{
   $("achCount").textContent="("+achDone()+"/"+ACHS.length+")";
   $("menuModal").classList.remove("hidden");
 });
-$("closeMenu").addEventListener("click", ()=>$("menuModal").classList.add("hidden"));
+on("closeMenu","click", ()=>$("menuModal").classList.add("hidden"));
 
 /* ---- Достижения ---- */
 let achOpen=false;
@@ -1418,9 +1420,9 @@ function renderAch(){
     box.appendChild(el);
   });
 }
-$("achBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); achOpen=true; renderAch(); $("achModal").classList.remove("hidden"); });
-$("achClose").addEventListener("click", ()=>{ achOpen=false; $("achModal").classList.add("hidden"); });
-$("achModal").addEventListener("click", e=>{ if(e.target.id==="achModal"){ achOpen=false; $("achModal").classList.add("hidden"); } });
+on("achBtn","click", ()=>{ $("menuModal").classList.add("hidden"); achOpen=true; renderAch(); $("achModal").classList.remove("hidden"); });
+on("achClose","click", ()=>{ achOpen=false; $("achModal").classList.add("hidden"); });
+on("achModal","click", e=>{ if(e.target.id==="achModal"){ achOpen=false; $("achModal").classList.add("hidden"); } });
 
 /* ---- Мутации (конвейер) ---- */
 let mutOpen=false;
@@ -1582,22 +1584,22 @@ function updateChalLive(){
   const c=CHAL[save.activeChallenge], bar=document.querySelector(".chal-card.active .chal-prog>div");
   if(bar) bar.style.width=Math.min(100,save.totalOof/c.goal*100)+"%";
 }
-$("chalBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); chalOpen=true; renderChallenges(); $("chalModal").classList.remove("hidden"); });
-$("chalClose").addEventListener("click", ()=>{ chalOpen=false; $("chalModal").classList.add("hidden"); });
-$("chalModal").addEventListener("click", e=>{ if(e.target.id==="chalModal"){ chalOpen=false; $("chalModal").classList.add("hidden"); } });
+on("chalBtn","click", ()=>{ $("menuModal").classList.add("hidden"); chalOpen=true; renderChallenges(); $("chalModal").classList.remove("hidden"); });
+on("chalClose","click", ()=>{ chalOpen=false; $("chalModal").classList.add("hidden"); });
+on("chalModal","click", e=>{ if(e.target.id==="chalModal"){ chalOpen=false; $("chalModal").classList.add("hidden"); } });
 
 // Мутации
-$("mutBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); mutOpen=true; renderMutants(); $("mutModal").classList.remove("hidden"); });
-$("mutClose").addEventListener("click", ()=>{ mutOpen=false; $("mutModal").classList.add("hidden"); });
-$("mutModal").addEventListener("click", e=>{ if(e.target.id==="mutModal"){ mutOpen=false; $("mutModal").classList.add("hidden"); } });
+on("mutBtn","click", ()=>{ $("menuModal").classList.add("hidden"); mutOpen=true; renderMutants(); $("mutModal").classList.remove("hidden"); });
+on("mutClose","click", ()=>{ mutOpen=false; $("mutModal").classList.add("hidden"); });
+on("mutModal","click", e=>{ if(e.target.id==="mutModal"){ mutOpen=false; $("mutModal").classList.add("hidden"); } });
 // Хроно-биржа
-$("mktBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); mktOpen=true; renderMarket(); $("mktModal").classList.remove("hidden"); });
-$("mktClose").addEventListener("click", ()=>{ mktOpen=false; $("mktModal").classList.add("hidden"); });
-$("mktModal").addEventListener("click", e=>{ if(e.target.id==="mktModal"){ mktOpen=false; $("mktModal").classList.add("hidden"); } });
+on("mktBtn","click", ()=>{ $("menuModal").classList.add("hidden"); mktOpen=true; renderMarket(); $("mktModal").classList.remove("hidden"); });
+on("mktClose","click", ()=>{ mktOpen=false; $("mktModal").classList.add("hidden"); });
+on("mktModal","click", e=>{ if(e.target.id==="mktModal"){ mktOpen=false; $("mktModal").classList.add("hidden"); } });
 // Глитч-портал
-$("portalBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); openPortal(); });
-$("portalTap").addEventListener("click", tapPortal);
-$("portalCollect").addEventListener("click", collectPortal);
+on("portalBtn","click", ()=>{ $("menuModal").classList.add("hidden"); openPortal(); });
+on("portalTap","click", tapPortal);
+on("portalCollect","click", collectPortal);
 
 /* ---- Пыльцевые улучшения (пыль → основная характеристика) ---- */
 function renderDustUps(){
@@ -1670,28 +1672,28 @@ function runAutomation(edt){
   if(changed){ recompute(); syncNoobSprites(); refreshTop(); if(!menuIsOpen()) renderAll(); }
 }
 function menuIsOpen(){ return !$("menuModal").classList.contains("hidden"); }
-$("autoBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); autoOpen=true; renderAuto(); $("autoModal").classList.remove("hidden"); });
-$("autoClose").addEventListener("click", ()=>{ autoOpen=false; $("autoModal").classList.add("hidden"); });
-$("autoModal").addEventListener("click", e=>{ if(e.target.id==="autoModal"){ autoOpen=false; $("autoModal").classList.add("hidden"); } });
+on("autoBtn","click", ()=>{ $("menuModal").classList.add("hidden"); autoOpen=true; renderAuto(); $("autoModal").classList.remove("hidden"); });
+on("autoClose","click", ()=>{ autoOpen=false; $("autoModal").classList.add("hidden"); });
+on("autoModal","click", e=>{ if(e.target.id==="autoModal"){ autoOpen=false; $("autoModal").classList.add("hidden"); } });
 // mass-buy кнопки
-$("massNoobs").addEventListener("click", buyAllNoobs);
-$("massUps").addEventListener("click", buyAllUps);
-$("massMining").addEventListener("click", buyAllMining);
-$("massWorkshop").addEventListener("click", buyAllWorkshop);
-$("massDust").addEventListener("click", buyAllDust);
-$("massPrism").addEventListener("click", buyAllPrism);
-$("massStar").addEventListener("click", buyAllStar);
-$("massQuark").addEventListener("click", buyAllQuark);
-$("massCorr").addEventListener("click", buyAllCorr);
-$("howBtn2").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); $("howModal").classList.remove("hidden"); });
-$("howClose2").addEventListener("click", ()=>$("howModal").classList.add("hidden"));
-$("prestigeBtn").addEventListener("click", ()=>doPrestige());
-$("ascendBtn").addEventListener("click", ()=>askConfirm("Вознестись? Призмы и призматические улучшения сбросятся ради звёзд.", doAscend));
-$("transBtn").addEventListener("click", ()=>askConfirm("Трансцендировать? Призмы, звёзды и их улучшения сбросятся ради кварков.", doTranscend));
-$("corrMinus").addEventListener("click", ()=>setCorruption(-1));
-$("corrPlus").addEventListener("click", ()=>setCorruption(1));
-$("rollBtn").addEventListener("click", rollRune);
-$("wipeBtn").addEventListener("click", ()=>askConfirm("Стереть весь прогресс безвозвратно?", wipeSave));
+on("massNoobs","click", buyAllNoobs);
+on("massUps","click", buyAllUps);
+on("massMining","click", buyAllMining);
+on("massWorkshop","click", buyAllWorkshop);
+on("massDust","click", buyAllDust);
+on("massPrism","click", buyAllPrism);
+on("massStar","click", buyAllStar);
+on("massQuark","click", buyAllQuark);
+on("massCorr","click", buyAllCorr);
+on("howBtn2","click", ()=>{ $("menuModal").classList.add("hidden"); $("howModal").classList.remove("hidden"); });
+on("howClose2","click", ()=>$("howModal").classList.add("hidden"));
+on("prestigeBtn","click", ()=>doPrestige());
+on("ascendBtn","click", ()=>askConfirm("Вознестись? Призмы и призматические улучшения сбросятся ради звёзд.", doAscend));
+on("transBtn","click", ()=>askConfirm("Трансцендировать? Призмы, звёзды и их улучшения сбросятся ради кварков.", doTranscend));
+on("corrMinus","click", ()=>setCorruption(-1));
+on("corrPlus","click", ()=>setCorruption(1));
+on("rollBtn","click", rollRune);
+on("wipeBtn","click", ()=>askConfirm("Стереть весь прогресс безвозвратно?", wipeSave));
 
 /* ---- свой диалог подтверждения (системный confirm часто не работает в PWA) ---- */
 let cfCb=null;
@@ -1699,12 +1701,12 @@ function askConfirm(text, onYes){
   $("cfText").textContent=text; cfCb=onYes||null;
   $("confirmModal").classList.remove("hidden");
 }
-$("cfYes").addEventListener("click", ()=>{ $("confirmModal").classList.add("hidden"); const cb=cfCb; cfCb=null; if(cb) cb(); });
-$("cfNo").addEventListener("click", ()=>{ $("confirmModal").classList.add("hidden"); cfCb=null; });
-$("confirmModal").addEventListener("click", e=>{ if(e.target.id==="confirmModal"){ $("confirmModal").classList.add("hidden"); cfCb=null; } });
+on("cfYes","click", ()=>{ $("confirmModal").classList.add("hidden"); const cb=cfCb; cfCb=null; if(cb) cb(); });
+on("cfNo","click", ()=>{ $("confirmModal").classList.add("hidden"); cfCb=null; });
+on("confirmModal","click", e=>{ if(e.target.id==="confirmModal"){ $("confirmModal").classList.add("hidden"); cfCb=null; } });
 // закрытие модалок по фону
 ["menuModal","howModal","runeModal"].forEach(id=>{
-  $(id).addEventListener("click", e=>{ if(e.target.id===id){ if(id==="runeModal") return; $(id).classList.add("hidden"); } });
+  on(id,"click", e=>{ if(e.target.id===id){ if(id==="runeModal") return; $(id).classList.add("hidden"); } });
 });
 
 /* ============ АДМИН-ПАНЕЛЬ ============ */
@@ -1833,9 +1835,9 @@ function admResRow(label, key, chips, extra){
   return row;
 }
 function openAdmin(){ buildAdmin(); $("adminModal").classList.remove("hidden"); }
-$("adminBtn").addEventListener("click", ()=>{ $("menuModal").classList.add("hidden"); openAdmin(); });
-$("adminClose").addEventListener("click", ()=>$("adminModal").classList.add("hidden"));
-$("adminModal").addEventListener("click", e=>{ if(e.target.id==="adminModal") $("adminModal").classList.add("hidden"); });
+on("adminBtn","click", ()=>{ $("menuModal").classList.add("hidden"); openAdmin(); });
+on("adminClose","click", ()=>$("adminModal").classList.add("hidden"));
+on("adminModal","click", e=>{ if(e.target.id==="adminModal") $("adminModal").classList.add("hidden"); });
 
 /* ============ Старт ============ */
 function init(){
