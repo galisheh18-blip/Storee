@@ -1,7 +1,7 @@
 :root{
   --bg:#0b0e24; --bg2:#111743; --panel:#141a3c; --card:#1b2350; --card2:#232c66;
   --line:#2c3670; --text:#eef1ff; --muted:#9aa3d4; --dim:#6d76ab;
-  --oof:#ffd23f; --prism:#7cf3ff; --star:#ffb84d; --gear:#c7b8ff; --ore:#e0b083;
+  --oof:#ffd23f; --prism:#7cf3ff; --star:#ffb84d; --gear:#c7b8ff; --ore:#e0b083; --quark:#5be6ff; --corr:#c06cff;
   --green:#3ddc84; --red:#ff5d6c; --accent:#7b6cff; --accent2:#b06cff;
   --shadow:0 6px 20px rgba(0,0,0,.35);
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -75,7 +75,7 @@ b{font-variant-numeric:tabular-nums}
 .buy-right{text-align:right;flex-shrink:0}
 .buy-cost{font-size:14px;font-weight:800;color:var(--oof);white-space:nowrap}
 .buy-cost.cant{color:var(--red)}
-.buy-cost.prism{color:var(--prism)} .buy-cost.star{color:var(--star)} .buy-cost.gear{color:var(--gear)} .buy-cost.ore{color:var(--ore)}
+.buy-cost.prism{color:var(--prism)} .buy-cost.star{color:var(--star)} .buy-cost.gear{color:var(--gear)} .buy-cost.ore{color:var(--ore)} .buy-cost.quark{color:var(--quark)} .buy-cost.corr{color:var(--corr)}
 .buy-prod{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap}
 .buy-prod.active{color:var(--green);font-weight:800}
 
@@ -130,6 +130,12 @@ b{font-variant-numeric:tabular-nums}
 .prestige-card{background:linear-gradient(160deg,var(--card2),var(--card));border:1px solid var(--line);
   border-radius:18px;padding:16px;box-shadow:var(--shadow)}
 .star-card{background:linear-gradient(160deg,#3a2f5e,#241a3e)}
+.trans-card{background:linear-gradient(160deg,#173a4a,#0e2233)}
+.corr-card{background:linear-gradient(160deg,#2e1a3e,#1a0e24)}
+.corr-ctl{display:flex;align-items:center;gap:12px;font-size:15px;margin-bottom:10px}
+.corr-ctl b{font-size:20px;color:var(--corr);min-width:28px;text-align:center}
+.corr-ctl .adm-btn{width:38px;height:38px;font-size:20px;padding:0}
+#quarkWrap b{color:var(--quark)}
 .pc-top{display:flex;align-items:center;gap:12px;margin-bottom:12px}
 .pc-ico{font-size:34px}
 .pc-title{font-weight:800;font-size:17px}
@@ -163,6 +169,22 @@ b{font-variant-numeric:tabular-nums}
 .ach-card .a-desc{font-size:11px;color:var(--muted);margin-top:2px}
 .ach-card .a-buff{font-size:11px;color:var(--green);font-weight:700;margin-top:6px;min-height:14px}
 .ach-card:not(.done) .a-buff{color:var(--dim)}
+
+/* ---------- Испытания ---------- */
+#chalList{display:flex;flex-direction:column;gap:12px}
+.chal-card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
+.chal-card.active{border-color:var(--accent);background:linear-gradient(160deg,rgba(123,108,255,.14),var(--card))}
+.chal-card.done{border-color:var(--green);opacity:.85}
+.chal-top{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.chal-ico{font-size:30px}
+.chal-name{font-weight:800;font-size:16px}
+.chal-desc{font-size:12px;color:var(--muted);margin-top:2px}
+.chal-goal{font-size:12px;color:var(--muted);margin-bottom:10px}
+.chal-goal b{color:var(--star)}
+.chal-prog{height:8px;background:rgba(0,0,0,.3);border-radius:5px;overflow:hidden;margin-bottom:10px}
+.chal-prog>div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));transition:width .3s}
+.chal-b{width:100%}
+.chal-status{text-align:center;color:var(--green);font-weight:800;padding:8px}
 
 /* ---------- Мастерская ---------- */
 .workshop-farm{display:flex;align-items:baseline;justify-content:space-between;gap:10px;

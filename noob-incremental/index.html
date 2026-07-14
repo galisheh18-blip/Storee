@@ -27,6 +27,7 @@
       <span class="mini" id="prismWrap"><i>💎</i><b id="prismVal">0</b></span>
       <span class="mini hidden" id="starWrap"><i>⭐</i><b id="starVal">0</b></span>
       <span class="mini hidden" id="gearWrap"><i>⚙️</i><b id="gearVal">0</b></span>
+      <span class="mini hidden" id="quarkWrap"><i>⚛️</i><b id="quarkVal">0</b></span>
     </div>
     <button id="menuBtn" class="icon-btn" aria-label="Меню">☰</button>
   </header>
@@ -109,6 +110,33 @@
         <div class="sect-lab">Звёздные улучшения</div>
         <div id="starUpList" class="list"></div>
       </div>
+
+      <div id="transWrap" class="hidden">
+        <div class="sect-lab">⚛️ Трансцендентность</div>
+        <div class="prestige-card trans-card">
+          <div class="pc-top"><span class="pc-ico">⚛️</span>
+            <div><div class="pc-title">Трансценденция</div><div class="pc-sub">Сбрось призмы и звёзды — получи кварки</div></div>
+          </div>
+          <div class="pc-gain">Даст <b id="quarkGain">0</b> ⚛️</div>
+          <div class="pc-note" id="transNote"></div>
+          <button class="btn btn-primary" id="transBtn" disabled>⚛️ Трансцендировать</button>
+        </div>
+        <div class="sect-lab">Кварковые улучшения · Пантеон</div>
+        <div id="quarkUpList" class="list"></div>
+      </div>
+
+      <div id="corrWrap" class="hidden">
+        <div class="sect-lab">⚫ Искажение</div>
+        <div class="prestige-card corr-card">
+          <div class="pc-top"><span class="pc-ico">⚫</span>
+            <div><div class="pc-title">Искажение</div><div class="pc-sub">Ослабь себя ради тёмной валюты</div></div>
+          </div>
+          <div class="corr-ctl">Уровень: <button class="adm-btn" id="corrMinus">−</button><b id="corrLvl">0</b><button class="adm-btn" id="corrPlus">+</button></div>
+          <div class="pc-note" id="corrNote"></div>
+        </div>
+        <div class="sect-lab">Улучшения искажения · ⚫ <b id="corrVal">0</b></div>
+        <div id="corrUpList" class="list"></div>
+      </div>
     </div>
 
     <!-- ШАХТА -->
@@ -179,11 +207,12 @@
         <div><b id="mStatNoobs">0</b><span>Нубов</span></div>
       </div>
       <button class="btn btn-ghost" id="achBtn">🏆 Достижения <span id="achCount" class="dim"></span></button>
+      <button class="btn btn-ghost hidden" id="chalBtn">🎯 Испытания</button>
       <button class="btn btn-ghost" id="howBtn2">❓ Как играть</button>
       <button class="btn btn-ghost" id="adminBtn">🛠️ Админ-панель</button>
       <button class="btn btn-ghost" id="wipeBtn">🗑️ Сбросить всё</button>
       <button class="btn btn-primary" id="closeMenu">Закрыть</button>
-      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v9</span></div>
+      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v10</span></div>
     </div>
   </div>
 
@@ -224,6 +253,18 @@
       </div>
       <p class="ach-sub">Вечные бонусы за вехи. Не сбрасываются никогда.</p>
       <div id="achGrid" class="ach-grid"></div>
+    </div>
+  </div>
+
+  <!-- ИСПЫТАНИЯ -->
+  <div id="chalModal" class="overlay hidden">
+    <div class="modal ach">
+      <div class="admin-head">
+        <h1>🎯 Испытания</h1>
+        <button class="icon-btn" id="chalClose">✕</button>
+      </div>
+      <p class="ach-sub">Забег с ограничением ради вечного перка. Вход сбрасывает текущий прогресс забега.</p>
+      <div id="chalList"></div>
     </div>
   </div>
 
