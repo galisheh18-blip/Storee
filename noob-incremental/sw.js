@@ -1,5 +1,5 @@
 /* Service Worker — оффлайн-кэш «Нуб Инкрементал». */
-const CACHE = "noobinc-v16";
+const CACHE = "noobinc-v17";
 const ASSETS = [
   "./",
   "./index.html",

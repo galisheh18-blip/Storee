@@ -137,6 +137,9 @@ const RARITIES = [
   { name:"Эпическая",  w:4.4,cls:"rar-3", mul:4.6 },
   { name:"Легендарная",w:1.3,cls:"rar-4", mul:8 },
   { name:"Мифическая", w:0.3,cls:"rar-5", mul:15 },
+  { name:"Древняя",    w:0.06,cls:"rar-6", mul:28 },
+  { name:"Первородная",w:0.012,cls:"rar-7", mul:55 },
+  { name:"Небесная",   w:0.002,cls:"rar-8", mul:110 },
 ];
 const RUNE_TYPES = [
   { id:"ops",   icon:"🌀", name:"руна Oof/с",   base:6,   fmt:v=>"+"+v.toFixed(0)+"% Oof/с",   apply:(m,v)=>m.global*= (1+v/100) },
@@ -168,11 +171,37 @@ const AUTOS = [
   { id:"workshop", icon:"⚙️", name:"Автомастерская",       unlock:()=>save.prestiges>=5||save.transcends>0, hint:"С 5 престижей" },
   { id:"potions",  icon:"⚗️", name:"Автоварка зелий",      unlock:()=>save.transcends>0, hint:"С 1 трансценденции" },
 ];
-function runeValue(r){ // сила руны по типу/редкости/уровню
+function runeValue(r){ // сила руны: тип × редкость × уровень × звёзды
   const t=RTYPE[r.type], rar=RARITIES[r.rar];
-  return t.base * rar.mul * (1 + 0.25*(r.lvl-1));
+  return t.base * rar.mul * (1 + 0.25*(r.lvl-1)) * (1 + 0.3*(r.star||0));
 }
 function runeUpCost(r){ return Math.ceil(6 * Math.pow(1.8, r.lvl-1) * RARITIES[r.rar].mul); }
+const RUNE_MAX_STAR=5;
+// B — сабстаты: доп-эффекты руны (зависит от редкости)
+function genSubs(rar){
+  const n = rar>=5?3 : rar>=3?2 : rar>=1?1 : 0;
+  const subs=[];
+  for(let i=0;i<n;i++){ const t=RUNE_TYPES[Math.floor(Math.random()*RUNE_TYPES.length)];
+    subs.push({ t:t.id, v: t.base*RARITIES[rar].mul*(0.12+Math.random()*0.18) }); }
+  return subs;
+}
+function rerollSubCost(r){ return Math.ceil(15*RARITIES[r.rar].mul); }
+function rerollTypeCost(r){ return Math.ceil(40*RARITIES[r.rar].mul); }
+// E — мастерство типов
+function masteryLevel(type){ return Math.floor(Math.sqrt((save.runeMastery[type]||0)/8)); }
+function masteryMul(type){ return 1 + masteryLevel(type)*0.05; }
+// C — сет-бонусы от состава слотов
+function slotSets(){
+  const runes=save.runes.filter(Boolean);
+  const tc={}; runes.forEach(r=>tc[r.type]=(tc[r.type]||0)+1);
+  const maxSame=runes.length?Math.max(...Object.values(tc)):0;
+  const distinct=Object.keys(tc).length;
+  const allEpic=runes.length>=3 && runes.every(r=>r.rar>=3);
+  let mono=0; if(maxSame>=5)mono=1.5; else if(maxSame>=4)mono=0.8; else if(maxSame>=3)mono=0.4; else if(maxSame>=2)mono=0.15;
+  const spectrum=distinct>=5?0.5:0;
+  const league=allEpic?0.5:0;
+  return { mono, spectrum, league, maxSame, distinct, allEpic, mult:(1+mono)*(1+spectrum)*(1+league) };
+}
 
 // ---- Призматические улучшения ----
 const PRISM_UPS = [
@@ -490,6 +519,7 @@ const DEFAULT = ()=>({
   mutants:{}, market:{ ore:1, dust:1, gears:1, nextDrift:0, event:null },
   dustUps:{}, auto:{ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false },
   ranks:{}, prismsEver:0, relics:{}, crossUps:{}, apMult:2,
+  runeMastery:{}, runeSeen:{},
   lastTime:Date.now(), seen:{},
   admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }
 });
@@ -498,7 +528,7 @@ function load(){
   try{
     const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
     if(raw){ save=Object.assign(DEFAULT(),raw);
-      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","dustUps","ranks","relics","crossUps","seen"]) if(!save[k]) save[k]={};
+      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","dustUps","ranks","relics","crossUps","runeMastery","runeSeen","seen"]) if(!save[k]) save[k]={};
       if(typeof save.prismsEver!=="number") save.prismsEver=0;
       if(typeof save.apMult!=="number") save.apMult=2;
       if(typeof save.corruption!=="number") save.corruption=0;
@@ -587,7 +617,16 @@ function recompute(){
   D.autoMiner = (save.miningUps.auto||0)>0;
   // руны (усиливаются резонансом/крепежом)
   const rp = 1 + Math.max(0, m._runePow);
-  if(!cr.noRunes) for(const r of save.runes){ if(r) RTYPE[r.type].apply(m, runeValue(r)*rp); }
+  if(!cr.noRunes){
+    for(const r of save.runes){ if(!r) continue;
+      RTYPE[r.type].apply(m, runeValue(r)*rp*masteryMul(r.type));   // осн. эффект (звёзды/мастерство внутри)
+      if(r.subs) for(const s of r.subs){ if(RTYPE[s.t]) RTYPE[s.t].apply(m, s.v*rp); }  // сабстаты
+    }
+    m.global *= slotSets().mult;   // сет-бонусы
+  }
+  // G — кодекс: вечный бонус за увиденные редкости (не зависит от экипировки)
+  let codex=0; for(const t of RUNE_TYPES){ const s=save.runeSeen[t.id]; if(s!==undefined) codex+=0.01*(s+1); }
+  m.global*=(1+codex); D.codexBonus=codex;
   // мощь толпы: тап растёт от числа видов нубов
   let ownedTypes=0; for(const nb of NOOBS){ if((save.noobs[nb.id]||0)>0) ownedTypes++; }
   m.click *= (1 + m._megaClick*ownedTypes);
@@ -705,7 +744,11 @@ function rollRune(){
   if(save.energy<1){ toast("Нет энергии рун"); return; }
   save.energy--;
   const rar=pickRarity(), type=RUNE_TYPES[Math.floor(Math.random()*RUNE_TYPES.length)];
-  const r={ type:type.id, rar:rar, lvl:1 };
+  const r={ type:type.id, rar:rar, lvl:1, star:0, subs:genSubs(rar) };
+  // E — мастерство типа копится с каждого ролла
+  save.runeMastery[type.id]=(save.runeMastery[type.id]||0)+1;
+  // G — кодекс: запоминаем макс. редкость по типу
+  if((save.runeSeen[type.id]||-1) < rar) save.runeSeen[type.id]=rar;
   // авто-распыл рун ниже выбранной редкости
   if(save.salvageBelow>=0 && rar<save.salvageBelow){
     scrapRune(r); updateRuneLive(); queueSave(); return;
@@ -733,7 +776,7 @@ function upRune(i){
   const cost=runeUpCost(r);
   if(save.dust<cost){ toast("Нужно "+cost+" пыли"); return; }
   save.dust-=cost; r.lvl++;
-  recompute(); renderRunes(); refreshTop(); queueSave();
+  recompute(); renderRunes(); if(detailIdx===i) renderRuneDetail(); refreshTop(); queueSave();
 }
 
 /* ---- Престиж ---- */
@@ -1251,8 +1294,18 @@ function renderSalvage(){
     box.appendChild(b);
   });
 }
+function renderRuneSets(){
+  const box=$("runeSets"); if(!box) return;
+  const s=slotSets(), items=[];
+  if(s.mono>0)     items.push("🔗 Моно-тип ×"+s.maxSame+": +"+Math.round(s.mono*100)+"%");
+  if(s.spectrum>0) items.push("🌈 Полный спектр: +"+Math.round(s.spectrum*100)+"%");
+  if(s.league>0)   items.push("🏆 Высшая лига: +"+Math.round(s.league*100)+"%");
+  box.innerHTML = items.length ? ("✦ "+items.join("  ·  ")) : "Сет-бонусы: собери руны одного типа или все ≥ эпических";
+  box.classList.toggle("active", items.length>0);
+}
 function renderRunes(){
   renderSalvage();
+  renderRuneSets();
   renderDustUps();
   $("slotInfo").textContent="("+save.runes.filter(Boolean).length+"/"+D.slots+")";
   $("dustVal").textContent=fmt(save.dust);
@@ -1262,18 +1315,40 @@ function renderRunes(){
     const el=document.createElement("div");
     if(!r){ el.className="rune empty"; el.innerHTML=`<div class="r-ico">➕</div><div class="r-name">пусто</div>`;
       box.appendChild(el); continue; }
-    const t=RTYPE[r.type], rar=RARITIES[r.rar], val=runeValue(r), cost=runeUpCost(r);
+    const t=RTYPE[r.type], rar=RARITIES[r.rar], val=runeValue(r);
     el.className="rune filled "+rar.cls;
     el.innerHTML=`<div class="r-ico">${t.icon}</div>
-      <div class="r-name">${rar.name}</div>
+      <div class="r-name">${rar.name}${(r.star||0)>0?' <span class="r-star">'+'★'.repeat(r.star)+'</span>':''}</div>
       <div class="r-eff">${t.fmt(val)}</div>
-      <div class="r-lvl">ур.${r.lvl}</div>
-      <button class="r-up" data-i="${i}">💠 ${fmt(cost)}</button>`;
-    el.querySelector(".r-up").addEventListener("click", e=>{ e.stopPropagation(); upRune(i); });
+      <div class="r-lvl">ур.${r.lvl}${r.subs&&r.subs.length?' · '+r.subs.length+' саб':''}</div>`;
+    el.addEventListener("click", ()=>openRuneDetail(i));
     box.appendChild(el);
   }
   updateRuneLive();
 }
+function fuseTarget(r){ for(let i=0;i<D.slots;i++){ const s=save.runes[i]; if(s&&s.type===r.type&&s.rar===r.rar&&(s.star||0)<RUNE_MAX_STAR) return i; } return -1; }
+/* ---- детали руны: уровень / сабы / перекат типа ---- */
+let detailIdx=-1;
+function openRuneDetail(i){ if(!save.runes[i]) return; detailIdx=i; renderRuneDetail(); $("runeDetailModal").classList.remove("hidden"); }
+function renderRuneDetail(){
+  const r=save.runes[detailIdx]; if(!r){ $("runeDetailModal").classList.add("hidden"); return; }
+  const t=RTYPE[r.type], rar=RARITIES[r.rar];
+  const c=$("rdCard"); c.className="rune-drop "+rar.cls;
+  const subsHtml=(r.subs&&r.subs.length)? r.subs.map(s=>`<div class="rd-sub">${RTYPE[s.t].icon} ${RTYPE[s.t].fmt(s.v)}</div>`).join("") : '<div class="dim">нет сабстатов</div>';
+  c.innerHTML=`<div class="d-ico">${t.icon}</div><div class="d-rar">${rar.name}${(r.star||0)>0?' '+'★'.repeat(r.star):''}</div>
+    <div class="d-name">${t.name}</div><div class="d-eff">${t.fmt(runeValue(r))}</div>
+    <div class="rd-subs"><div class="dim" style="font-size:11px;margin-bottom:4px">Сабстаты:</div>${subsHtml}</div>`;
+  $("rdUp").textContent="⬆ Ур."+(r.lvl)+" (💠 "+fmt(runeUpCost(r))+")";
+  $("rdSubs").textContent="🎲 Сабы (💠 "+fmt(rerollSubCost(r))+")";
+  $("rdType").textContent="🔁 Тип (💠 "+fmt(rerollTypeCost(r))+")";
+}
+function rerollSubs(i){ const r=save.runes[i]; if(!r) return; const cost=rerollSubCost(r);
+  if(save.dust<cost){ toast("Нужно "+fmt(cost)+" пыли"); return; }
+  save.dust-=cost; r.subs=genSubs(r.rar); recompute(); renderRunes(); renderRuneDetail(); refreshTop(); queueSave(); }
+function rerollType(i){ const r=save.runes[i]; if(!r) return; const cost=rerollTypeCost(r);
+  if(save.dust<cost){ toast("Нужно "+fmt(cost)+" пыли"); return; }
+  save.dust-=cost; r.type=RUNE_TYPES[Math.floor(Math.random()*RUNE_TYPES.length)].id;
+  recompute(); renderRunes(); renderRuneDetail(); refreshTop(); queueSave(); toast("🔁 Новый тип: "+RTYPE[r.type].name); }
 function updateRuneLive(){
   const emax=D.slots+2;
   $("energyVal").textContent=Math.floor(save.energy);
@@ -1292,9 +1367,13 @@ let pendingRune=null;
 function showDrop(r){
   pendingRune=r;
   const t=RTYPE[r.type], rar=RARITIES[r.rar], val=runeValue(r);
+  const subsHtml=(r.subs&&r.subs.length)? '<div class="rd-subs">'+r.subs.map(s=>`<div class="rd-sub">${RTYPE[s.t].icon} ${RTYPE[s.t].fmt(s.v)}</div>`).join("")+'</div>' : "";
   const card=$("dropCard"); card.className="rune-drop "+rar.cls;
   card.innerHTML=`<div class="d-ico">${t.icon}</div><div class="d-rar">${rar.name}</div>
-    <div class="d-name">${t.name}</div><div class="d-eff">${t.fmt(val)}</div>`;
+    <div class="d-name">${t.name}</div><div class="d-eff">${t.fmt(val)}</div>${subsHtml}`;
+  const ft=fuseTarget(r);
+  const fb=$("fuseBtn"); fb.classList.toggle("hidden", ft<0);
+  if(ft>=0) fb.textContent="⭐ Слить (★"+((save.runes[ft].star||0)+1)+")";
   $("slotPick").classList.add("hidden");
   $("runeModal").classList.remove("hidden");
   updateRuneLive();
@@ -1314,6 +1393,36 @@ on("equipBtn","click", ()=>{
   }
 });
 on("scrapBtn","click", ()=>{ if(pendingRune){ scrapRune(pendingRune); closeDrop(); } });
+on("fuseBtn","click", ()=>{ if(!pendingRune) return; const ft=fuseTarget(pendingRune); if(ft<0) return;
+  const s=save.runes[ft]; s.star=(s.star||0)+1;
+  recompute(); renderRunes(); refreshTop(); closeDrop(); queueSave();
+  toast("⭐ Слияние! "+RTYPE[s.type].name+" "+"★".repeat(s.star)); });
+// детали руны
+on("rdUp","click", ()=>{ if(detailIdx>=0) upRune(detailIdx); });
+on("rdSubs","click", ()=>{ if(detailIdx>=0) rerollSubs(detailIdx); });
+on("rdType","click", ()=>{ if(detailIdx>=0) rerollType(detailIdx); });
+on("rdClose","click", ()=>{ detailIdx=-1; $("runeDetailModal").classList.add("hidden"); });
+on("runeDetailModal","click", e=>{ if(e.target.id==="runeDetailModal"){ detailIdx=-1; $("runeDetailModal").classList.add("hidden"); } });
+// кодекс рун
+function renderCodex(){
+  const box=$("codexList"); box.innerHTML="";
+  RUNE_TYPES.forEach(t=>{
+    const lvl=masteryLevel(t.id), seen=save.runeSeen[t.id];
+    const seenTxt = seen!==undefined ? RARITIES[seen].name : "не найдена";
+    const el=document.createElement("div"); el.className="codex-row"+(seen!==undefined?" seen":"");
+    el.innerHTML=`<div class="cx-ico">${t.icon}</div>
+      <div class="cx-main"><div class="cx-name">${t.name}</div>
+        <div class="cx-sub">лучшая: ${seenTxt}</div></div>
+      <div class="cx-mast">мастер. ${lvl}<span class="dim"> (+${lvl*5}%)</span></div>`;
+    box.appendChild(el);
+  });
+  const total=document.createElement("div"); total.className="codex-total";
+  total.textContent="Бонус кодекса: +"+Math.round((D.codexBonus||0)*100)+"% ко всему";
+  box.appendChild(total);
+}
+on("codexBtn","click", ()=>{ $("menuModal").classList.add("hidden"); recompute(); renderCodex(); $("codexModal").classList.remove("hidden"); });
+on("codexClose","click", ()=>$("codexModal").classList.add("hidden"));
+on("codexModal","click", e=>{ if(e.target.id==="codexModal") $("codexModal").classList.add("hidden"); });
 
 /* ---- Престиж ---- */
 function renderPrestige(){
