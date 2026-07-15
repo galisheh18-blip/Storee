@@ -292,6 +292,12 @@ b{font-variant-numeric:tabular-nums}
 .workshop-farm .wf-rate{font-size:14px;color:var(--gear);font-weight:700}
 .ore-farm{background:linear-gradient(160deg,#3a2f26,#241d16)}
 .ore-farm .wf-big b,.ore-farm .wf-rate{color:var(--ore)}
+.depth-panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin:10px 0}
+.dp-top{font-size:14px;margin-bottom:8px}
+.dp-top b{color:var(--ore)}
+.dp-bar{height:8px;background:var(--card2);border-radius:5px;overflow:hidden;margin-bottom:6px}
+#depthFill{height:100%;width:0;background:linear-gradient(90deg,var(--ore),#ff9f40);transition:width .2s}
+.dp-next{font-size:11px;color:var(--muted)}
 .wf-note{font-size:12px;color:var(--muted);line-height:1.45;margin:12px 2px 0}
 
 /* ---------- Модалки ---------- */

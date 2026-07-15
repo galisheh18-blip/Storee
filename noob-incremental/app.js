@@ -352,12 +352,29 @@ const MINING_UPS = [
     cost:l=>Math.ceil(60*Math.pow(1.5,l)) },
   { id:"auto", icon:"🛒", name:"Автошахтёр", max:1, desc:l=>l?"Сам нанимает шахтёров за Oof":"Заблокировано",
     cost:()=>800 },
+  { id:"drill",icon:"🛠️", name:"Бур", max:100, desc:l=>"Спуск ×"+(1+0.3*l).toFixed(1),
+    cost:l=>Math.ceil(120*Math.pow(1.5,l)), dig:l=>1+0.3*l },
 ];
 const MINING_UP = Object.fromEntries(MINING_UPS.map(m=>[m.id,m]));
 function minerCost(){
   const l=save.miningUps.cheap||0, red=1-Math.min(l*0.02,0.7);
   return MINER_BASE*Math.pow(MINER_MUL, save.miners)*red;
 }
+// A+B — глубина и пласты
+const STRATA = [
+  { d:0,   icon:"🟫", name:"Поверхность" },
+  { d:5,   icon:"🪨", name:"Камень" },
+  { d:15,  icon:"⚫", name:"Угольный пласт" },
+  { d:30,  icon:"⛓️", name:"Железная жила" },
+  { d:50,  icon:"🟡", name:"Золотой пласт" },
+  { d:80,  icon:"💎", name:"Самоцветы" },
+  { d:120, icon:"🔷", name:"Кристаллы" },
+  { d:180, icon:"🔥", name:"Мантия" },
+  { d:260, icon:"☀️", name:"Ядро" },
+];
+function stratumIndex(depth){ let i=0; for(let k=0;k<STRATA.length;k++){ if(depth>=STRATA[k].d) i=k; } return i; }
+function depthNeed(d){ return 8*Math.pow(1.16, d); }
+function digRate(){ return (0.3 + (save.miners||0)*0.03) * (1 + (save.miningUps.drill||0)*0.3); }
 
 // ---- Алхимия: питомцы (вечные %) и зелья (временные баффы). Валюта: руда + пыль ----
 const PETS = [
@@ -512,7 +529,7 @@ const DEFAULT = ()=>({
   noobs:{}, ups:{}, prisms:0, prestiges:0, prismUps:{},
   runes:[], dust:0, energy:5, stars:0, ascends:0, starUps:{},
   gears:0, gearsEver:0, workshopUps:{}, salvageBelow:-1, achieved:{},
-  miners:0, ore:0, oreEver:0, miningUps:{},
+  miners:0, ore:0, oreEver:0, miningUps:{}, depth:0, digProg:0, artifacts:0,
   pets:{}, potions:{},
   activeChallenge:null, chalDone:{},
   quarks:0, transcends:0, quarkUps:{}, corruption:0, corr:0, corrEver:0, corrUps:{},
@@ -539,6 +556,9 @@ function load(){
       if(typeof save.miners!=="number") save.miners=0;
       if(typeof save.ore!=="number") save.ore=0;
       if(typeof save.oreEver!=="number") save.oreEver=save.ore||0;
+      if(typeof save.depth!=="number") save.depth=0;
+      if(typeof save.digProg!=="number") save.digProg=0;
+      if(typeof save.artifacts!=="number") save.artifacts=0;
       if(!Array.isArray(save.runes)) save.runes=[];
       save.admin=Object.assign({ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }, save.admin||{});
     }
@@ -614,6 +634,11 @@ function recompute(){
   oreMul *= (1 + Math.max(0, m._oreBoost));
   m.global *= miningGlob;
   D.oreRate = (save.miners||0)*MINER_RATE*oreMul;
+  // глубина/пласты: множитель добычи + вечные бонусы пластов и находок
+  const dep=save.depth||0, si=stratumIndex(dep);
+  D.depthMul=(1+dep*0.05)*(1+si*0.4); D.stratumIdx=si;
+  D.oreRate *= D.depthMul;
+  m.global *= (1 + si*0.1 + (save.artifacts||0)*0.01);
   D.autoMiner = (save.miningUps.auto||0)>0;
   // руны (усиливаются резонансом/крепежом)
   const rp = 1 + Math.max(0, m._runePow);
@@ -1098,6 +1123,13 @@ function loop(now){
   if(D.gearRate>0){ const g=D.gearRate*edt; save.gears+=g; save.gearsEver=(save.gearsEver||0)+g; }
   // добыча руды в шахте
   if(D.oreRate>0){ const o=D.oreRate*edt; save.ore+=o; save.oreEver=(save.oreEver||0)+o; }
+  // спуск вглубь (бур)
+  if((save.miners||0)>0){
+    save.digProg=(save.digProg||0)+digRate()*edt;
+    let need=depthNeed(save.depth||0), guard=0, changed=false;
+    while(save.digProg>=need && guard<300){ save.digProg-=need; descendCore(); changed=true; need=depthNeed(save.depth||0); guard++; }
+    if(changed){ recompute(); if(curTab==="mining") updateMiningLive(); }
+  }
   // тёмная валюта искажения
   if(D.corrRate>0){ const cc=D.corrRate*edt; save.corr+=cc; save.corrEver=(save.corrEver||0)+cc; }
   if(D.autoMiner){ mnTimer+=edt; if(mnTimer>=0.5){ mnTimer=0; const c=minerCost();
@@ -1577,6 +1609,21 @@ function updateWorkshopLive(){
   crossLive("#workshopList");
 }
 
+/* ---- Шахта: спуск и находки ---- */
+function descendCore(){
+  const before=stratumIndex(save.depth||0);
+  save.depth=(save.depth||0)+1;
+  const after=stratumIndex(save.depth);
+  if(after>before){ const st=STRATA[after]; toast(st.icon+" Новый пласт: "+st.name+" (глубина "+save.depth+"м)"); }
+  const chance=Math.min(0.02 + save.depth*0.0006, 0.3);
+  if(Math.random()<chance) rareFind();
+}
+function rareFind(){
+  const roll=Math.random();
+  if(roll<0.5){ const lump=Math.max(50,(D.oreRate||1)*300); save.ore+=lump; save.oreEver=(save.oreEver||0)+lump; toast("🏺 Находка: +"+fmt(lump)+" руды"); }
+  else if(roll<0.82){ const d=Math.ceil(20*(1+save.depth*0.1)); save.dust+=d; toast("🏺 Находка: +"+fmt(d)+" пыли"); }
+  else { save.artifacts=(save.artifacts||0)+1; toast("🏺 Артефакт! +1% ко всему навсегда"); }
+}
 /* ---- Шахта ---- */
 function buyMiner(){
   const c=minerCost(); if(save.oof<c) return;
@@ -1621,6 +1668,14 @@ function renderMining(){
 function updateMiningLive(){
   const ob=$("oreBig"); if(ob) ob.textContent=fmt(save.ore);
   const rt=$("oreRateTxt"); if(rt) rt.textContent="+"+fmt(D.oreRate||0)+" 🪨/с";
+  // глубина/пласт
+  const sI=$("stratumIco");
+  if(sI){ const dep=save.depth||0, si=stratumIndex(dep), st=STRATA[si], nextSt=STRATA[si+1], need=depthNeed(dep);
+    sI.textContent=st.icon; $("stratumName").textContent=st.name; $("depthVal").textContent=fmt(dep);
+    $("depthFill").style.width=Math.min(100,(save.digProg||0)/need*100)+"%";
+    $("depthNext").textContent = "добыча ×"+(D.depthMul||1).toFixed(2)+(nextSt?(" · след. пласт «"+nextSt.name+"» на "+nextSt.d+"м"):" · глубочайший пласт");
+    const at=$("artifactTxt"); if(at) at.textContent=(save.artifacts||0)>0?(" · 🏺"+save.artifacts):"";
+  }
   const mb=$("minerBuy"); if(mb){ const c=minerCost();
     mb.classList.toggle("afford",save.oof>=c);
     mb.querySelector("[data-cnt]").textContent=fmt(save.miners);
