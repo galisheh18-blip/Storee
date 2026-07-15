@@ -423,6 +423,141 @@ const WORKSHOP_UPS = [
 ];
 const WORKSHOP_UP = Object.fromEntries(WORKSHOP_UPS.map(w=>[w.id,w]));
 
+/* ============ МАСТЕРСКАЯ 2.0 (углубление A–J) ============ */
+function applyWsBonus(b,m){ if(!b) return;
+  if(b.global) m.global*=(1+b.global); if(b.click) m.click*=(1+b.click);
+  if(b.runePow) m._runePow+=b.runePow; if(b.gear) m._gearBoost+=b.gear;
+  if(b.slots) m._bonusSlots+=b.slots; if(b.crit) m.crit+=b.crit; }
+
+// A/H — уровень верстака и вехи (по суммарно собранным шестерёнкам)
+const WS_MILE = [
+  { at:5e2,  icon:"🔧", name:"Верстак",         buff:{global:0.05}, txt:"+5% всего" },
+  { at:5e3,  icon:"🛠️", name:"Мастерская",      buff:{global:0.05}, txt:"+5% всего" },
+  { at:5e4,  icon:"⚙️", name:"Цех",             buff:{runePow:0.15},txt:"+15% эффект рун" },
+  { at:5e5,  icon:"🏭", name:"Фабрика",          buff:{global:0.10}, txt:"+10% всего" },
+  { at:5e6,  icon:"🦾", name:"Автозавод",        buff:{slots:1},     txt:"+1 слот рун" },
+  { at:5e7,  icon:"🛰️", name:"Орбитальный док",  buff:{click:0.5},   txt:"+50% тап" },
+  { at:5e8,  icon:"🌌", name:"Звёздная верфь",   buff:{global:0.25}, txt:"+25% всего" },
+  { at:5e9,  icon:"👑", name:"Империя станков",  buff:{global:0.5},  txt:"+50% всего" },
+];
+function wsLevel(){ let n=0; const g=save.gearsEver||0; for(const ms of WS_MILE) if(g>=ms.at) n++; return n; }
+function wsNextMile(){ const g=save.gearsEver||0; for(const ms of WS_MILE) if(g<ms.at) return ms; return null; }
+function wsLevelMul(){ return 1 + 0.04*wsLevel() + 0.15*(save.wsReforges||0); } // вклад в фарм шестерёнок
+
+// B — проекты (крафт-очередь во времени, как «Наука»)
+const WS_PROJECTS = [
+  { id:"p1", icon:"🔩", name:"Золотой редуктор", time:120,  cost:200,  req:[],         bonus:{global:0.15}, desc:"+15% всего" },
+  { id:"p2", icon:"⛓️", name:"Приводной вал",    time:300,  cost:1500, req:["p1"],      bonus:{gear:0.5},    desc:"+50% фарма ⚙️" },
+  { id:"p3", icon:"🧲", name:"Магнитный захват", time:600,  cost:8000, req:["p1"],      bonus:{click:0.6},   desc:"+60% тап" },
+  { id:"p4", icon:"🛞", name:"Маховик",          time:900,  cost:4e4,  req:["p2"],      bonus:{global:0.3},  desc:"+30% всего" },
+  { id:"p5", icon:"🔆", name:"Плазменный резак", time:1800, cost:2e5,  req:["p3","p4"], bonus:{global:0.5},  desc:"+50% всего" },
+];
+const WS_PROJ_M = Object.fromEntries(WS_PROJECTS.map(p=>[p.id,p]));
+function wsProjDone(id){ return !!(save.wsProjects.done||{})[id]; }
+function wsProjReqMet(p){ return p.req.every(id=>wsProjDone(id)); }
+function startWsProject(id){ const p=WS_PROJ_M[id];
+  if(save.wsProjects.active){ toast("Уже идёт проект"); return; }
+  if(wsProjDone(id)||!wsProjReqMet(p)) return;
+  if(save.gears<p.cost){ toast("Мало ⚙️: нужно "+fmt(p.cost)); return; }
+  save.gears-=p.cost; save.wsProjects.active=id; save.wsProjects.until=Date.now()+p.time*1000;
+  toast("📐 Начат проект: "+p.name); renderWsProjects(); refreshTop(); queueSave();
+}
+function rushWsProject(){ const R=save.wsProjects; if(!R.active) return; const p=WS_PROJ_M[R.active];
+  const left=Math.max(0,(R.until-Date.now())/1000); const cost=Math.ceil(p.cost*0.5*(left/p.time)+1);
+  if(save.gears<cost){ toast("Мало ⚙️ для ускорения ("+fmt(cost)+")"); return; }
+  save.gears-=cost; R.until=Date.now(); tickWsProjects(); renderWsProjects(); refreshTop(); queueSave(); }
+function tickWsProjects(){ const R=save.wsProjects; if(!R.active) return;
+  if(Date.now()>=R.until){ const p=WS_PROJ_M[R.active]; (R.done=R.done||{})[R.active]=true; R.active=null; R.until=0;
+    toast("✅ Проект готов: "+p.name+" — "+p.desc); recompute(); refreshTop();
+    if(curTab==="workshop"&&wsSub==="proj") renderWsProjects(); } }
+
+// C — чертежи (дроп за престиж, редкости + сет-бонус)
+const BP_RAR = [
+  { id:"common", name:"Обычный",     col:"#9aa3d4", w:60, mul:1   },
+  { id:"rare",   name:"Редкий",      col:"#5be6ff", w:26, mul:2.4 },
+  { id:"epic",   name:"Эпический",   col:"#b06cff", w:11, mul:5   },
+  { id:"legend", name:"Легендарный", col:"#ffb84d", w:3,  mul:12  },
+];
+const BLUEPRINTS = [
+  { id:"bp_glob", icon:"📘", name:"Схема усиления", kind:"global",  base:0.04, txt:"всего" },
+  { id:"bp_click",icon:"📗", name:"Схема удара",    kind:"click",   base:0.07, txt:"тап" },
+  { id:"bp_gear", icon:"📙", name:"Схема привода",  kind:"gear",    base:0.09, txt:"фарм ⚙️" },
+  { id:"bp_rune", icon:"📕", name:"Схема рун",      kind:"runePow", base:0.05, txt:"эффект рун" },
+];
+const BP_M = Object.fromEntries(BLUEPRINTS.map(b=>[b.id,b]));
+function pickBpRarity(){ let t=0; for(const r of BP_RAR) t+=r.w; let x=Math.random()*t;
+  for(const r of BP_RAR){ x-=r.w; if(x<0) return r; } return BP_RAR[0]; }
+function dropBlueprint(){ const bp=BLUEPRINTS[Math.floor(Math.random()*BLUEPRINTS.length)];
+  const rar=pickBpRarity(); const add=bp.base*rar.mul;
+  save.blueprints[bp.id]=(save.blueprints[bp.id]||0)+add;
+  save.bpCount=(save.bpCount||0)+1;
+  toast("📜 Чертёж ["+rar.name+"]: "+bp.name+" +"+Math.round(add*100)+"% "+bp.txt);
+  recompute();
+}
+function bpSetComplete(){ return BLUEPRINTS.every(b=>(save.blueprints[b.id]||0)>0); }
+
+// F — качество и звёзды модулей (реролл/прокачка за шестерёнки)
+function wsQ(id){ return save.wsQuality[id]||1; }
+function wsStar(id){ return save.wsStars[id]||0; }
+function wsStarBonus(id){ return wsStar(id)*0.06*wsQ(id); }
+function wsStarCost(id){ return Math.ceil(30*Math.pow(2,wsStar(id))); }
+function wsRerollCost(id){ return Math.ceil(25*Math.pow(1.4,(save.workshopUps[id]||0))); }
+function buyWsStar(id){ if((save.workshopUps[id]||0)<1){ toast("Сначала прокачай модуль"); return; }
+  if(wsStar(id)>=5){ toast("Звёзды на максимуме"); return; } const c=wsStarCost(id);
+  if(save.gears<c){ toast("Мало ⚙️"); return; } save.gears-=c; save.wsStars[id]=wsStar(id)+1;
+  recompute(); renderWorkshop(); refreshTop(); queueSave(); }
+function rerollWsQ(id){ const c=wsRerollCost(id); if(save.gears<c){ toast("Мало ⚙️ ("+fmt(c)+")"); return; }
+  save.gears-=c; save.wsQuality[id]=0.7+Math.random()*0.8;
+  recompute(); renderWorkshop(); refreshTop(); queueSave(); }
+
+// G — конвейеры (сетка синергий, одноразовая покупка за шестерёнки)
+const WS_CONV = [
+  { id:"cTap",  icon:"🔗", name:"Конвейер: ⚙️→👊 Тап",  cost:150, desc:()=>"log₁₀(⚙️ всего) ×множитель тапа",
+    apply:m=>{ m.click*=(1+Math.max(0,Math.log10(1+(save.gearsEver||0)))*0.4); } },
+  { id:"cOre",  icon:"🔗", name:"Конвейер: ⚙️→🪨 Руда",  cost:200, desc:()=>"+"+(wsLevel()*5)+"% добыча руды (за ур. верстака)",
+    apply:m=>{ m._oreBoost+=wsLevel()*0.05; } },
+  { id:"cRune", icon:"🔗", name:"Конвейер: ⚙️→🔮 Руны",  cost:350, desc:()=>"+"+Math.floor(wsLevel()/3)+" слот рун (1 за 3 ур.)",
+    apply:m=>{ m._bonusSlots+=Math.floor(wsLevel()/3); } },
+  { id:"cNoob", icon:"🔗", name:"Конвейер: ⚙️→🧍 Нубы",  cost:500, desc:()=>"+"+(wsLevel()*3)+"% всему (за ур. верстака)",
+    apply:m=>{ m.global*=(1+wsLevel()*0.03); } },
+];
+const WS_CONV_M = Object.fromEntries(WS_CONV.map(c=>[c.id,c]));
+function buyConveyor(id){ const c=WS_CONV_M[id]; if(save.wsConveyors[id]) return;
+  if(save.gears<c.cost){ toast("Мало ⚙️: нужно "+fmt(c.cost)); return; }
+  save.gears-=c.cost; save.wsConveyors[id]=true;
+  toast("🔗 Конвейер подключён: "+c.name); recompute(); renderWsConveyors(); refreshTop(); queueSave(); }
+
+// I — переоснастка (мини-престиж мастерской) + ключ-улучшения
+const WS_KEY_UPS = [
+  { id:"kfarm", icon:"🗝️", name:"Мастер-ключ",  max:20, cost:l=>l+1, desc:l=>"Фарм ⚙️ +"+(l*25)+"%",     apply:(m,l)=>{ m._gearBoost+=l*0.25; } },
+  { id:"kglob", icon:"🔑", name:"Ключ мощи",     max:20, cost:l=>l+1, desc:l=>"Всё ×"+(1+0.12*l).toFixed(2), apply:(m,l)=>{ m.global*=(1+0.12*l); } },
+  { id:"kbp",   icon:"🔐", name:"Ключ чертежей", max:10, cost:l=>2*(l+1), desc:l=>"Сила чертежей +"+(l*20)+"%", apply:()=>{} },
+];
+const WS_KEY_M = Object.fromEntries(WS_KEY_UPS.map(k=>[k.id,k]));
+function reforgeGain(){ return Math.floor(wsLevel() + Math.sqrt((save.gearsEver||0)/2e4)); }
+function bpPowMul(){ return 1 + (save.wsKeyUps.kbp||0)*0.2; } // ключ чертежей усиливает C
+function doReforge(){ const k=reforgeGain(); if(k<1){ toast("Пока нечего переоснащать"); return; }
+  save.wsKeys=(save.wsKeys||0)+k; save.wsReforges=(save.wsReforges||0)+1;
+  save.workshopUps={}; save.wsStars={}; save.wsQuality={}; save.gears=0;
+  toast("♻️ Переоснастка #"+save.wsReforges+": +"+k+" 🗝️ ключей");
+  recompute(); renderWorkshop(); refreshTop(); queueSave(); }
+function buyKeyUp(id){ const k=WS_KEY_M[id], l=save.wsKeyUps[id]||0; if(l>=k.max) return; const c=k.cost(l);
+  if((save.wsKeys||0)<c){ toast("Мало 🗝️"); return; } save.wsKeys-=c; save.wsKeyUps[id]=l+1;
+  recompute(); renderWsReforge(); refreshTop(); queueSave(); }
+
+// E — перегрев/обслуживание (риск-механика фарма)
+function wsOverheatFactor(){ const o=save.overheat; if(!o) return 1; const now=Date.now();
+  if(o.coolUntil>now) return 0.3; if(o.on) return 3; return 1; }
+function toggleOverheat(){ const o=save.overheat; if(o.coolUntil>Date.now()){ toast("Идёт обслуживание"); return; }
+  o.on=!o.on; toast(o.on?"🔥 Форсаж: фарм ×3, копится износ":"❄️ Форсаж выключен"); recompute(); renderWsFarm(); }
+function maintainWorkshop(){ const o=save.overheat; const cost=Math.ceil(20+(save.gearsEver||0)*0.0002);
+  if(save.gears<cost){ toast("Мало ⚙️ для обслуживания ("+fmt(cost)+")"); return; }
+  save.gears-=cost; o.wear=0; o.coolUntil=0; o.on=false; toast("🛠️ Обслужено — износ сброшен"); recompute(); renderWsFarm(); refreshTop(); queueSave(); }
+function tickOverheat(edt){ const o=save.overheat; if(!o) return; const now=Date.now();
+  if(o.coolUntil>now) return;
+  if(o.on){ o.wear=Math.min(100,o.wear+edt*3.5); if(o.wear>=100){ o.on=false; o.coolUntil=now+45000; toast("🔥 Перегрев! Обслуживание 45с (фарм ×0.3)"); if(curTab==="workshop") renderWsFarm(); } }
+  else if(o.wear>0){ o.wear=Math.max(0,o.wear-edt*7); } }
+
 // ---- Шахта: 🪨 руда (шахтёры копают, руда усиливает всё) ----
 const MINER_BASE = 60, MINER_MUL = 1.18, MINER_RATE = 0.2;
 const MINING_UPS = [
@@ -615,6 +750,9 @@ const DEFAULT = ()=>({
   noobs:{}, ups:{}, prisms:0, prestiges:0, prismUps:{},
   runes:[], dust:0, energy:5, stars:0, ascends:0, starUps:{},
   gears:0, gearsEver:0, workshopUps:{}, salvageBelow:-1, achieved:{},
+  wsProjects:{ active:null, until:0, done:{} }, blueprints:{}, bpCount:0,
+  wsQuality:{}, wsStars:{}, wsConveyors:{}, wsKeys:0, wsKeyUps:{}, wsReforges:0,
+  overheat:{ on:false, wear:0, coolUntil:0 },
   miners:0, ore:0, oreEver:0, miningUps:{}, depth:0, digProg:0, artifacts:0,
   pets:{}, potions:{},
   activeChallenge:null, chalDone:{},
@@ -634,7 +772,13 @@ function load(){
   try{
     const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
     if(raw){ save=Object.assign(DEFAULT(),raw);
-      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","dustUps","ranks","relics","crossUps","runeMastery","runeSeen","infUps","synUps","infQuality","tokenUps","seen"]) if(!save[k]) save[k]={};
+      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","dustUps","ranks","relics","crossUps","runeMastery","runeSeen","infUps","synUps","infQuality","tokenUps","seen","blueprints","wsQuality","wsStars","wsConveyors","wsKeyUps"]) if(!save[k]) save[k]={};
+      if(!save.wsProjects||typeof save.wsProjects!=="object") save.wsProjects={active:null,until:0,done:{}};
+      if(!save.wsProjects.done) save.wsProjects.done={};
+      if(!save.overheat||typeof save.overheat!=="object") save.overheat={on:false,wear:0,coolUntil:0};
+      if(typeof save.wsKeys!=="number") save.wsKeys=0;
+      if(typeof save.wsReforges!=="number") save.wsReforges=0;
+      if(typeof save.bpCount!=="number") save.bpCount=0;
       if(typeof save.tokens!=="number") save.tokens=0;
       if(typeof save.shopGlobal!=="number") save.shopGlobal=0;
       if(!save.research||typeof save.research!=="object") save.research={active:null,until:0,done:{}};
@@ -677,7 +821,7 @@ let D = {}; // derived
 function recompute(){
   const m = { global:1, click:1, clickFromPs:0, crit:0, critPow:1.5, cost:1,
     prism:1, runeRegen:1, offline:0, autoClick:0, autoBuy:false, autoPrestige:false,
-    _runePow:0, _runeLuck:0, _megaClick:0, _bonusSlots:0, _oreBoost:0, _allCur:0, noob:{} };
+    _runePow:0, _runeLuck:0, _megaClick:0, _bonusSlots:0, _oreBoost:0, _allCur:0, _gearBoost:0, noob:{} };
   const cr = save.activeChallenge ? ((CHAL[save.activeChallenge]||{}).restrict||{}) : {};
   // обычные улучшения
   if(!cr.noUps){
@@ -699,6 +843,16 @@ function recompute(){
   let noobUp=0;  for(const id in save.ups){ if(save.ups[id]&&UP[id]&&UP[id].kind==="noob") noobUp++; }
   const ctx={ prismLv, starLv, noobUp };
   for(const w of WORKSHOP_UPS){ const l=save.workshopUps[w.id]||0; if(l>0 && w.apply) w.apply(m,l,ctx); }
+  // мастерская 2.0
+  for(const ms of WS_MILE){ if((save.gearsEver||0)>=ms.at) applyWsBonus(ms.buff,m); }            // H — вехи
+  m.global *= (1 + 0.03*wsLevel());                                                              // A — уровень верстака
+  m.global *= (1 + 0.10*(save.wsReforges||0));                                                   // I — переоснастки
+  if(save.wsProjects&&save.wsProjects.done) for(const id in save.wsProjects.done){ if(save.wsProjects.done[id]&&WS_PROJ_M[id]) applyWsBonus(WS_PROJ_M[id].bonus,m); } // B
+  for(const bp of BLUEPRINTS){ const p=(save.blueprints[bp.id]||0)*bpPowMul(); if(p>0) applyWsBonus({[bp.kind]:p},m); } // C
+  if(bpSetComplete()) m.global*=1.25;                                                            // C — сет-бонус
+  for(const c of WS_CONV){ if(save.wsConveyors[c.id]) c.apply(m); }                              // G — конвейеры
+  for(const w of WORKSHOP_UPS){ if((save.workshopUps[w.id]||0)>0){ const sb=wsStarBonus(w.id); if(sb>0) m.global*=(1+sb); } } // F — звёзды
+  for(const k of WS_KEY_UPS){ const l=save.wsKeyUps[k.id]||0; if(l>0) k.apply(m,l); }            // I — ключ-улучшения
   // пыльцевые улучшения (пыль → основная характеристика)
   for(const d of DUST_UPS){ const l=save.dustUps[d.id]||0; if(l>0) d.apply(m,l); }
   // достижения — вечные бонусы
@@ -800,6 +954,7 @@ function recompute(){
   // фарм шестерёнок (открыт после первого престижа)
   D.gearRate = save.prestiges>=1
     ? 0.05*(1 + 0.2*save.prestiges + save.stars)*(1 + (save.workshopUps.wrate||0)*0.2)
+      *(1+m._gearBoost)*wsLevelMul()*wsOverheatFactor()
     : 0;
   // тёмная валюта: генерится при искажении, пропорц. дебаффу и производству
   D.corrRate = save.corruption>0 ? save.corruption*0.05*(1+Math.max(0,Math.log10(1+Math.max(0,D.ops)))) : 0;
@@ -958,6 +1113,8 @@ function doPrestige(auto){
   // Мастерская: шестерёнки за престиж
   const conv=0.5+(save.workshopUps.wconv||0)*0.25;
   const gg=Math.floor(g*conv); if(gg>0){ save.gears+=gg; save.gearsEver=(save.gearsEver||0)+gg; }
+  // C — шанс дропа чертежа за престиж (растёт после открытия мастерской)
+  if(wasUnlocked && Math.random()<0.5) dropBlueprint();
   softReset();
   recompute(); syncNoobSprites();
   toast("💎 +"+fmt(g)+" призм"+(gg>0?"  ·  ⚙️ +"+fmt(gg):"")+(!wasUnlocked?"  ·  ⚙️ Мастерская открыта!":""));
@@ -1262,6 +1419,7 @@ function loop(now){
   runAutomation(edt);
   // фарм шестерёнок мастерской
   if(D.gearRate>0){ const g=D.gearRate*edt; save.gears+=g; save.gearsEver=(save.gearsEver||0)+g; }
+  tickOverheat(edt); tickWsProjects();
   // добыча руды в шахте
   if(D.oreRate>0){ const o=D.oreRate*edt; save.ore+=o; save.oreEver=(save.oreEver||0)+o; }
   // спуск вглубь (бур)
@@ -1290,6 +1448,7 @@ function loop(now){
   tickPortal(dt);
 
   render(dt);
+  if(curTab==="workshop") drawWsScene(dt);
 
   // периодические обновления UI (не каждый кадр)
   uiAcc+=dt;
@@ -1358,7 +1517,7 @@ function refreshLive(){
   else if(curTab==="ups") refreshSubLive();
   else if(curTab==="prestige") updatePrestigeLive();
   else if(curTab==="runes") updateRuneLive();
-  else if(curTab==="workshop") updateWorkshopLive();
+  else if(curTab==="workshop") wsRefreshLive();
   else if(curTab==="mining") updateMiningLive();
   else if(curTab==="alchemy") updateAlchemyLive();
 }
@@ -1839,23 +1998,73 @@ function updatePrestigeLive(){
 }
 
 /* ---- Мастерская ---- */
+let wsSub="normal";
+function wsSwitchSub(sub){ wsSub=sub;
+  document.querySelectorAll("#wsSubs button").forEach(b=>b.classList.toggle("on",b.dataset.wsub===sub));
+  document.querySelectorAll('.tabpage[data-page="workshop"] [data-wsp]').forEach(p=>p.classList.toggle("hidden",p.dataset.wsp!==sub));
+  wsRenderSub();
+}
+function wsRenderSub(){
+  renderWsFarm(); renderWsLevel();
+  if(wsSub==="normal") renderWorkshop();
+  else if(wsSub==="proj") renderWsProjects();
+  else if(wsSub==="bp") renderWsBlueprints();
+  else if(wsSub==="conv") renderWsConveyors();
+  else if(wsSub==="reforge") renderWsReforge();
+}
+function wsRefreshLive(){
+  renderWsFarm();
+  if(wsSub==="normal") updateWorkshopLive();
+  else if(wsSub==="proj") updateWsProjTimer();
+  else if(wsSub==="conv") renderWsConveyors();
+}
+// J-часть + E — шапка фарма со сценой и перегревом
+function renderWsFarm(){
+  const gb=$("gearBig"); if(gb) gb.textContent=fmt(save.gears);
+  const rt=$("gearRateTxt"); if(rt) rt.textContent="+"+fmt(D.gearRate||0)+" ⚙️/с";
+  const o=save.overheat||{}; const cooling=o.coolUntil>Date.now();
+  const btn=$("overheatBtn");
+  if(btn){ btn.textContent = cooling ? "🧊 Обслуживание…" : (o.on?"🔥 Форсаж ВКЛ":"🔥 Форсаж");
+    btn.classList.toggle("on",!!o.on&&!cooling); }
+  const wf=$("wearFill"); if(wf){ wf.style.width=Math.min(100,o.wear||0)+"%"; wf.classList.toggle("hot",(o.wear||0)>75||cooling); }
+  const wt=$("wearTxt"); if(wt) wt.textContent = cooling ? ("перегрев · "+Math.ceil((o.coolUntil-Date.now())/1000)+"с") : ("износ "+Math.round(o.wear||0)+"%"+(o.on?" · ×3":""));
+}
+// A/H — уровень верстака + вехи
+function renderWsLevel(){
+  const lv=wsLevel(), next=wsNextMile();
+  const lt=$("wsLevelTxt"); if(lt) lt.textContent="Верстак ур."+lv+(save.wsReforges?(" · ♻️"+save.wsReforges):"");
+  const bar=$("wsLevelFill"), nt=$("wsLevelNext");
+  if(bar&&nt){ if(next){ const prev=[...WS_MILE].reverse().find(x=>x.at<=(save.gearsEver||0)); const lo=prev?prev.at:0;
+      bar.style.width=Math.min(100,((save.gearsEver||0)-lo)/(next.at-lo)*100)+"%";
+      nt.textContent="След.: "+next.icon+" "+next.name+" @ "+fmt(next.at)+" ⚙️ ("+next.txt+")"; }
+    else { bar.style.width="100%"; nt.textContent="Все вехи взяты ✓"; } }
+  const chips=$("wsMileBar"); if(chips){ chips.innerHTML="";
+    WS_MILE.forEach(ms=>{ const got=(save.gearsEver||0)>=ms.at; const el=document.createElement("div");
+      el.className="cat-chip"+(got?" done":""); el.textContent=ms.icon+(got?" ✓":""); el.title=ms.name+" · "+ms.txt+" @ "+fmt(ms.at)+" ⚙️"; chips.appendChild(el); }); }
+}
 function renderWorkshop(){
-  $("gearBig").textContent=fmt(save.gears);
-  $("gearRateTxt").textContent="+"+fmt(D.gearRate||0)+" ⚙️/с";
+  renderWsFarm();
   const box=$("workshopList"); box.innerHTML="";
   if(save.prestiges>=1) CROSS_UPS.filter(c=>c.tab==="workshop").forEach(c=>box.appendChild(crossRow(c)));
   WORKSHOP_UPS.forEach(w=>{
-    const l=save.workshopUps[w.id]||0, maxed=l>=w.max, cost=w.cost(l);
+    const l=save.workshopUps[w.id]||0, maxed=l>=w.max, cost=w.cost(l), st=wsStar(w.id), q=wsQ(w.id);
     const row=document.createElement("div"); row.className="buyrow"; row.dataset.wup=w.id;
-    row.innerHTML=upRowHTML(w.icon, w.name+" "+(l>0?"("+l+(w.max<50?"/"+w.max:"")+")":""), w.desc(l), l, w.max, maxed?"МАКС":"⚙️ "+fmt(cost), "gear");
-    if(!maxed) row.addEventListener("click", ()=>buyWorkshopUp(w.id));
+    const stars = l>0 ? ('<span class="ws-stars" title="Звёзды модуля">'+"★".repeat(st)+"☆".repeat(5-st)+(q!==1?' <span class="dim">×'+q.toFixed(2)+'</span>':'')+'</span>') : '';
+    row.innerHTML=`<div class="buy-ico">${w.icon}</div>
+      <div class="buy-main"><div class="buy-name">${w.name} ${l>0?'<span class="buy-cnt">'+l+(w.max<50?"/"+w.max:"")+'</span>':''} ${stars}</div>
+        <div class="buy-desc">${w.desc(l)}</div></div>
+      <div class="buy-right"><div class="buy-cost gear" data-cost>${maxed?"МАКС":"⚙️ "+fmt(cost)}</div>
+        ${l>0?'<div class="ws-mods"><button class="nc-rank" data-wstar>⭐'+fmt(wsStarCost(w.id))+'</button><button class="nc-rank" data-wroll>🎲'+fmt(wsRerollCost(w.id))+'</button></div>':''}</div>`;
+    if(!maxed) row.querySelector(".buy-main").addEventListener("click", ()=>buyWorkshopUp(w.id));
+    if(!maxed) row.querySelector(".buy-ico").addEventListener("click", ()=>buyWorkshopUp(w.id));
+    const bs=row.querySelector("[data-wstar]"); if(bs) bs.addEventListener("click", e=>{ e.stopPropagation(); buyWsStar(w.id); });
+    const br=row.querySelector("[data-wroll]"); if(br) br.addEventListener("click", e=>{ e.stopPropagation(); rerollWsQ(w.id); });
     box.appendChild(row);
   });
   updateWorkshopLive();
 }
 function updateWorkshopLive(){
-  const gb=$("gearBig"); if(gb) gb.textContent=fmt(save.gears);
-  const rt=$("gearRateTxt"); if(rt) rt.textContent="+"+fmt(D.gearRate||0)+" ⚙️/с";
+  renderWsFarm();
   document.querySelectorAll("#workshopList .buyrow").forEach(row=>{
     const w=WORKSHOP_UP[row.dataset.wup]; if(!w) return; const l=save.workshopUps[w.id]||0;
     if(l>=w.max) return; const cost=w.cost(l);
@@ -1863,6 +2072,98 @@ function updateWorkshopLive(){
     const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",save.gears<cost);
   });
   crossLive("#workshopList");
+}
+// B — проекты
+function renderWsProjects(){
+  const act=$("wsProjActive"), R=save.wsProjects;
+  if(R.active){ const p=WS_PROJ_M[R.active]; act.innerHTML=`<div class="ra-name">📐 ${p.name} <button class="nc-rank ready" id="wsRush">⏩ Ускорить</button></div><div class="ra-bar"><div id="wsProjFill"></div></div><div class="ra-time" id="wsProjTime"></div>`;
+    const rb=act.querySelector("#wsRush"); if(rb) rb.addEventListener("click", rushWsProject); updateWsProjTimer(); }
+  else act.innerHTML='<div class="dim" style="text-align:center;padding:6px">Нет активного проекта</div>';
+  const box=$("wsProjList"); box.innerHTML="";
+  WS_PROJECTS.forEach(p=>{ const done=wsProjDone(p.id), reqOk=wsProjReqMet(p), active=R.active===p.id;
+    const row=document.createElement("div"); row.className="buyrow"+(done?" afford":"")+((reqOk||done||active)?"":" locked");
+    let right;
+    if(done) right='<div class="buy-cost" style="color:var(--green)">✓</div>';
+    else if(active) right='<div class="buy-cost dim">идёт…</div>';
+    else if(!reqOk) right='<div class="buy-cost">🔒</div>';
+    else right='<button class="nc-rank ready" data-startp="'+p.id+'">📐 ⚙️'+fmt(p.cost)+'</button>';
+    row.innerHTML=`<div class="buy-ico">${p.icon}</div>
+      <div class="buy-main"><div class="buy-name">${p.name}</div><div class="buy-desc">${p.desc} · ${(p.time/60).toFixed(1)}мин</div></div>
+      <div class="buy-right">${right}</div>`;
+    box.appendChild(row); });
+  box.querySelectorAll("[data-startp]").forEach(b=>b.addEventListener("click",()=>startWsProject(b.dataset.startp)));
+}
+function updateWsProjTimer(){ const R=save.wsProjects; if(!R.active) return; const p=WS_PROJ_M[R.active];
+  const left=Math.max(0,(R.until-Date.now())/1000), f=1-left/p.time;
+  const fill=$("wsProjFill"), tt=$("wsProjTime"); if(fill) fill.style.width=Math.min(100,f*100)+"%"; if(tt) tt.textContent=Math.ceil(left)+"с осталось"; }
+// C — чертежи
+function renderWsBlueprints(){
+  const box=$("bpList"); if(!box) return; box.innerHTML="";
+  const cnt=$("bpCount"); if(cnt) cnt.textContent=fmt(save.bpCount||0);
+  const setEl=$("bpSet"); if(setEl){ const ok=bpSetComplete(); setEl.textContent=ok?"✓ Комплект собран: +25% всего":"Собери все 4 схемы → +25% всего"; setEl.classList.toggle("done",ok); }
+  BLUEPRINTS.forEach(bp=>{ const p=(save.blueprints[bp.id]||0)*bpPowMul();
+    const row=document.createElement("div"); row.className="buyrow"+(p>0?" afford":" locked");
+    row.innerHTML=`<div class="buy-ico">${bp.icon}</div>
+      <div class="buy-main"><div class="buy-name">${bp.name}</div><div class="buy-desc">${p>0?("+"+(p*100).toFixed(0)+"% "+bp.txt):"ещё не выпал — падает за престиж"}</div></div>
+      <div class="buy-right"><div class="buy-cost ${p>0?'':'dim'}">${p>0?'📜':'—'}</div></div>`;
+    box.appendChild(row); });
+}
+// G — конвейеры
+function renderWsConveyors(){
+  const box=$("convList"); if(!box) return; box.innerHTML="";
+  WS_CONV.forEach(c=>{ const owned=save.wsConveyors[c.id], afford=save.gears>=c.cost;
+    const row=document.createElement("div"); row.className="buyrow"+(owned||afford?" afford":"");
+    row.innerHTML=`<div class="buy-ico">${c.icon}</div>
+      <div class="buy-main"><div class="buy-name">${c.name}${owned?' ✓':''}</div><div class="buy-desc">${c.desc()}</div></div>
+      <div class="buy-right"><div class="buy-cost gear ${(!owned&&!afford)?'cant':''}">${owned?'активен':'⚙️ '+fmt(c.cost)}</div></div>`;
+    if(!owned) row.addEventListener("click", ()=>buyConveyor(c.id));
+    box.appendChild(row); });
+}
+// I — переоснастка
+function renderWsReforge(){
+  const g=reforgeGain();
+  const info=$("reforgeInfo"); if(info) info.innerHTML=`🗝️ Ключей: <b>${fmt(save.wsKeys||0)}</b> · Переоснасток: <b>${save.wsReforges||0}</b> (каждая +10% всего, +15% фарма)`;
+  const btn=$("reforgeBtn"); if(btn){ btn.textContent="♻️ Переоснастить → +"+g+" 🗝️"; btn.disabled=g<1; }
+  const box=$("keyList"); if(!box) return; box.innerHTML="";
+  WS_KEY_UPS.forEach(k=>{ const l=save.wsKeyUps[k.id]||0, maxed=l>=k.max, cost=k.cost(l);
+    const row=document.createElement("div"); row.className="buyrow"; row.dataset.keyup=k.id;
+    row.innerHTML=upRowHTML(k.icon, k.name+" "+(l>0?"("+l+"/"+k.max+")":""), k.desc(l), l, k.max, maxed?"МАКС":"🗝️ "+fmt(cost), "key");
+    if(!maxed) row.addEventListener("click", ()=>buyKeyUp(k.id));
+    box.appendChild(row); });
+  document.querySelectorAll("#keyList .buyrow").forEach(row=>{ const k=WS_KEY_M[row.dataset.keyup]; const l=save.wsKeyUps[k.id]||0;
+    if(l>=k.max) return; const cost=k.cost(l); row.classList.toggle("afford",(save.wsKeys||0)>=cost);
+    const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",(save.wsKeys||0)<cost); });
+}
+// J — живая 2D-сцена: вращающиеся шестерёнки
+let wsGearAng=0;
+function drawWsScene(dt){
+  const cv=$("wsCanvas"); if(!cv) return;
+  const ctx2=cv.getContext("2d"); const DPR=Math.min(2,window.devicePixelRatio||1);
+  const W=cv.clientWidth, H=cv.clientHeight; if(!W||!H) return;
+  if(cv.width!==W*DPR||cv.height!==H*DPR){ cv.width=W*DPR; cv.height=H*DPR; }
+  ctx2.setTransform(DPR,0,0,DPR,0,0); ctx2.clearRect(0,0,W,H);
+  const spd=Math.min(3, 0.3+Math.log10(1+(D.gearRate||0))*0.5)*wsOverheatFactor();
+  wsGearAng+=dt*spd;
+  const lv=wsLevel();
+  const gears=[ {x:W*0.28,y:H*0.55,r:H*0.34,t:9,c:"#c7b8ff",dir:1},
+                {x:W*0.62,y:H*0.42,r:H*0.24,t:7,c:"#7cf3ff",dir:-1.3},
+                {x:W*0.82,y:H*0.66,r:H*0.18,t:6,c:"#ffd23f",dir:1.6} ];
+  gears.forEach((g,i)=>{ if(i>0 && lv<i*2) return; drawGear(ctx2,g.x,g.y,g.r,g.t,wsGearAng*g.dir,g.c); });
+  // искры при форсаже
+  if((save.overheat||{}).on){ for(let k=0;k<3;k++){ ctx2.globalAlpha=Math.random()*0.6+0.2; ctx2.fillStyle="#ff9d3f";
+    ctx2.beginPath(); ctx2.arc(W*0.28+Math.random()*W*0.5, H*0.3+Math.random()*H*0.4, 1.5+Math.random()*2,0,6.29); ctx2.fill(); } ctx2.globalAlpha=1; }
+}
+function drawGear(c,x,y,r,teeth,ang,col){
+  c.save(); c.translate(x,y); c.rotate(ang);
+  c.fillStyle=col; c.beginPath();
+  for(let i=0;i<teeth;i++){ const a0=i/teeth*6.283, a1=(i+0.5)/teeth*6.283;
+    const ro=r, ri=r*0.82;
+    c.lineTo(Math.cos(a0)*ro, Math.sin(a0)*ro); c.lineTo(Math.cos(a0+0.12)*ro, Math.sin(a0+0.12)*ro);
+    c.lineTo(Math.cos(a1)*ri, Math.sin(a1)*ri); c.lineTo(Math.cos(a1+0.28)*ri, Math.sin(a1+0.28)*ri); }
+  c.closePath(); c.fill();
+  c.fillStyle="#141a3c"; c.beginPath(); c.arc(0,0,r*0.38,0,6.29); c.fill();
+  c.strokeStyle=col; c.lineWidth=r*0.1; c.beginPath(); c.arc(0,0,r*0.55,0,6.29); c.stroke();
+  c.restore();
 }
 
 /* ---- Шахта: спуск и находки ---- */
@@ -2023,16 +2324,20 @@ function switchTab(t){
   else if(t==="ups") renderSub();
   else if(t==="runes") renderRunes();
   else if(t==="prestige") renderPrestige();
-  else if(t==="workshop") renderWorkshop();
+  else if(t==="workshop") wsRenderSub();
   else if(t==="mining") renderMining();
   else if(t==="alchemy") renderAlchemy();
 }
 document.querySelectorAll("#tabbar .tab").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
 document.querySelectorAll("#upSubs button").forEach(b=>b.addEventListener("click",()=>switchSub(b.dataset.sub)));
+document.querySelectorAll("#wsSubs button").forEach(b=>b.addEventListener("click",()=>wsSwitchSub(b.dataset.wsub)));
+on("overheatBtn","click", toggleOverheat);
+on("maintainBtn","click", maintainWorkshop);
+on("reforgeBtn","click", ()=>askConfirm("Переоснастить мастерскую? Улучшения станков, звёзды и текущие шестерёнки сбросятся ради 🗝️ ключей.", doReforge));
 
 function renderAll(){ renderNoobs();
   if(curTab==="ups")renderUps(); if(curTab==="runes")renderRunes();
-  if(curTab==="prestige")renderPrestige(); if(curTab==="workshop")renderWorkshop();
+  if(curTab==="prestige")renderPrestige(); if(curTab==="workshop")wsRenderSub();
   if(curTab==="mining")renderMining(); if(curTab==="alchemy")renderAlchemy(); }
 
 /* ============ Тосты/подсказка ============ */
@@ -2324,7 +2629,14 @@ function runAutomation(edt){
     let c=minerCost(),k=0; while(save.oof>=c && save.oof-c>c*0.4 && k<100){ save.oof-=c; save.miners++; c=minerCost(); k++; changed=true; }
     for(const d of MINING_UPS){ const l=save.miningUps[d.id]||0; if(l<d.max && save.ore>=d.cost(l)){ save.ore-=d.cost(l); save.miningUps[d.id]=l+1; changed=true; } } }
   if((save.prestiges>=5||save.transcends>0) && save.auto.workshop!==false){
-    for(const d of WORKSHOP_UPS){ const l=save.workshopUps[d.id]||0; if(l<d.max && save.gears>=d.cost(l)){ save.gears-=d.cost(l); save.workshopUps[d.id]=l+1; changed=true; } } }
+    // D — мощность линии = уровень верстака: за тик покупаем несколько раз
+    const power=1+wsLevel();
+    for(const d of WORKSHOP_UPS){ let k=0; let l=save.workshopUps[d.id]||0;
+      while(l<d.max && save.gears>=d.cost(l) && k<power){ save.gears-=d.cost(l); l++; k++; changed=true; } save.workshopUps[d.id]=l; }
+    // авто-старт ближайшего проекта
+    if(!save.wsProjects.active){ for(const p of WS_PROJECTS){ if(!wsProjDone(p.id)&&wsProjReqMet(p)&&save.gears>=p.cost){ save.gears-=p.cost; save.wsProjects.active=p.id; save.wsProjects.until=Date.now()+p.time*1000; changed=true; break; } } }
+    // авто-подключение конвейеров
+    for(const c of WS_CONV){ if(!save.wsConveyors[c.id]&&save.gears>=c.cost){ save.gears-=c.cost; save.wsConveyors[c.id]=true; changed=true; } } }
   if(save.transcends>0 && save.auto.potions){
     const now=Date.now();
     for(const p of POTIONS){ if((save.potions[p.id]||0)<=now && save.ore>=p.cost.ore && save.dust>=p.cost.dust){

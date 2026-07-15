@@ -419,3 +419,32 @@ select.adm-inp{-webkit-appearance:none;appearance:none}
 /* лавка (G) */
 .shop-bar{font-size:12px;color:var(--muted);display:flex;align-items:center;justify-content:space-between;
   gap:8px;padding:8px 11px;margin-bottom:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+
+/* ---------- Мастерская 2.0 ---------- */
+.ws-head{display:flex;gap:10px;margin-bottom:8px}
+.ws-canvas{flex:1 1 auto;min-width:0;height:120px;background:linear-gradient(160deg,#0e1330,#141a3c);
+  border:1px solid var(--line);border-radius:14px}
+.ws-head-r{flex:0 0 auto;width:150px;display:flex;flex-direction:column;gap:4px}
+.ws-head-r .wf-big{font-size:22px;font-weight:800;color:var(--gear)}
+.ws-head-r .wf-rate{font-size:12px;color:var(--muted)}
+.overheat{margin-top:4px}
+.wear-bar{height:8px;background:var(--card);border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.wear-bar>#wearFill{height:100%;width:0;background:linear-gradient(90deg,var(--green),var(--oof));transition:width .2s}
+.wear-bar>#wearFill.hot{background:linear-gradient(90deg,var(--oof),var(--red))}
+.wear-txt{font-size:10.5px;color:var(--muted)}
+.overheat-btns{display:flex;flex-direction:column;gap:4px;margin-top:5px}
+.overheat-btns .adm-btn{width:100%;font-size:11px;padding:6px 4px;white-space:nowrap}
+#overheatBtn.on{background:linear-gradient(135deg,var(--oof),var(--red));color:#1a1a2e;border-color:transparent;font-weight:800}
+.ws-level{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.ws-level-bar{flex:1;height:8px;background:var(--card);border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.ws-level-bar>#wsLevelFill{height:100%;width:0;background:linear-gradient(90deg,var(--gear),var(--accent2));transition:width .3s}
+.ws-level .dim{font-size:10.5px;flex:0 0 auto;max-width:52%;text-align:right;line-height:1.2}
+.ws-stars{font-size:11px;color:var(--star);letter-spacing:-1px}
+.ws-mods{display:flex;flex-direction:column;gap:3px;margin-top:3px}
+.ws-mods .nc-rank{font-size:10px;padding:3px 6px}
+#wsProjList,#bpList,#convList,#keyList{display:flex;flex-direction:column;gap:8px}
+#wsProjActive{margin-bottom:10px}
+#wsProjActive:empty{display:none}
+.buy-cost.key{color:var(--star)}
+.buy-cost.key.cant{color:var(--red)}
+.cat-chip.done+.cat-chip{margin-left:0}

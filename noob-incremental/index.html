@@ -222,15 +222,64 @@
 
     <!-- МАСТЕРСКАЯ -->
     <div class="tabpage hidden" data-page="workshop">
-      <div class="page-head"><h2>⚙️ Мастерская</h2><span class="page-hint">Фарми шестерёнки — усиливай уже вложенное</span></div>
-      <div class="workshop-farm">
-        <div class="wf-big">⚙️ <b id="gearBig">0</b></div>
-        <div class="wf-rate" id="gearRateTxt">+0 ⚙️/с</div>
+      <div class="page-head"><h2>⚙️ Мастерская</h2><span class="page-hint" id="wsLevelTxt">Верстак ур.0</span></div>
+
+      <!-- шапка: сцена + фарм + перегрев -->
+      <div class="ws-head">
+        <canvas id="wsCanvas" class="ws-canvas"></canvas>
+        <div class="ws-head-r">
+          <div class="wf-big">⚙️ <b id="gearBig">0</b></div>
+          <div class="wf-rate" id="gearRateTxt">+0 ⚙️/с</div>
+          <div class="overheat">
+            <div class="wear-bar"><div id="wearFill"></div></div>
+            <span class="wear-txt" id="wearTxt">износ 0%</span>
+            <div class="overheat-btns">
+              <button class="adm-btn" id="overheatBtn">🔥 Форсаж</button>
+              <button class="adm-btn" id="maintainBtn">🛠️ Обслужить</button>
+            </div>
+          </div>
+        </div>
       </div>
-      <p class="wf-note">Шестерёнки капают сами (быстрее с престижами и звёздами) и падают за каждый престиж. Их улучшения усиливают твои призматические, звёздные и обычные улучшения.</p>
-      <div class="sect-lab">Улучшения мастерской</div>
-      <button class="btn btn-ghost massbtn" id="massWorkshop">🛒 Купить всё за шестерёнки</button>
-      <div id="workshopList" class="list"></div>
+      <div class="ws-level"><div class="ws-level-bar"><div id="wsLevelFill"></div></div><span id="wsLevelNext" class="dim"></span></div>
+      <div id="wsMileBar" class="cat-bar"></div>
+
+      <div class="subtabs" id="wsSubs">
+        <button data-wsub="normal" class="on">🔧 Станки</button>
+        <button data-wsub="proj">📐 Проекты</button>
+        <button data-wsub="bp">📜 Чертежи</button>
+        <button data-wsub="conv">🔗 Конвейеры</button>
+        <button data-wsub="reforge">♻️ Переоснастка</button>
+      </div>
+
+      <div data-wsp="normal">
+        <div class="sub-hint">Шестерёнки капают сами и падают за престиж. Улучшай станки, качай ⭐ звёзды модулей и 🎲 реролль их качество.</div>
+        <button class="btn btn-ghost massbtn" id="massWorkshop">🛒 Купить всё за шестерёнки</button>
+        <div id="workshopList" class="list"></div>
+      </div>
+
+      <div data-wsp="proj" class="hidden">
+        <div class="sub-hint">Проекты строятся во времени за шестерёнки и дают постоянные бонусы. Можно ускорить за ⚙️.</div>
+        <div id="wsProjActive"></div>
+        <div id="wsProjList" class="list"></div>
+      </div>
+
+      <div data-wsp="bp" class="hidden">
+        <div class="token-bal">📜 Собрано чертежей: <b id="bpCount">0</b></div>
+        <div class="sub-hint" id="bpSet">Собери все 4 схемы → +25% всего</div>
+        <div id="bpList" class="list"></div>
+      </div>
+
+      <div data-wsp="conv" class="hidden">
+        <div class="sub-hint">Конвейеры — вечные связи между механиками. Сила растёт с уровнем верстака.</div>
+        <div id="convList" class="list"></div>
+      </div>
+
+      <div data-wsp="reforge" class="hidden">
+        <div class="sub-hint" id="reforgeInfo"></div>
+        <button class="btn btn-primary massbtn" id="reforgeBtn">♻️ Переоснастить</button>
+        <div class="sect-lab">🗝️ Ключ-улучшения <span class="dim">— вечные</span></div>
+        <div id="keyList" class="list"></div>
+      </div>
     </div>
 
     <!-- АЛХИМИЯ -->
@@ -288,7 +337,7 @@
       <button class="btn btn-ghost" id="adminBtn">🛠️ Админ-панель</button>
       <button class="btn btn-ghost" id="wipeBtn">🗑️ Сбросить всё</button>
       <button class="btn btn-primary" id="closeMenu">Закрыть</button>
-      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v19</span></div>
+      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v20</span></div>
     </div>
   </div>
 
