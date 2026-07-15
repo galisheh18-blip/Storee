@@ -448,3 +448,8 @@ select.adm-inp{-webkit-appearance:none;appearance:none}
 .buy-cost.key{color:var(--star)}
 .buy-cost.key.cant{color:var(--red)}
 .cat-chip.done+.cat-chip{margin-left:0}
+
+/* ---------- Мета-слои ---------- */
+.buy-cost.si{color:#c9a7ff}
+.si-card{background:linear-gradient(160deg,#241246,#120a2e)}
+#metaSubs button.on{background:linear-gradient(135deg,#7b6cff,#b06cff)}
