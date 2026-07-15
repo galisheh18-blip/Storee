@@ -170,34 +170,6 @@
         <div id="starUpList" class="list"></div>
       </div>
 
-      <div id="transWrap" class="hidden">
-        <div class="sect-lab">⚛️ Трансцендентность</div>
-        <div class="prestige-card trans-card">
-          <div class="pc-top"><span class="pc-ico">⚛️</span>
-            <div><div class="pc-title">Трансценденция</div><div class="pc-sub">Сбрось призмы и звёзды — получи кварки</div></div>
-          </div>
-          <div class="pc-gain">Даст <b id="quarkGain">0</b> ⚛️</div>
-          <div class="pc-note" id="transNote"></div>
-          <button class="btn btn-primary" id="transBtn" disabled>⚛️ Трансцендировать</button>
-        </div>
-        <div class="sect-lab">Кварковые улучшения · Пантеон</div>
-        <button class="btn btn-ghost massbtn" id="massQuark">🛒 Купить всё за кварки</button>
-        <div id="quarkUpList" class="list"></div>
-      </div>
-
-      <div id="corrWrap" class="hidden">
-        <div class="sect-lab">⚫ Искажение</div>
-        <div class="prestige-card corr-card">
-          <div class="pc-top"><span class="pc-ico">⚫</span>
-            <div><div class="pc-title">Искажение</div><div class="pc-sub">Ослабь себя ради тёмной валюты</div></div>
-          </div>
-          <div class="corr-ctl">Уровень: <button class="adm-btn" id="corrMinus">−</button><b id="corrLvl">0</b><button class="adm-btn" id="corrPlus">+</button></div>
-          <div class="pc-note" id="corrNote"></div>
-        </div>
-        <div class="sect-lab">Улучшения искажения · ⚫ <b id="corrVal">0</b></div>
-        <button class="btn btn-ghost massbtn" id="massCorr">🛒 Купить всё за искажение</button>
-        <div id="corrUpList" class="list"></div>
-      </div>
     </div>
 
     <!-- ШАХТА -->
@@ -290,6 +262,87 @@
       <div class="sect-lab">⚗️ Зелья <span class="dim">— временные баффы</span></div>
       <div id="potionList" class="list"></div>
     </div>
+
+    <!-- МЕТА-СЛОИ -->
+    <div class="tabpage hidden" data-page="meta">
+      <div class="page-head"><h2>🌌 Мета</h2><span class="page-hint" id="metaHint">Высшие слои прогресса</span></div>
+      <div class="subtabs" id="metaSubs">
+        <button data-msub="trans" class="on">⚛️ Транс</button>
+        <button data-msub="pantheon">🏛️ Пантеон</button>
+        <button data-msub="corr">⚫ Искажение</button>
+        <button data-msub="chrono">⏳ Биржа</button>
+        <button data-msub="realities">🌀 Реальности</button>
+        <button data-msub="codex">🌟 Кодекс</button>
+        <button data-msub="singularity">♾️ Сингулярность</button>
+      </div>
+
+      <div data-msp="trans">
+        <div class="prestige-card trans-card">
+          <div class="pc-top"><span class="pc-ico">⚛️</span>
+            <div><div class="pc-title">Трансценденция</div><div class="pc-sub">Сбрось призмы и звёзды — получи кварки</div></div></div>
+          <div class="pc-gain">Даст <b id="quarkGain">0</b> ⚛️</div>
+          <div class="pc-note" id="transNote"></div>
+          <button class="btn btn-primary" id="transBtn" disabled>⚛️ Трансцендировать</button>
+        </div>
+        <div id="transMileBar" class="cat-bar"></div>
+        <div class="sect-lab">Кварк-древо <span class="dim">— ветки открываются с трансценденциями</span></div>
+        <button class="btn btn-ghost massbtn" id="massQuark">🛒 Купить всё за кварки</button>
+        <div id="quarkUpList" class="list"></div>
+      </div>
+
+      <div data-msp="pantheon" class="hidden">
+        <div class="sub-hint">Пантеон — прокачивай богов за ⚛️ кварки. Синергии связывают все механики. «Всебог» открывается при 25 уровнях.</div>
+        <div id="pantheonList" class="list"></div>
+      </div>
+
+      <div data-msp="corr" class="hidden">
+        <div class="prestige-card corr-card">
+          <div class="pc-top"><span class="pc-ico">⚫</span>
+            <div><div class="pc-title">Искажение</div><div class="pc-sub">Ослабь себя ради тёмной валюты</div></div></div>
+          <div class="corr-ctl">Уровень: <button class="adm-btn" id="corrMinus">−</button><b id="corrLvl">0</b><button class="adm-btn" id="corrPlus">+</button></div>
+          <div class="pc-note" id="corrNote"></div>
+        </div>
+        <div id="corrZoneBar" class="cat-bar"></div>
+        <div class="sect-lab">Улучшения искажения · ⚫ <b id="corrVal">0</b></div>
+        <button class="btn btn-ghost massbtn" id="massCorr">🛒 Купить всё за искажение</button>
+        <div id="corrUpList" class="list"></div>
+        <div class="sect-lab">☠️ Тёмная лавка <span class="dim">— мощь с побочкой</span></div>
+        <div id="darkShopList" class="list"></div>
+      </div>
+
+      <div data-msp="chrono" class="hidden">
+        <div class="token-bal">💎⏳ Хроно-кристаллы: <b id="chronoVal">0</b> <span class="dim">· капают на событиях рынка</span></div>
+        <div class="shop-bar" id="chronoEvent"></div>
+        <div id="chronoMarket" class="list"></div>
+        <div class="sect-lab">Улучшения биржи</div>
+        <div id="chronoUpList" class="list"></div>
+      </div>
+
+      <div data-msp="realities" class="hidden">
+        <div class="token-bal">🔹 Осколки реальности: <b id="shardVal">0</b> <span class="dim">· добывай в глитч-портале</span></div>
+        <button class="btn btn-primary massbtn" id="openPortalBtn">🌀 Войти в глитч-портал (50 ⚫)</button>
+        <div class="sect-lab">Открытые миры <span class="dim" id="realCount"></span></div>
+        <div id="realityList" class="list"></div>
+      </div>
+
+      <div data-msp="codex" class="hidden">
+        <div class="token-bal">🌟 Кодекс вознесения: <b id="codexCount">0</b>/<span id="codexTotal">0</span></div>
+        <div class="sub-hint">Глубокие мета-вехи дают вечные кросс-слойные множители. Открываются автоматически.</div>
+        <div id="codexList" class="ach-grid"></div>
+      </div>
+
+      <div data-msp="singularity" class="hidden">
+        <div class="prestige-card si-card">
+          <div class="pc-top"><span class="pc-ico">♾️</span>
+            <div><div class="pc-title">Сингулярность</div><div class="pc-sub">Сбрось всё ниже — получи ♾️ бесконечные очки</div></div></div>
+          <div class="pc-gain">Даст <b id="siGain">0</b> ♾️ · есть <b id="siHave">0</b> · сбросов <b id="siResets">0</b></div>
+          <div class="pc-note" id="siNote"></div>
+          <button class="btn btn-primary" id="singularityBtn" disabled>♾️ Сингулярность</button>
+        </div>
+        <div class="sect-lab">Бесконечные улучшения</div>
+        <div id="siUpList" class="list"></div>
+      </div>
+    </div>
   </main>
 
   <!-- НИЖНЯЯ НАВИГАЦИЯ -->
@@ -301,6 +354,7 @@
     <button class="tab hidden" data-tab="workshop" id="tabWorkshop"><span>⚙️</span>Мастер.</button>
     <button class="tab hidden" data-tab="mining" id="tabMining"><span>⛏️</span>Шахта</button>
     <button class="tab hidden" data-tab="alchemy" id="tabAlchemy"><span>🧪</span>Алхим.</button>
+    <button class="tab hidden" data-tab="meta" id="tabMeta"><span>🌌</span>Мета</button>
   </nav>
 
   <!-- РУНА-РЕЗУЛЬТАТ -->
@@ -337,7 +391,7 @@
       <button class="btn btn-ghost" id="adminBtn">🛠️ Админ-панель</button>
       <button class="btn btn-ghost" id="wipeBtn">🗑️ Сбросить всё</button>
       <button class="btn btn-primary" id="closeMenu">Закрыть</button>
-      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v20</span></div>
+      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v21</span></div>
     </div>
   </div>
 
