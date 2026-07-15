@@ -129,6 +129,92 @@ GLOB_UPS.forEach((u,i)=>UPS.push({
 }));
 const UP = Object.fromEntries(UPS.map(u=>[u.id,u]));
 
+/* ===== Углубление улучшений: категории(C/D), бесконечные(B), синергии(F), качество(I) ===== */
+// C+D — категории обычных улучшений + бонус за полное завершение
+const UP_CATS = [
+  { id:"click",  name:"👆 Клик",   kinds:["click","clickps"], bonusText:"+50% к тапу",  apply:m=>m.click*=1.5 },
+  { id:"noob",   name:"🧍 Нубы",   kinds:["noob"],            bonusText:"+50% всего",   apply:m=>m.global*=1.5 },
+  { id:"global", name:"🌍 Глобал", kinds:["global"],          bonusText:"+50% всего",   apply:m=>m.global*=1.5 },
+  { id:"crit",   name:"💥 Крит",   kinds:["crit","critp"],    bonusText:"+10% крит, +100% крит-урон", apply:m=>{m.crit+=0.1;m.critPow+=1;} },
+];
+const upCatOf = {}; UP_CATS.forEach(c=>c.kinds.forEach(k=>upCatOf[k]=c.id));
+function catUps(catId){ return UPS.filter(u=>UP_CATS.find(c=>c.id===catId).kinds.includes(u.kind)); }
+function catComplete(catId){ return catUps(catId).every(u=>save.ups[u.id]); }
+
+// B — бесконечные (повторяемые) улучшения
+const INF_UPS = [
+  { id:"core", icon:"🔆", name:"Ядро силы",    base:1e4, mul:1.6,  per:0.10, kind:"global", apply:(m,l,q)=>m.global*=(1+0.10*l*q) },
+  { id:"fist", icon:"👊", name:"Вечный кулак",  base:5e3, mul:1.55, per:0.15, kind:"click",  apply:(m,l,q)=>m.click*=(1+0.15*l*q) },
+  { id:"crun", icon:"💥", name:"Ядро крита",    base:2e4, mul:1.7,  per:0.005,kind:"crit",   apply:(m,l,q)=>m.crit+=0.005*l*q },
+  { id:"mega", icon:"🌟", name:"Мультиядро",    base:1e6, mul:1.8,  per:0.50, kind:"global", apply:(m,l,q)=>m.global*=(1+0.50*l*q) },
+];
+const INF_UP = Object.fromEntries(INF_UPS.map(u=>[u.id,u]));
+function infCost(u,l){ return u.base*Math.pow(u.mul,l); }
+function infQ(id){ return save.infQuality[id]||1; }
+function infRerollCost(id){ return Math.ceil(50*Math.pow(1.5,(save.infUps[id]||0))); } // в пыли
+
+// F — синергийные улучшения (одноразовая покупка, живое значение)
+const SYN_UPS = [
+  { id:"unity",  icon:"🤝", name:"Единство",       cost:1e5,
+    val:()=>{ let t=0; for(const nb of NOOBS) if((save.noobs[nb.id]||0)>0)t++; return t*0.03; },
+    desc:()=>"+"+Math.round(synVal("unity")*100)+"% всего (за каждый вид нуба)", apply:(m,v)=>m.global*=(1+v) },
+  { id:"veteran",icon:"🎖️", name:"Ветеран",        cost:1e7,
+    val:()=>Math.min((save.prestiges||0)*0.02,10), desc:()=>"+"+Math.round(synVal("veteran")*100)+"% всего (за престиж, макс +1000%)", apply:(m,v)=>m.global*=(1+v) },
+  { id:"depth",  icon:"⛏️", name:"Глубинная мощь",  cost:1e6,
+    val:()=>(save.depth||0)*0.01, desc:()=>"+"+Math.round(synVal("depth")*100)+"% всего (за метр глубины)", apply:(m,v)=>m.global*=(1+v) },
+  { id:"runic",  icon:"🔮", name:"Рунная синергия", cost:1e6,
+    val:()=>save.runes.filter(Boolean).length*0.05, desc:()=>"+"+Math.round(synVal("runic")*100)+"% всего (за руну в слоте)", apply:(m,v)=>m.global*=(1+v) },
+  { id:"rich",   icon:"💰", name:"Богатство",       cost:1e8,
+    val:()=>Math.max(0,Math.log10(1+save.oof))*0.03, desc:()=>"+"+Math.round(synVal("rich")*100)+"% к тапу (за порядок Oof)", apply:(m,v)=>m.click*=(1+v) },
+];
+const SYN_UP = Object.fromEntries(SYN_UPS.map(s=>[s.id,s]));
+function synVal(id){ return save.synUps[id] ? SYN_UP[id].val() : 0; }
+
+// E — исследования (тех-древо с реальными таймерами)
+const RESEARCH = [
+  { id:"r1", icon:"🖐️", name:"Эргономика тапа",    time:60,   cost:5e4, req:[],          bonus:{click:0.5},  desc:"+50% к тапу" },
+  { id:"r2", icon:"🏭", name:"Конвейер нубов",      time:180,  cost:5e5, req:["r1"],      bonus:{global:0.5}, desc:"+50% всего" },
+  { id:"r3", icon:"💥", name:"Критический анализ",  time:300,  cost:5e6, req:["r1"],      bonus:{crit:0.05},  desc:"+5% крит" },
+  { id:"r4", icon:"⚙️", name:"Массовое производство",time:600, cost:5e7, req:["r2"],      bonus:{global:1},   desc:"+100% всего" },
+  { id:"r5", icon:"🔮", name:"Рунная теория",       time:600,  cost:5e7, req:["r2"],      bonus:{runePow:0.2},desc:"+20% эффект рун" },
+  { id:"r6", icon:"🌌", name:"Сингулярность",       time:1800, cost:5e9, req:["r4","r5"], bonus:{global:3},   desc:"×4 всего" },
+];
+const RESEARCH_M = Object.fromEntries(RESEARCH.map(r=>[r.id,r]));
+function researchDone(id){ return !!save.research.done[id]; }
+function researchReqMet(r){ return r.req.every(id=>researchDone(id)); }
+function applyResearch(b,m){ if(b.click)m.click*=(1+b.click); if(b.global)m.global*=(1+b.global); if(b.crit)m.crit+=b.crit; if(b.runePow)m._runePow+=b.runePow; }
+
+// H — жетоны (вечная мета-валюта) + жетонное дерево
+const TOKEN_UPS = [
+  { id:"tglob", icon:"🎟️", name:"Жетон силы",  max:200, desc:l=>"Всё ×"+(1+0.25*l).toFixed(2),  cost:l=>l+1, apply:(m,l)=>m.global*=(1+0.25*l) },
+  { id:"tclick",icon:"🎟️", name:"Жетон тапа",  max:200, desc:l=>"Тап ×"+(1+0.5*l).toFixed(1),   cost:l=>l+1, apply:(m,l)=>m.click*=(1+0.5*l) },
+  { id:"tcrit", icon:"🎟️", name:"Жетон крита", max:50,  desc:l=>"+"+(l)+"% крит",               cost:l=>l+1, apply:(m,l)=>m.crit+=0.01*l },
+  { id:"tprism",icon:"🎟️", name:"Жетон призм", max:100, desc:l=>"Призм +"+(l*20)+"%",            cost:l=>l+2, apply:(m,l)=>m.prism*=(1+0.2*l) },
+];
+const TOKEN_UP = Object.fromEntries(TOKEN_UPS.map(t=>[t.id,t]));
+
+// G — ротационный магазин (обновляется по времени)
+const SHOP_POOL = [
+  { type:"global", label:"Вечный ×множитель Oof", roll:()=>({v:0.25+Math.random()*0.5}), cost:()=>0 },
+  { type:"ore",    label:"Пачка руды",            roll:()=>({v:0}), cost:()=>0 },
+  { type:"dust",   label:"Пачка пыли",            roll:()=>({v:0}), cost:()=>0 },
+  { type:"prism",  label:"Немного призм",         roll:()=>({v:0}), cost:()=>0 },
+];
+const SHOP_REFRESH_MS = 12*60*1000;
+function genShopOffer(){
+  const t=SHOP_POOL[Math.floor(Math.random()*SHOP_POOL.length)];
+  if(t.type==="global"){ const v=0.2+Math.random()*0.6; return { type:"global", v, cost:Math.max(1e4,(save.oof||0)*(0.3+Math.random()*0.4)), label:"Вечный +"+Math.round(v*100)+"% Oof/с" }; }
+  if(t.type==="ore"){    const v=Math.max(100,(D.oreRate||1)*600); return { type:"ore", v, cost:Math.max(1e4,(save.oof||0)*0.15), label:"+"+fmt(v)+" руды" }; }
+  if(t.type==="dust"){   const v=Math.ceil(30+Math.random()*80);  return { type:"dust", v, cost:Math.max(1e4,(save.oof||0)*0.15), label:"+"+fmt(v)+" пыли" }; }
+  const v=Math.ceil(3+Math.random()*10); return { type:"prism", v, cost:Math.max(1e6,(save.oof||0)*0.6), label:"+"+fmt(v)+" призм" };
+}
+function refreshShop(force){
+  const now=Date.now();
+  if(!force && save.shop.offers.length && now<save.shop.next) return;
+  save.shop.offers=[genShopOffer(),genShopOffer(),genShopOffer()];
+  save.shop.next=now+SHOP_REFRESH_MS;
+}
+
 // ---- Руны ----
 const RARITIES = [
   { name:"Обычная",    w:58, cls:"rar-0", mul:1 },
@@ -537,6 +623,9 @@ const DEFAULT = ()=>({
   dustUps:{}, auto:{ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false },
   ranks:{}, prismsEver:0, relics:{}, crossUps:{}, apMult:2,
   runeMastery:{}, runeSeen:{},
+  infUps:{}, synUps:{}, infQuality:{},
+  research:{ active:null, until:0, done:{} }, tokens:0, tokenUps:{}, shopGlobal:0,
+  shop:{ offers:[], next:0 },
   lastTime:Date.now(), seen:{},
   admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }
 });
@@ -545,7 +634,12 @@ function load(){
   try{
     const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
     if(raw){ save=Object.assign(DEFAULT(),raw);
-      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","dustUps","ranks","relics","crossUps","runeMastery","runeSeen","seen"]) if(!save[k]) save[k]={};
+      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","dustUps","ranks","relics","crossUps","runeMastery","runeSeen","infUps","synUps","infQuality","tokenUps","seen"]) if(!save[k]) save[k]={};
+      if(typeof save.tokens!=="number") save.tokens=0;
+      if(typeof save.shopGlobal!=="number") save.shopGlobal=0;
+      if(!save.research||typeof save.research!=="object") save.research={active:null,until:0,done:{}};
+      if(!save.research.done) save.research.done={};
+      if(!save.shop||typeof save.shop!=="object") save.shop={offers:[],next:0};
       if(typeof save.prismsEver!=="number") save.prismsEver=0;
       if(typeof save.apMult!=="number") save.apMult=2;
       if(typeof save.corruption!=="number") save.corruption=0;
@@ -586,7 +680,15 @@ function recompute(){
     _runePow:0, _runeLuck:0, _megaClick:0, _bonusSlots:0, _oreBoost:0, _allCur:0, noob:{} };
   const cr = save.activeChallenge ? ((CHAL[save.activeChallenge]||{}).restrict||{}) : {};
   // обычные улучшения
-  if(!cr.noUps) for(const id in save.ups){ if(save.ups[id] && UP[id]) UP[id].apply(m); }
+  if(!cr.noUps){
+    for(const id in save.ups){ if(save.ups[id] && UP[id]) UP[id].apply(m); }
+    for(const u of INF_UPS){ const l=save.infUps[u.id]||0; if(l>0) u.apply(m,l,infQ(u.id)); }   // B
+    for(const s of SYN_UPS){ if(save.synUps[s.id]) s.apply(m, s.val()); }                        // F
+    for(const c of UP_CATS){ if(catComplete(c.id)) c.apply(m); }                                 // D
+    for(const id in save.research.done){ if(save.research.done[id]&&RESEARCH_M[id]) applyResearch(RESEARCH_M[id].bonus,m); } // E
+  }
+  for(const t of TOKEN_UPS){ const l=save.tokenUps[t.id]||0; if(l>0) t.apply(m,l); }   // H — жетоны (вечные, не гейтятся испытанием)
+  m.global *= (1+(save.shopGlobal||0));  // G — магазинные множители
   // призматические
   for(const p of PRISM_UPS){ const l=save.prismUps[p.id]||0; if(l>0 && p.apply) p.apply(m,l); }
   // звёздные
@@ -760,9 +862,47 @@ function buyUp(id){
   const u=UP[id]; if(!u||save.ups[id]) return;
   if(save.oof < u.cost) return;
   save.oof-=u.cost; save.ups[id]=true;
+  checkCatComplete(u.kind);
   recompute(); renderUps(); refreshTop(); queueSave();
   toast("⚡ "+u.name);
 }
+// D — награда жетонами за первое завершение категории
+function checkCatComplete(kind){
+  const cid=upCatOf[kind]; if(!cid) return;
+  if(!save._catDone) save._catDone={};
+  if(!save._catDone[cid] && catComplete(cid)){ save._catDone[cid]=1; save.tokens=(save.tokens||0)+5; toast("⭐ Категория пройдена! +5 🎟️"); }
+}
+/* B — бесконечные */
+function buyInf(id){ const u=INF_UP[id], l=save.infUps[id]||0, cost=infCost(u,l); if(save.oof<cost) return;
+  save.oof-=cost; save.infUps[id]=l+1; recompute(); renderInf(); refreshTop(); queueSave(); }
+function buyInfMax(id){ const u=INF_UP[id]; let n=0; while(n<2000){ const l=save.infUps[id]||0,c=infCost(u,l); if(save.oof<c)break; save.oof-=c; save.infUps[id]=l+1; n++; }
+  if(n){ recompute(); renderInf(); refreshTop(); queueSave(); toast("♾️ +"+n+" ур."); } }
+function rerollInf(id){ const cost=infRerollCost(id); if(save.dust<cost){ toast("Нужно "+fmt(cost)+" пыли"); return; }
+  save.dust-=cost; save.infQuality[id]=0.8+Math.random()*0.7; recompute(); renderInf(); refreshTop(); queueSave();
+  toast("🎲 Качество: ×"+save.infQuality[id].toFixed(2)); }
+/* F — синергии */
+function buySyn(id){ const s=SYN_UP[id]; if(save.synUps[id]||save.oof<s.cost) return;
+  save.oof-=s.cost; save.synUps[id]=true; recompute(); renderSyn(); refreshTop(); queueSave(); toast("💡 "+s.name); }
+/* E — исследования */
+function startResearch(id){ const r=RESEARCH_M[id];
+  if(researchDone(id)||save.research.active||!researchReqMet(r)||save.oof<r.cost) return;
+  save.oof-=r.cost; save.research.active=id; save.research.until=Date.now()+r.time*1000;
+  renderResearch(); refreshTop(); queueSave(); toast("🔬 Начато: "+r.name); }
+function tickResearch(){ const R=save.research; if(R.active && Date.now()>=R.until){ const id=R.active;
+  R.done[id]=1; R.active=null; R.until=0; recompute(); refreshTop(); if(curSub==="research") renderResearch(); toast("🔬 Готово: "+RESEARCH_M[id].name); queueSave(); }
+  else if(curSub==="research" && R.active) updateResearchTimer(); }
+/* H — жетоны */
+function buyTokenUp(id){ const t=TOKEN_UP[id], l=save.tokenUps[id]||0; if(l>=t.max) return; const cost=t.cost(l);
+  if((save.tokens||0)<cost) return; save.tokens-=cost; save.tokenUps[id]=l+1; recompute(); renderTokens(); refreshTop(); queueSave(); }
+/* G — магазин */
+function buyShop(i){ const o=save.shop.offers[i]; if(!o) return; if(save.oof<o.cost){ toast("Мало Oof"); return; }
+  save.oof-=o.cost;
+  if(o.type==="global"){ save.shopGlobal=(save.shopGlobal||0)+o.v; toast("🎲 +"+Math.round(o.v*100)+"% Oof/с навсегда"); }
+  else if(o.type==="ore"){ save.ore+=o.v; save.oreEver=(save.oreEver||0)+o.v; toast("🎲 +"+fmt(o.v)+" руды"); }
+  else if(o.type==="dust"){ save.dust+=o.v; toast("🎲 +"+fmt(o.v)+" пыли"); }
+  else if(o.type==="prism"){ save.prisms+=o.v; save.prismsEver=(save.prismsEver||0)+o.v; toast("🎲 +"+fmt(o.v)+" призм"); }
+  save.shop.offers[i]=null; recompute(); renderShop(); refreshTop(); queueSave(); }
+function rerollShop(){ refreshShop(true); renderShop(); queueSave(); }
 
 /* ---- Руны ---- */
 function rollRune(){
@@ -812,6 +952,7 @@ function doPrestige(auto){
   const wasUnlocked = save.prestiges>=1;
   save.prisms+=g; save.prestiges++;
   save.prismsEver=(save.prismsEver||0)+g;
+  save.tokens=(save.tokens||0)+1; // H — жетон за престиж
   // Реликвия — шанс дропа за сброс
   if(Math.random()<relicChance()) dropRelic();
   // Мастерская: шестерёнки за престиж
@@ -1152,7 +1293,8 @@ function loop(now){
 
   // периодические обновления UI (не каждый кадр)
   uiAcc+=dt;
-  if(uiAcc>0.12){ uiAcc=0; refreshTop(); refreshLive(); checkAchievements(); tickPotions(); updateChalLive(); if(mutOpen) updateMutLive(); }
+  tickResearch();
+  if(uiAcc>0.12){ uiAcc=0; refreshTop(); refreshLive(); checkAchievements(); tickPotions(); updateChalLive(); refreshShop(); if(mutOpen) updateMutLive(); }
   saveTimer-=dt; if(saveTimer<0 && saveTimer>-1){ saveTimer=-2; persist(); }
   save.lastTime=Date.now();
   requestAnimationFrame(loop);
@@ -1213,7 +1355,7 @@ function updateBadges(){
 // «живые» части открытой вкладки (цены/доступность)
 function refreshLive(){
   if(curTab==="noobs") updateNoobLive();
-  else if(curTab==="ups") updateUpLive();
+  else if(curTab==="ups") refreshSubLive();
   else if(curTab==="prestige") updatePrestigeLive();
   else if(curTab==="runes") updateRuneLive();
   else if(curTab==="workshop") updateWorkshopLive();
@@ -1289,7 +1431,121 @@ function updateNoobLive(){
 }
 
 /* ---- Улучшения ---- */
+let curSub="normal";
+function switchSub(sub){ curSub=sub;
+  document.querySelectorAll("#upSubs button").forEach(b=>b.classList.toggle("on",b.dataset.sub===sub));
+  document.querySelectorAll('.tabpage[data-page="ups"] [data-subp]').forEach(p=>p.classList.toggle("hidden", p.dataset.subp!==sub));
+  renderSub();
+}
+function renderSub(){
+  if(curSub==="normal")renderUps(); else if(curSub==="inf")renderInf(); else if(curSub==="syn")renderSyn();
+  else if(curSub==="research")renderResearch(); else if(curSub==="tokens")renderTokens(); else if(curSub==="shop")renderShop();
+}
+function refreshSubLive(){
+  if(curSub==="normal")updateUpLive(); else if(curSub==="inf")updateInfLive();
+  else if(curSub==="syn")renderSyn(); else if(curSub==="research")updateResearchTimer();
+  else if(curSub==="tokens")updateTokenLive();
+}
+function renderCatBar(){
+  const box=$("catBar"); if(!box) return; box.innerHTML="";
+  UP_CATS.forEach(c=>{ const ups=catUps(c.id), have=ups.filter(u=>save.ups[u.id]).length, done=have>=ups.length;
+    const el=document.createElement("div"); el.className="cat-chip"+(done?" done":"");
+    el.textContent=c.name+" "+have+"/"+ups.length+(done?" ✓":"");
+    el.title=(done?"Пройдено: ":"Заверши → ")+c.bonusText;
+    box.appendChild(el); });
+}
+/* B — бесконечные */
+function infEffText(u,l,q){ const v=u.per*l*q; if(u.kind==="crit") return "+"+(v*100).toFixed(1)+"% крит"; if(u.kind==="click") return "тап ×"+(1+v).toFixed(2); return "всё ×"+(1+v).toFixed(2); }
+function renderInf(){
+  const box=$("infList"); if(!box) return; box.innerHTML="";
+  INF_UPS.forEach(u=>{ const l=save.infUps[u.id]||0, q=infQ(u.id);
+    const row=document.createElement("div"); row.className="buyrow"; row.dataset.inf=u.id;
+    row.innerHTML=`<div class="buy-ico">${u.icon}</div>
+      <div class="buy-main"><div class="buy-name">${u.name} <span class="buy-cnt">ур.${l}</span>${q!==1?' <span class="dim">×'+q.toFixed(2)+'</span>':''}</div>
+        <div class="buy-desc">${infEffText(u,l,q)} · удержи для x-макс</div></div>
+      <div class="buy-right"><div class="buy-cost" data-cost></div><button class="nc-rank" data-reroll>🎲💠</button></div>`;
+    row.addEventListener("click", ()=>buyInf(u.id));
+    let pt; row.addEventListener("pointerdown",()=>{pt=setTimeout(()=>buyInfMax(u.id),500);}); row.addEventListener("pointerup",()=>clearTimeout(pt)); row.addEventListener("pointerleave",()=>clearTimeout(pt));
+    row.querySelector("[data-reroll]").addEventListener("click", e=>{ e.stopPropagation(); rerollInf(u.id); });
+    box.appendChild(row); });
+  updateInfLive();
+}
+function updateInfLive(){
+  document.querySelectorAll("#infList .buyrow").forEach(row=>{ const u=INF_UP[row.dataset.inf]; if(!u) return;
+    const l=save.infUps[u.id]||0, cost=infCost(u,l), afford=save.oof>=cost;
+    row.classList.toggle("afford",afford);
+    const ce=row.querySelector("[data-cost]"); ce.textContent="🪙 "+fmt(cost); ce.classList.toggle("cant",!afford);
+    const rr=row.querySelector("[data-reroll]"); if(rr) rr.textContent="🎲💠"+fmt(infRerollCost(u.id));
+  });
+}
+/* F — синергии */
+function renderSyn(){
+  const box=$("synList"); if(!box) return; box.innerHTML="";
+  SYN_UPS.forEach(s=>{ const owned=save.synUps[s.id], afford=save.oof>=s.cost;
+    const row=document.createElement("div"); row.className="buyrow"+(owned||afford?" afford":"");
+    row.innerHTML=`<div class="buy-ico">${s.icon}</div>
+      <div class="buy-main"><div class="buy-name">${s.name}${owned?' ✓':''}</div><div class="buy-desc">${s.desc()}</div></div>
+      <div class="buy-right"><div class="buy-cost ${(!owned&&!afford)?'cant':''}">${owned?'активна':'🪙 '+fmt(s.cost)}</div></div>`;
+    if(!owned) row.addEventListener("click", ()=>buySyn(s.id));
+    box.appendChild(row); });
+}
+/* E — исследования */
+function renderResearch(){
+  const act=$("researchActive"), R=save.research;
+  if(R.active){ const r=RESEARCH_M[R.active]; act.innerHTML=`<div class="ra-name">🔬 ${r.name}</div><div class="ra-bar"><div id="raFill"></div></div><div class="ra-time" id="raTime"></div>`; updateResearchTimer(); }
+  else act.innerHTML='<div class="dim" style="text-align:center;padding:6px">Нет активного исследования</div>';
+  const box=$("researchList"); box.innerHTML="";
+  RESEARCH.forEach(r=>{ const done=researchDone(r.id), reqOk=researchReqMet(r), active=R.active===r.id;
+    const row=document.createElement("div"); row.className="buyrow"+(done?" afford":"")+((reqOk||done||active)?"":" locked");
+    let right;
+    if(done) right='<div class="buy-cost" style="color:var(--green)">✓</div>';
+    else if(active) right='<div class="buy-cost dim">идёт…</div>';
+    else if(!reqOk) right='<div class="buy-cost">🔒</div>';
+    else right='<button class="nc-rank ready" data-start="'+r.id+'">🔬 🪙'+fmt(r.cost)+'</button>';
+    row.innerHTML=`<div class="buy-ico">${r.icon}</div>
+      <div class="buy-main"><div class="buy-name">${r.name}</div><div class="buy-desc">${r.desc} · ${(r.time/60).toFixed(1)}мин</div></div>
+      <div class="buy-right">${right}</div>`;
+    box.appendChild(row); });
+  box.querySelectorAll("[data-start]").forEach(b=>b.addEventListener("click",()=>startResearch(b.dataset.start)));
+}
+function updateResearchTimer(){ const R=save.research; if(!R.active) return; const r=RESEARCH_M[R.active];
+  const left=Math.max(0,(R.until-Date.now())/1000), f=1-left/r.time;
+  const fill=$("raFill"), tt=$("raTime"); if(fill) fill.style.width=Math.min(100,f*100)+"%"; if(tt) tt.textContent=Math.ceil(left)+"с осталось"; }
+/* H — жетоны */
+function renderTokens(){
+  const tv=$("tokenVal"); if(tv) tv.textContent=fmt(save.tokens||0);
+  const box=$("tokenList"); if(!box) return; box.innerHTML="";
+  TOKEN_UPS.forEach(t=>{ const l=save.tokenUps[t.id]||0, maxed=l>=t.max, cost=t.cost(l);
+    const row=document.createElement("div"); row.className="buyrow"; row.dataset.token=t.id;
+    row.innerHTML=upRowHTML(t.icon, t.name+" "+(l>0?"("+l+")":""), t.desc(l), l, t.max, maxed?"МАКС":"🎟️ "+fmt(cost), "token");
+    if(!maxed) row.addEventListener("click", ()=>buyTokenUp(t.id));
+    box.appendChild(row); });
+  updateTokenLive();
+}
+function updateTokenLive(){
+  const tv=$("tokenVal"); if(tv) tv.textContent=fmt(save.tokens||0);
+  document.querySelectorAll("#tokenList .buyrow").forEach(row=>{ const t=TOKEN_UP[row.dataset.token]; const l=save.tokenUps[t.id]||0;
+    if(l>=t.max) return; const cost=t.cost(l); row.classList.toggle("afford",(save.tokens||0)>=cost);
+    const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",(save.tokens||0)<cost); });
+}
+/* G — магазин */
+function renderShop(){
+  refreshShop();
+  const bar=$("shopBar"); if(!bar) return; const left=Math.max(0,(save.shop.next-Date.now())/1000);
+  bar.innerHTML=`Обновление через ~${Math.ceil(left/60)}мин · <button class="adm-btn" id="shopReroll">🎲 Обновить</button>`;
+  const rb=bar.querySelector("#shopReroll"); if(rb) rb.addEventListener("click", rerollShop);
+  const box=$("shopList"); box.innerHTML="";
+  save.shop.offers.forEach((o,i)=>{
+    const row=document.createElement("div"); row.className="buyrow";
+    if(!o){ row.classList.add("locked"); row.innerHTML=`<div class="buy-ico">✅</div><div class="buy-main"><div class="buy-name dim">куплено</div></div>`; box.appendChild(row); return; }
+    const afford=save.oof>=o.cost; row.classList.toggle("afford",afford);
+    row.innerHTML=`<div class="buy-ico">🎁</div><div class="buy-main"><div class="buy-name">${o.label}</div></div>
+      <div class="buy-right"><div class="buy-cost ${afford?'':'cant'}">🪙 ${fmt(o.cost)}</div></div>`;
+    row.addEventListener("click", ()=>buyShop(i));
+    box.appendChild(row); });
+}
 function renderUps(){
+  renderCatBar();
   const box=$("upList"); box.innerHTML="";
   const avail=UPS.filter(u=>!save.ups[u.id] && u.req());
   avail.sort((a,b)=>a.cost-b.cost);
@@ -1764,7 +2020,7 @@ function switchTab(t){
   document.querySelectorAll("#tabbar .tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
   document.querySelectorAll(".tabpage").forEach(p=>p.classList.toggle("hidden",p.dataset.page!==t));
   if(t==="noobs") renderNoobs();
-  else if(t==="ups") renderUps();
+  else if(t==="ups") renderSub();
   else if(t==="runes") renderRunes();
   else if(t==="prestige") renderPrestige();
   else if(t==="workshop") renderWorkshop();
@@ -1772,6 +2028,7 @@ function switchTab(t){
   else if(t==="alchemy") renderAlchemy();
 }
 document.querySelectorAll("#tabbar .tab").forEach(b=>b.addEventListener("click",()=>switchTab(b.dataset.tab)));
+document.querySelectorAll("#upSubs button").forEach(b=>b.addEventListener("click",()=>switchSub(b.dataset.sub)));
 
 function renderAll(){ renderNoobs();
   if(curTab==="ups")renderUps(); if(curTab==="runes")renderRunes();

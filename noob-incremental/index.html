@@ -50,9 +50,47 @@
     <!-- АПГРЕЙДЫ -->
     <div class="tabpage hidden" data-page="ups">
       <div class="page-head"><h2>⚡ Улучшения</h2><span class="page-hint" id="upCount">0 доступно</span></div>
-      <button class="btn btn-ghost massbtn" id="massUps">🛒 Купить все доступные</button>
-      <div id="upList" class="grid"></div>
-      <div id="upEmpty" class="empty hidden">Пока нечего улучшать.<br>Покупай нубов и копи Oof — появятся новые улучшения.</div>
+      <div class="subtabs" id="upSubs">
+        <button data-sub="normal" class="on">🛒 Обычные</button>
+        <button data-sub="inf">♾️ Бескон.</button>
+        <button data-sub="syn">💡 Синергии</button>
+        <button data-sub="research">🔬 Наука</button>
+        <button data-sub="tokens">🎟️ Жетоны</button>
+        <button data-sub="shop">🎲 Лавка</button>
+      </div>
+
+      <div data-subp="normal">
+        <div id="catBar" class="cat-bar"></div>
+        <button class="btn btn-ghost massbtn" id="massUps">🛒 Купить все доступные</button>
+        <div id="upList" class="grid"></div>
+        <div id="upEmpty" class="empty hidden">Пока нечего улучшать.<br>Покупай нубов и копи Oof — появятся новые улучшения.</div>
+      </div>
+
+      <div data-subp="inf" class="hidden">
+        <div class="sub-hint">Бесконечные улучшения — покупай без предела, цена растёт. Удерживай для x-макс, 🎲 меняет качество бонуса.</div>
+        <div id="infList"></div>
+      </div>
+
+      <div data-subp="syn" class="hidden">
+        <div class="sub-hint">Синергии — одноразовые улучшения, чья сила растёт от твоего прогресса (нубы, шахта, руны, престиж).</div>
+        <div id="synList"></div>
+      </div>
+
+      <div data-subp="research" class="hidden">
+        <div class="sub-hint">Наука — исследования идут во времени. Запусти одно, дождись — получишь постоянный бонус.</div>
+        <div id="researchActive"></div>
+        <div id="researchList"></div>
+      </div>
+
+      <div data-subp="tokens" class="hidden">
+        <div class="token-bal">🎟️ Жетоны: <b id="tokenVal">0</b> <span class="dim">· +1 за престиж</span></div>
+        <div id="tokenList"></div>
+      </div>
+
+      <div data-subp="shop" class="hidden">
+        <div class="shop-bar" id="shopBar"></div>
+        <div id="shopList"></div>
+      </div>
     </div>
 
     <!-- РУНЫ -->
@@ -250,7 +288,7 @@
       <button class="btn btn-ghost" id="adminBtn">🛠️ Админ-панель</button>
       <button class="btn btn-ghost" id="wipeBtn">🗑️ Сбросить всё</button>
       <button class="btn btn-primary" id="closeMenu">Закрыть</button>
-      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v18</span></div>
+      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v19</span></div>
     </div>
   </div>
 

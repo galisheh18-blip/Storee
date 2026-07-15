@@ -379,3 +379,43 @@ b{font-variant-numeric:tabular-nums}
 select.adm-inp{-webkit-appearance:none;appearance:none}
 
 @media (min-height:760px){#scene{flex-basis:38vh}}
+
+/* ---------- Улучшения: под-вкладки ---------- */
+.subtabs{display:flex;gap:6px;overflow-x:auto;padding:2px 0 8px;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.subtabs::-webkit-scrollbar{display:none}
+.subtabs button{flex:0 0 auto;background:var(--card);border:1px solid var(--line);color:var(--muted);
+  padding:7px 12px;border-radius:999px;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.subtabs button.on{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-color:transparent}
+.sub-hint{font-size:12px;color:var(--muted);line-height:1.4;background:var(--panel);border:1px solid var(--line);
+  border-radius:12px;padding:9px 11px;margin-bottom:10px}
+#infList,#synList,#researchList,#tokenList,#shopList{display:flex;flex-direction:column;gap:8px}
+
+/* категории (A) */
+.cat-bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.cat-chip{font-size:11.5px;font-weight:700;padding:5px 10px;border-radius:999px;
+  background:var(--card);border:1px solid var(--line);color:var(--muted)}
+.cat-chip.done{background:rgba(61,220,132,.14);border-color:var(--green);color:var(--green)}
+
+/* качество (D) */
+.buyrow .dim{font-size:11px}
+.buyrow [data-reroll]{margin-top:4px}
+
+/* исследования (E) */
+.research-active,#researchActive{margin-bottom:10px}
+#researchActive:empty{display:none}
+.ra-name{font-weight:800;font-size:14px;margin-bottom:6px}
+.ra-bar{height:10px;background:var(--card);border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.ra-bar>#raFill{height:100%;width:0;background:linear-gradient(90deg,var(--quark),var(--prism));transition:width .3s}
+.ra-time{font-size:11px;color:var(--muted);margin-top:5px;text-align:right}
+#researchActive>div:first-child:not(.ra-name){background:var(--panel);border:1px solid var(--line);border-radius:12px}
+
+/* жетоны (H) */
+.token-bal{font-size:14px;font-weight:700;padding:10px 12px;margin-bottom:10px;text-align:center;
+  background:rgba(255,184,77,.1);border:1px solid var(--star);border-radius:12px;color:var(--star)}
+.token-bal b{color:var(--text)}
+.buy-cost.token{color:var(--star)}
+.buy-cost.token.cant{color:var(--red)}
+
+/* лавка (G) */
+.shop-bar{font-size:12px;color:var(--muted);display:flex;align-items:center;justify-content:space-between;
+  gap:8px;padding:8px 11px;margin-bottom:10px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
