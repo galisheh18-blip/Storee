@@ -1013,7 +1013,12 @@ function siReqMet(s){ return !s.req || s.req(); }
 function buySiUp(id){ const s=SI_UP_M[id], l=save.singularity.ups[id]||0; if(l>=s.max||!siReqMet(s)) return; const cost=s.cost(l);
   if((save.singularity.si||0)<cost){ toast("Мало ♾️"); return; } save.singularity.si-=cost; save.singularity.ups[id]=l+1;
   recompute(); renderSingularity(); refreshTop(); queueSave(); }
-function doSingularity(){ const g=siGain(); if(g<1){ toast("Пока рано для сингулярности"); return; }
+// Перезарядки глубоких сбросов — чтобы сбросы были реже и весомее (копишь во время кулдауна)
+const CD_ASCEND=15000, CD_TRANSCEND=45000, CD_SINGULARITY=120000;
+function resetCdLeft(key){ return Math.max(0, ((save.resetCd&&save.resetCd[key])||0) - Date.now()); }
+function doSingularity(auto){ const g=siGain(); if(g<1){ if(!auto) toast("Пока рано для сингулярности"); return; }
+  const now=Date.now(); if(now < (save.resetCd.singularity||0)){ if(!auto) toast("♾️ Перезарядка "+Math.ceil((save.resetCd.singularity-now)/1000)+"с"); return; }
+  save.resetCd.singularity = now + CD_SINGULARITY;
   const S=save.singularity; S.si=(S.si||0)+g; S.siEver=(S.siEver||0)+g; S.resets=(S.resets||0)+1;
   // сброс слоёв ниже сингулярности (мета-коллекции сохраняются)
   save.prisms=0; save.prismUps={}; save.stars=0; save.starUps={}; save.quarks=0; save.quarkUps={};
@@ -1147,6 +1152,7 @@ const DEFAULT = ()=>({
   chronoCrystals:0, chronoUps:{},
   realities:{ shards:0, worlds:{} }, metaAch:{}, corrAnomaly:null,
   singularity:{ si:0, siEver:0, resets:0, ups:{} },
+  resetCd:{ ascend:0, transcend:0, singularity:0 },
   mutants:{}, market:{ ore:1, dust:1, gears:1, nextDrift:0, event:null, auto:{ore:0,dust:0,gears:0} },
   dustUps:{}, auto:{ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false, bulk:false, infups:false },
   autoEquipBulk:false,
@@ -1186,6 +1192,7 @@ function load(){
       if(!save.realities.worlds) save.realities.worlds={};
       if(!save.singularity||typeof save.singularity!=="object") save.singularity={si:0,siEver:0,resets:0,ups:{}};
       if(!save.singularity.ups) save.singularity.ups={};
+      if(!save.resetCd||typeof save.resetCd!=="object") save.resetCd={ascend:0,transcend:0,singularity:0};
       if(typeof save.tokens!=="number") save.tokens=0;
       if(!save.legends) save.legends={};
       if(typeof save.shopGlobal!=="number") save.shopGlobal=0;
@@ -1726,10 +1733,12 @@ function crossLive(sel){
     const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",save.prisms<cost);
   });
 }
-function doAscend(){
+function doAscend(auto){
   recompute();
   const g=starGain(save.prisms);
   if(g<1) return;
+  const now=Date.now(); if(now < (save.resetCd.ascend||0)){ if(!auto) toast("⭐ Перезарядка "+Math.ceil((save.resetCd.ascend-now)/1000)+"с"); return; }
+  save.resetCd.ascend = now + CD_ASCEND;
   save.stars+=g; save.ascends++;
   const keep=Math.floor(save.prisms * (save.starUps.skeep||0)*0.02);
   save.prisms=keep; save.prismUps={};
@@ -1748,6 +1757,8 @@ function buyStarUp(id){
 }
 function doTranscend(auto){
   const g=quarkGain(save.stars); if(g<1) return;
+  const now=Date.now(); if(now < (save.resetCd.transcend||0)){ if(!auto) toast("⚛️ Перезарядка "+Math.ceil((save.resetCd.transcend-now)/1000)+"с"); return; }
+  save.resetCd.transcend = now + CD_TRANSCEND;
   save.quarks+=g; save.quarksEver=(save.quarksEver||0)+g; save.transcends=(save.transcends||0)+1;
   const keep=Math.floor(save.stars*(save.quarkUps.qkeep||0)*0.03);
   save.stars=keep; save.prisms=0; save.prismUps={}; save.starUps={};
@@ -2072,9 +2083,9 @@ function loop(now){
   // мета-автопилоты: вознесение / трансценденция (C-веха, J-siAuto)
   const fullAuto = (save.singularity.ups.siAuto||0)>0;
   if(metaUnlocked("autoAscend") || fullAuto){ asTimer+=edt; if(asTimer>=6){ asTimer=0;
-    if(starGain(save.prisms)>=Math.max(1,save.stars*0.15)) doAscend(); } }
+    if(resetCdLeft("ascend")<=0 && starGain(save.prisms)>=Math.max(1,save.stars*0.15)) doAscend(true); } }
   if(((save.quarkUps.qauto||0)>0 || fullAuto) && save.stars>=1000){ tsTimer+=edt; if(tsTimer>=8){ tsTimer=0;
-    if(quarkGain(save.stars)>=Math.max(1,save.quarks*0.1)) doTranscend(true); } }
+    if(resetCdLeft("transcend")<=0 && quarkGain(save.stars)>=Math.max(1,save.quarks*0.1)) doTranscend(true); } }
   // мета-достижения + хроно-кристаллы
   metaTimer+=edt; if(metaTimer>=2){ metaTimer=0; checkMetaAch(); tickChrono(); }
   // испытания: проверка цели
@@ -2681,7 +2692,10 @@ function updatePrestigeLive(){
     row.classList.toggle("afford",save.stars>=cost);
     const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",save.stars<cost);
   });
-  const g2=starGain(save.prisms); const ab=$("ascendBtn"); if(ab) ab.disabled=g2<1;
+  const g2=starGain(save.prisms); const ab=$("ascendBtn");
+  if(ab){ const cd=resetCdLeft("ascend");
+    ab.disabled = g2<1 || cd>0;
+    ab.textContent = cd>0 ? ("⭐ Перезарядка "+Math.ceil(cd/1000)+"с") : "⭐ Вознестись"; }
 }
 
 /* ============ МЕТА-ВКЛАДКА ============ */
@@ -2701,9 +2715,10 @@ function metaRenderSub(){
   else if(metaSub==="singularity") renderSingularity();
 }
 function metaRefreshLive(){
-  if(metaSub==="trans"){ const qg=quarkGain(save.stars), tb=$("transBtn");
-    if(tb){ tb.disabled=qg<1; $("quarkGain").textContent=fmt(qg);
-      $("transNote").textContent=qg<1?("Нужно 1000 звёзд (есть "+fmt(save.stars)+")"):"Сброс ради кварков · шанс артефакта"; }
+  if(metaSub==="trans"){ const qg=quarkGain(save.stars), tb=$("transBtn"), tcd=resetCdLeft("transcend");
+    if(tb){ tb.disabled=qg<1||tcd>0; $("quarkGain").textContent=fmt(qg);
+      tb.textContent = tcd>0 ? ("⚛️ Перезарядка "+Math.ceil(tcd/1000)+"с") : "⚛️ Трансцендировать";
+      $("transNote").textContent=qg<1?("Нужно 1000 звёзд (есть "+fmt(save.stars)+")"):(tcd>0?"Перезарядка — копи звёзды":"Сброс ради кварков · шанс артефакта"); }
     document.querySelectorAll("#quarkUpList .buyrow").forEach(row=>{ const q=QUARK_UP[row.dataset.qup]; if(!q)return; const l=save.quarkUps[q.id]||0;
       if(l>=q.max||!quarkReqMet(q)) return; const cost=q.cost(l); row.classList.toggle("afford",save.quarks>=cost);
       const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",save.quarks<cost); });
@@ -2713,13 +2728,14 @@ function metaRefreshLive(){
     const ab=$("corrAnomBanner"); if(ab){ const a=corrAnom();
       if(a){ ab.classList.remove("hidden"); ab.textContent=a.icon+" "+a.text+" · ⏳"+Math.ceil((a.until-Date.now())/1000)+"с"; } else ab.classList.add("hidden"); }
   } else if(metaSub==="chrono"){ const cvv=$("chronoVal"); if(cvv) cvv.textContent=fmt(save.chronoCrystals||0);
-  } else if(metaSub==="singularity"){ const g=siGain(); const b=$("singularityBtn"); if(b) b.disabled=g<1;
+  } else if(metaSub==="singularity"){ const g=siGain(); const b=$("singularityBtn"); const scd=resetCdLeft("singularity");
+    if(b){ b.disabled=g<1||scd>0; b.textContent = scd>0 ? ("♾️ Перезарядка "+Math.ceil(scd/1000)+"с") : "♾️ Сингулярность"; }
     const sg=$("siGain"); if(sg) sg.textContent=fmt(g); const sh=$("siHave"); if(sh) sh.textContent=fmt(save.singularity.si||0); }
 }
 // ⚛️ Трансценденция + кварк-древо (B) + вехи (C)
 function renderTrans(){
-  const qg=quarkGain(save.stars), tb=$("transBtn");
-  if(tb){ tb.disabled=qg<1; } $("quarkGain").textContent=fmt(qg);
+  const qg=quarkGain(save.stars), tb=$("transBtn"), tcd=resetCdLeft("transcend");
+  if(tb){ tb.disabled=qg<1||tcd>0; tb.textContent = tcd>0 ? ("⚛️ Перезарядка "+Math.ceil(tcd/1000)+"с") : "⚛️ Трансцендировать"; } $("quarkGain").textContent=fmt(qg);
   $("transNote").textContent=qg<1?("Нужно 1000 звёзд (есть "+fmt(save.stars)+")"):"Сброс ради кварков · шанс артефакта";
   const mb=$("transMileBar"); if(mb){ mb.innerHTML="";
     TRANS_MILE.forEach(ms=>{ const got=(save.transcends||0)>=ms.at; const el=document.createElement("div");
@@ -2819,8 +2835,9 @@ function renderCodex(){
 function renderSingularity(){
   const g=siGain(); const S=save.singularity;
   $("siGain").textContent=fmt(g); $("siHave").textContent=fmt(S.si||0); $("siResets").textContent=S.resets||0;
-  const b=$("singularityBtn"); if(b) b.disabled=g<1;
-  $("siNote").textContent = g<1 ? ("Нужно 10 трансценденций (есть "+(save.transcends||0)+")") : "Сбросит призмы/звёзды/кварки/пантеон/искажение/мастерскую";
+  const b=$("singularityBtn"); const scd=resetCdLeft("singularity");
+  if(b){ b.disabled=g<1||scd>0; b.textContent = scd>0 ? ("♾️ Перезарядка "+Math.ceil(scd/1000)+"с") : "♾️ Сингулярность"; }
+  $("siNote").textContent = g<1 ? ("Нужно 10 трансценденций (есть "+(save.transcends||0)+")") : (scd>0?"Перезарядка после сброса":"Сбросит призмы/звёзды/кварки/пантеон/искажение/мастерскую");
   const box=$("siUpList"); if(!box) return; box.innerHTML="";
   SI_UPS.forEach(s=>{ if(!siReqMet(s)) return;   // слой 2 скрыт до нужного числа сбросов
     const l=S.ups[s.id]||0, maxed=l>=s.max, cost=s.cost(l);
