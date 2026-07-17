@@ -23,13 +23,13 @@ function fmtInt(n){ return Math.floor(n).toLocaleString("ru-RU"); }
 /* ============ Определения контента ============ */
 // Нубы (юниты, генерят Oof/с)
 const NOOBS = [
-  { id:"noob",   name:"Нуб",          icon:"🧍", base:15,      prod:0.1,   color:"#ffd23f" },
-  { id:"guest",  name:"Гость",        icon:"👤", base:120,     prod:1,     color:"#9aa3d4" },
-  { id:"pro",    name:"Про",          icon:"😎", base:1.3e3,   prod:8,     color:"#3ddc84" },
-  { id:"builder",name:"Строитель",    icon:"👷", base:14e3,    prod:47,    color:"#ff9f40" },
-  { id:"cheater",name:"Читер",        icon:"🕶️", base:170e3,   prod:260,   color:"#ff5d6c" },
-  { id:"admin",  name:"Админ",        icon:"🛡️", base:2e6,     prod:1400,  color:"#5b9bff" },
-  { id:"boss",   name:"Босс",         icon:"👹", base:30e6,    prod:7800,  color:"#b06cff" },
+  { id:"noob",   name:"Нуб",          icon:"🧍", base:15,      prod:0.3,   color:"#ffd23f" },
+  { id:"guest",  name:"Гость",        icon:"👤", base:120,     prod:3,     color:"#9aa3d4" },
+  { id:"pro",    name:"Про",          icon:"😎", base:1.3e3,   prod:24,    color:"#3ddc84" },
+  { id:"builder",name:"Строитель",    icon:"👷", base:14e3,    prod:140,   color:"#ff9f40" },
+  { id:"cheater",name:"Читер",        icon:"🕶️", base:170e3,   prod:780,   color:"#ff5d6c" },
+  { id:"admin",  name:"Админ",        icon:"🛡️", base:2e6,     prod:4200,  color:"#5b9bff" },
+  { id:"boss",   name:"Босс",         icon:"👹", base:30e6,    prod:18000, color:"#b06cff" },
   { id:"legend", name:"Легенда",      icon:"🌟", base:450e6,   prod:44000, color:"#ffd23f" },
   { id:"dragon", name:"Дракон",       icon:"🐉", base:8e9,     prod:2.6e5, color:"#3ddc84" },
   { id:"god",    name:"Бог",          icon:"👑", base:1.2e11,  prod:1.6e6, color:"#ffb84d" },
@@ -37,7 +37,7 @@ const NOOBS = [
   { id:"guru",   name:"Гуру",         icon:"✨", base:4e13,    prod:7e7,   color:"#ff4d8d" },
 ];
 const NOOB = Object.fromEntries(NOOBS.map(n=>[n.id,n]));
-const COST_MUL = 1.15;
+const COST_MUL = 1.13;
 
 /* ---- Углубление нубов: вехи владения (B), синергии (A), ранги (C) ---- */
 // Вехи — бесплатные бонусы за количество владения (дополняют покупные ×2)
@@ -1439,8 +1439,9 @@ function recompute(){
 
 function noobCost(id, owned){ return NOOB[id].base * Math.pow(COST_MUL, owned) * D.costMul; }
 function prismGain(total){ // призмы за престиж
-  if(total < 1e6) return 0;
-  return Math.floor(Math.pow(total/1e6, 0.5) * D.prismMul * (D.allCurMul||1) * (1+runGoalBonus()));
+  if(total < 3e5) return 0;                       // ранний первый престиж (было 1e6)
+  const g = Math.pow(total/6e5, 0.5) * D.prismMul * (D.allCurMul||1) * (1+runGoalBonus());
+  return Math.floor(g) + 1;                        // +1 «пол» — первый престиж ощутимо награждает
 }
 function starGain(prisms){
   if(prisms < 500) return 0;
