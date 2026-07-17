@@ -831,7 +831,7 @@ function marketPrice(res){
 // ---- Трансцендентность: ⚛️ кварки (3-й слой сброса) + Пантеон (синергии) ----
 function quarkGain(stars){ if(stars<1000) return 0;
   const bonus = 1 + gaQuarkBonus() + (save.singularity?(save.singularity.ups.siQuark||0)*0.2:0);
-  return Math.floor(Math.pow(stars/1000, 0.4) * (D.allCurMul||1) * bonus) + 1; }   // 0.4 — круче кривая; +1 «пол» — первая трансценденция награждает
+  return Math.floor(Math.pow(stars/1000, 0.33) * (D.allCurMul||1) * bonus) + 1; }   // 0.33 — площе: копить звёзды менее выгодно
 const QUARK_UPS = [
   { id:"qall",  icon:"⚛️", name:"Квантовый множитель", max:500, desc:l=>"Всё ×"+fmt(1+0.5*l),
     cost:l=>Math.ceil(3*Math.pow(1.4,l)), apply:(m,l)=>m.global*=(1+0.5*l) },
@@ -1446,7 +1446,7 @@ function prismGain(total){ // призмы за престиж
 }
 function starGain(prisms){
   if(prisms < 500) return 0;
-  return Math.floor(Math.pow(prisms/500, 0.5) * (D.allCurMul||1)) + 1;   // 0.5 — круче кривая; +1 «пол» — первое вознесение награждает
+  return Math.floor(Math.pow(prisms/500, 0.4) * (D.allCurMul||1)) + 1;   // 0.4 — площе: копить менее выгодно, «частое» вознесение конкурентнее
 }
 
 /* ============ Действия ============ */
