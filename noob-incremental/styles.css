@@ -210,6 +210,18 @@ b{font-variant-numeric:tabular-nums}
 .ach-card .a-desc{font-size:11px;color:var(--muted);margin-top:2px}
 .ach-card .a-buff{font-size:11px;color:var(--green);font-weight:700;margin-top:6px;min-height:14px}
 .ach-card:not(.done) .a-buff{color:var(--dim)}
+.a-prog{margin-top:6px}
+.a-prog-bar{height:5px;background:var(--card2);border-radius:4px;overflow:hidden;margin-bottom:2px}
+.a-prog-bar>div{height:100%;background:linear-gradient(90deg,var(--accent),var(--star));transition:width .3s}
+.a-prog span{font-size:9px;color:var(--dim)}
+.ach-mile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:12px}
+.ach-mile .mile-top{font-size:13px;margin-bottom:8px}
+.ach-mile .mile-top b{color:var(--oof)}
+.mile-track{display:flex;gap:6px;margin-bottom:6px}
+.mile-seg{flex:1;text-align:center;font-size:11px;font-weight:700;padding:5px 0;border-radius:8px;
+  background:var(--card2);color:var(--dim);border:1px solid var(--line)}
+.mile-seg.on{background:linear-gradient(135deg,var(--accent),var(--star));color:#fff;border-color:transparent}
+.mile-hint{font-size:11px;color:var(--muted)}
 
 /* ---------- Массовая покупка ---------- */
 .massbtn{margin:0 0 10px;padding:11px;font-size:14px}

@@ -999,6 +999,23 @@ function achBuffText(b){
   if(b.runePow)p.push("+"+Math.round(b.runePow*100)+"% рун");
   return p.join(", ");
 }
+// прогресс достижения → [текущее, цель] (null — без числового прогресса)
+function achProgress(a){
+  const cl=save.lifetimeClicks||0, of=save.lifetimeOof||0, nb=totalNoobs(),
+        pr=save.prestiges||0, ge=save.gearsEver||0, oe=save.oreEver||0;
+  const map={ clk1:[cl,100], clk2:[cl,5000], clk3:[cl,50000],
+    oof1:[of,1e6], oof2:[of,1e9], oof3:[of,1e12], oof4:[of,1e15], oof5:[of,1e18],
+    nb1:[nb,50], nb2:[nb,250], nb3:[nb,1000],
+    pr1:[pr,1], pr2:[pr,10], pr3:[pr,50],
+    as1:[save.ascends||0,1], as2:[save.stars||0,25],
+    gr1:[ge,1e3], gr2:[ge,1e6], ore1:[oe,1e3], ore2:[oe,1e6] };
+  return map[a.id]||null;
+}
+// вехи выполнения: % достижений → вечный множитель
+const ACH_MILESTONES = [
+  { at:5, g:0.05 }, { at:10, g:0.10 }, { at:15, g:0.15 }, { at:20, g:0.25 }, { at:24, g:0.40 },
+];
+function achMileBonus(){ const d=achDone(); let g=1; for(const ms of ACH_MILESTONES){ if(d>=ms.at) g*=(1+ms.g); } return g; }
 
 function toRoman(n){ const r=["","I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"]; return r[n]||n; }
 
@@ -1139,6 +1156,7 @@ function recompute(){
   let ag=0,ac=0,ap=0,arp=0;
   for(const a of ACHS){ if(save.achieved[a.id]){ const b=a.buff; ag+=b.global||0; ac+=b.click||0; ap+=b.prism||0; arp+=b.runePow||0; } }
   m.global*=(1+ag); m.click*=(1+ac); m.prism*=(1+ap); m._runePow+=arp;
+  m.global *= achMileBonus();   // вехи выполнения достижений
   // награды за пройденные испытания (вечные)
   for(const c of CHALLENGES){ if(save.chalDone[c.id]){ const r=c.reward;
     if(r.global) m.global*=(1+r.global); if(r.click) m.click*=(1+r.click); if(r.cost) m.cost*=(1-r.cost); } }
@@ -3124,26 +3142,44 @@ on("closeMenu","click", ()=>$("menuModal").classList.add("hidden"));
 /* ---- Достижения ---- */
 let achOpen=false;
 function checkAchievements(){
-  const got=[];
+  const before=achDone(), got=[];
   for(const a of ACHS){ if(!save.achieved[a.id] && a.cond()){ save.achieved[a.id]=1; got.push(a.name); } }
   if(got.length){
     if(got.length<=2) got.forEach(n=>toast("🏆 "+n));
     else toast("🏆 +"+got.length+" достижений!");
+    const after=achDone();
+    for(const ms of ACH_MILESTONES){ if(before<ms.at && after>=ms.at) toast("🏅 Веха "+ms.at+" достижений: +"+Math.round(ms.g*100)+"% навсегда!"); }
     recompute(); refreshTop(); queueSave(); if(achOpen) renderAch();
   }
 }
 function achDone(){ let n=0; for(const a of ACHS) if(save.achieved[a.id]) n++; return n; }
 function renderAch(){
-  $("achCount").textContent="("+achDone()+"/"+ACHS.length+")";
+  const d=achDone();
+  $("achCount").textContent="("+d+"/"+ACHS.length+")";
+  // веха-трек: следующий порог + вечный множитель
+  const mile=$("achMile");
+  if(mile){ const next=ACH_MILESTONES.find(ms=>d<ms.at);
+    const total=Math.round((achMileBonus()-1)*100);
+    const segs=ACH_MILESTONES.map(ms=>`<span class="mile-seg ${d>=ms.at?'on':''}" title="${ms.at} → +${Math.round(ms.g*100)}%">${ms.at}</span>`).join("");
+    mile.innerHTML=`<div class="mile-top">🏅 Вехи достижений · вечный бонус <b>+${total}%</b> Oof/с</div>
+      <div class="mile-track">${segs}</div>
+      <div class="mile-hint">${next?("До следующей вехи: "+(next.at-d)+" достиж. → +"+Math.round(next.g*100)+"%"):"Все вехи взяты!"}</div>`;
+  }
   const box=$("achGrid"); box.innerHTML="";
   ACHS.forEach(a=>{
     const done=!!save.achieved[a.id];
     const el=document.createElement("div");
     el.className="ach-card"+(done?" done":"");
+    let progHtml="";
+    if(!done){ const pr=achProgress(a);
+      if(pr){ const pct=Math.min(100, pr[0]/pr[1]*100);
+        progHtml=`<div class="a-prog"><div class="a-prog-bar"><div style="width:${pct}%"></div></div>
+          <span>${fmt(Math.min(pr[0],pr[1]))}/${fmt(pr[1])}</span></div>`; }
+    }
     el.innerHTML=`<div class="a-ico">${done?a.icon:"🔒"}</div>
       <div class="a-name">${a.name}</div>
       <div class="a-desc">${a.desc}</div>
-      <div class="a-buff">${achBuffText(a.buff)}</div>`;
+      <div class="a-buff">${achBuffText(a.buff)}</div>${progHtml}`;
     box.appendChild(el);
   });
 }
