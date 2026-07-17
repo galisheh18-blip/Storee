@@ -122,6 +122,11 @@ b{font-variant-numeric:tabular-nums}
 .energy-bar{height:8px;background:var(--card2);border-radius:6px;overflow:hidden;margin-bottom:5px}
 #energyFill{height:100%;width:0;background:linear-gradient(90deg,#5be6ff,#7b6cff);transition:width .3s}
 #runeRollBar .btn{width:auto;flex-shrink:0;padding:12px 16px}
+.roll-btns{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
+.roll-btns .btn{width:100%}
+#bulkRollBtn{padding:8px 16px;font-size:13px}
+#bulkRollBtn b{color:var(--prism)}
+#bulkRollBtn:disabled{opacity:.45}
 .rune-slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
 .rune{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:10px 8px;text-align:center;
   display:flex;flex-direction:column;gap:4px;align-items:center;position:relative}

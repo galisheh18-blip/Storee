@@ -245,6 +245,8 @@ const DUST_UPS = [
     cost:l=>Math.ceil(15*Math.pow(1.4,l)), apply:(m,l)=>m.click*=(1+l*0.08) },
   { id:"drune", icon:"🌟", name:"Пыльца резонанса", max:50, desc:l=>"Эффект рун +"+(l*4)+"%",
     cost:l=>Math.ceil(30*Math.pow(1.5,l)), apply:(m,l)=>m._runePow+=l*0.04 },
+  { id:"ecap",  icon:"⚡", name:"Ёмкость руноэнергии", max:30, desc:l=>"+"+(l*2)+" макс. энергии (крупнее масс. ролл)",
+    cost:l=>Math.ceil(40*Math.pow(1.45,l)), apply:()=>{}, cap:l=>l*2 },
 ];
 const DUST_UP = Object.fromEntries(DUST_UPS.map(d=>[d.id,d]));
 
@@ -1184,6 +1186,8 @@ function recompute(){
   D.autoClick=m.autoClick; D.autoBuy=m.autoBuy; D.autoPrestige=m.autoPrestige; D.noobMul=m.noob;
   D.runeLuck=Math.max(0, m._runeLuck);
   D.slots = 3 + (save.prismUps.slots||0) + Math.max(0, m._bonusSlots);
+  let ecap=0; for(const d of DUST_UPS){ if(d.cap){ const l=save.dustUps[d.id]||0; if(l>0) ecap+=d.cap(l); } }
+  D.energyMax = D.slots + 2 + ecap;
 
   // Oof/с
   let ops=0;
@@ -1340,9 +1344,33 @@ function equipRune(r, slot){
   save.runes[slot]=r;
   recompute(); renderRunes(); refreshTop(); queueSave();
 }
+function scrapValue(r){ return Math.ceil((r.rar+1)*(r.rar+1)*1.5); }
 function scrapRune(r){
-  const dust=Math.ceil((r.rar+1)*(r.rar+1)*1.5);
+  const dust=scrapValue(r);
   save.dust+=dust; toast("💠 +"+dust+" пыли"); renderRunes(); queueSave();
+}
+// Rune Bulk: тратит всю энергию за раз, оставляет лучшую руну (выше порога распыла), остальные — в пыль
+function bulkRoll(){
+  const n=Math.floor(save.energy||0);
+  if(n<1){ toast("Нет энергии рун"); return; }
+  save.energy-=n;
+  const thr=save.salvageBelow;
+  let best=null, dust=0;
+  for(let k=0;k<n;k++){
+    const rar=pickRarity(), type=RUNE_TYPES[Math.floor(Math.random()*RUNE_TYPES.length)];
+    const r={ type:type.id, rar:rar, lvl:1, star:0, subs:genSubs(rar) };
+    save.runeMastery[type.id]=(save.runeMastery[type.id]||0)+1;         // мастерство копится с каждого ролла
+    if((save.runeSeen[type.id]||-1) < rar) save.runeSeen[type.id]=rar;  // кодекс
+    const keep = thr<0 || rar>=thr;
+    if(keep && (!best || rar>best.rar || (rar===best.rar && runeValue(r)>runeValue(best)))){
+      if(best) dust+=scrapValue(best);   // прошлый «лучший» уходит в пыль
+      best=r;
+    } else dust+=scrapValue(r);
+  }
+  save.dust+=dust; recompute(); refreshTop();
+  if(best){ toast("⚡ Массом: "+n+" рун · 💠 +"+fmt(dust)); showDrop(best); }
+  else { renderRunes(); toast("⚡ Массом: "+n+" рун → 💠 +"+fmt(dust)); }
+  queueSave();
 }
 function upRune(i){
   const r=save.runes[i]; if(!r) return;
@@ -1513,7 +1541,7 @@ function applyOffline(){
   // руда копится оффлайн (шахтёры работают всегда)
   if(D.oreRate>0){ const o=D.oreRate*dt; save.ore+=o; save.oreEver=(save.oreEver||0)+o; }
   // энергия рун копится и оффлайн
-  save.energy=Math.min(D.slots+2, (save.energy||0) + dt/ (60/D.runeRegen));
+  save.energy=Math.min((D.energyMax||D.slots+2), (save.energy||0) + dt/ (60/D.runeRegen));
 }
 
 /* ============ 2D СЦЕНА ============ */
@@ -1669,7 +1697,7 @@ function loop(now){
     while(save._acc>=1){ save._acc--; const a=D.clickBase; gainOof(a); save.lifetimeClicks++; }
   }
   // энергия рун
-  const emax=D.slots+2;
+  const emax=D.energyMax||(D.slots+2);
   if(save.energy<emax){ save.energy=Math.min(emax, save.energy + edt/(60/D.runeRegen)); }
   // авто-покупка нубов
   if(D.autoBuy && save.auto.noobs!==false){ autoBuyTick(); }
@@ -2080,11 +2108,14 @@ function rerollType(i){ const r=save.runes[i]; if(!r) return; const cost=rerollT
   save.dust-=cost; r.type=RUNE_TYPES[Math.floor(Math.random()*RUNE_TYPES.length)].id;
   recompute(); renderRunes(); renderRuneDetail(); refreshTop(); queueSave(); toast("🔁 Новый тип: "+RTYPE[r.type].name); }
 function updateRuneLive(){
-  const emax=D.slots+2;
+  const emax=D.energyMax||(D.slots+2);
   $("energyVal").textContent=Math.floor(save.energy);
   $("energyMax").textContent=emax;
   $("energyFill").style.width=Math.min(100,save.energy/emax*100)+"%";
   $("rollBtn").disabled = save.energy<1;
+  const n=Math.floor(save.energy);
+  const bn=$("bulkN"); if(bn) bn.textContent=n;
+  const bb=$("bulkRollBtn"); if(bb) bb.disabled = n<2;
   document.querySelectorAll("#dustUpList .buyrow").forEach(row=>{
     const d=DUST_UP[row.dataset.dup]; const l=save.dustUps[d.id]||0; if(l>=d.max) return;
     const cost=d.cost(l); row.classList.toggle("afford",save.dust>=cost);
@@ -3219,6 +3250,7 @@ on("corrPlus","click", ()=>setCorruption(1));
 on("apMinus","click", ()=>setApMult(-0.5));
 on("apPlus","click", ()=>setApMult(0.5));
 on("rollBtn","click", rollRune);
+on("bulkRollBtn","click", bulkRoll);
 on("wipeBtn","click", ()=>askConfirm("Стереть весь прогресс безвозвратно?", wipeSave));
 
 /* ---- свой диалог подтверждения (системный confirm часто не работает в PWA) ---- */
@@ -3282,7 +3314,7 @@ function buildAdmin(){
   secR.appendChild(admResRow("Пыль рун", "dust", ["100","1e4","1e6"]));
   const en=document.createElement("div"); en.className="adm-row";
   en.innerHTML=`<label>Энергия рун</label>`;
-  en.appendChild(admBtn("Полная", ()=>{ recompute(); save.energy=D.slots+2; updateRuneLive(); toast("⚡ Энергия полна"); }));
+  en.appendChild(admBtn("Полная", ()=>{ recompute(); save.energy=(D.energyMax||D.slots+2); updateRuneLive(); toast("⚡ Энергия полна"); }));
   secR.appendChild(en);
   b.appendChild(secR);
 
