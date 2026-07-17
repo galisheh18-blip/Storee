@@ -127,6 +127,10 @@ b{font-variant-numeric:tabular-nums}
 #bulkRollBtn{padding:8px 16px;font-size:13px}
 #bulkRollBtn b{color:var(--prism)}
 #bulkRollBtn:disabled{opacity:.45}
+.mini-toggle{padding:6px 12px;font-size:11px}
+.mini-toggle.on{border-color:var(--green);color:var(--green)}
+.lvlall-btn{width:auto;padding:6px 12px;font-size:12px}
+.lvlall-btn:disabled{opacity:.45}
 .rune-slots{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
 .rune{background:var(--card);border:2px solid var(--line);border-radius:14px;padding:10px 8px;text-align:center;
   display:flex;flex-direction:column;gap:4px;align-items:center;position:relative}
@@ -153,7 +157,7 @@ b{font-variant-numeric:tabular-nums}
 .codex-row .cx-sub{font-size:12px;color:var(--muted)}
 .codex-row .cx-mast{font-size:12px;font-weight:700;color:var(--prism);white-space:nowrap}
 .codex-total{text-align:center;margin-top:10px;font-weight:800;color:var(--green)}
-.dust-line{margin-top:14px;text-align:center;color:var(--muted);font-size:13px}
+.dust-line{margin-top:14px;color:var(--muted);font-size:13px;display:flex;align-items:center;gap:8px;justify-content:center}
 .dust-line b{color:#9ecbff}
 
 /* rarities */

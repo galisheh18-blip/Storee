@@ -258,6 +258,7 @@ const AUTOS = [
   { id:"mining",   icon:"⛏️", name:"Автошахта",            unlock:()=>((save.miningUps||{}).auto||0)>0, hint:"Автошахтёр в шахте" },
   { id:"workshop", icon:"⚙️", name:"Автомастерская",       unlock:()=>save.prestiges>=5||save.transcends>0, hint:"С 5 престижей" },
   { id:"potions",  icon:"⚗️", name:"Автоварка зелий",      unlock:()=>save.transcends>0, hint:"С 1 трансценденции" },
+  { id:"bulk",     icon:"🎲", name:"Авто-массовый ролл рун", unlock:()=>save.prestiges>=3, hint:"С 3 престижей · крутит при полной энергии, лучшую надевает" },
 ];
 function runeValue(r){ // сила руны: тип × редкость × уровень × звёзды
   const t=RTYPE[r.type], rar=RARITIES[r.rar];
@@ -975,7 +976,8 @@ const DEFAULT = ()=>({
   realities:{ shards:0, worlds:{} }, metaAch:{},
   singularity:{ si:0, siEver:0, resets:0, ups:{} },
   mutants:{}, market:{ ore:1, dust:1, gears:1, nextDrift:0, event:null },
-  dustUps:{}, auto:{ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false },
+  dustUps:{}, auto:{ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false, bulk:false },
+  autoEquipBulk:false,
   ranks:{}, prismsEver:0, relics:{}, crossUps:{}, apMult:2,
   runeMastery:{}, runeSeen:{},
   infUps:{}, synUps:{}, infQuality:{},
@@ -1016,7 +1018,7 @@ function load(){
       if(typeof save.apMult!=="number") save.apMult=2;
       if(typeof save.corruption!=="number") save.corruption=0;
       if(!save.market) save.market={ ore:1, dust:1, gears:1, nextDrift:0, event:null };
-      save.auto=Object.assign({ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false }, save.auto||{});
+      save.auto=Object.assign({ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false, bulk:false }, save.auto||{});
       if(typeof save.salvageBelow!=="number") save.salvageBelow=-1;
       if(typeof save.gearsEver!=="number") save.gearsEver=save.gears||0;
       if(typeof save.miners!=="number") save.miners=0;
@@ -1349,10 +1351,19 @@ function scrapRune(r){
   const dust=scrapValue(r);
   save.dust+=dust; toast("💠 +"+dust+" пыли"); renderRunes(); queueSave();
 }
+// Куда авто-надеть руну: пустой слот → слабый слот того же типа → глобально слабейший (если сильнее). Иначе -1 (в пыль).
+function bestAutoEquip(r){
+  for(let i=0;i<D.slots;i++) if(!save.runes[i]) return i;
+  for(let i=0;i<D.slots;i++){ const s=save.runes[i]; if(s&&s.type===r.type){ return runeValue(r)>runeValue(s)?i:-1; } }
+  let wi=-1, wv=Infinity;
+  for(let i=0;i<D.slots;i++){ const v=runeValue(save.runes[i]); if(v<wv){ wv=v; wi=i; } }
+  return (wi>=0 && runeValue(r)>wv) ? wi : -1;
+}
+function autoResolveRune(r){ const slot=bestAutoEquip(r); if(slot>=0) save.runes[slot]=r; else save.dust+=scrapValue(r); }
 // Rune Bulk: тратит всю энергию за раз, оставляет лучшую руну (выше порога распыла), остальные — в пыль
-function bulkRoll(){
+function bulkRoll(auto){
   const n=Math.floor(save.energy||0);
-  if(n<1){ toast("Нет энергии рун"); return; }
+  if(n<1){ if(!auto) toast("Нет энергии рун"); return false; }
   save.energy-=n;
   const thr=save.salvageBelow;
   let best=null, dust=0;
@@ -1367,11 +1378,33 @@ function bulkRoll(){
       best=r;
     } else dust+=scrapValue(r);
   }
-  save.dust+=dust; recompute(); refreshTop();
-  if(best){ toast("⚡ Массом: "+n+" рун · 💠 +"+fmt(dust)); showDrop(best); }
-  else { renderRunes(); toast("⚡ Массом: "+n+" рун → 💠 +"+fmt(dust)); }
-  queueSave();
+  save.dust+=dust;
+  const headless = auto || save.autoEquipBulk;
+  if(best && headless){
+    autoResolveRune(best); recompute(); refreshTop();
+    if(!auto){ if(curTab==="runes") renderRunes(); toast("⚡ Массом: "+n+" · 💠 +"+fmt(dust)); }
+  } else if(best){
+    recompute(); refreshTop(); toast("⚡ Массом: "+n+" рун · 💠 +"+fmt(dust)); showDrop(best);
+  } else {
+    recompute(); refreshTop(); if(!auto && curTab==="runes") renderRunes();
+    if(!auto) toast("⚡ Массом: "+n+" рун → 💠 +"+fmt(dust));
+  }
+  queueSave(); return true;
 }
+// Пакетная прокачка: тратит пыль, качая самую дешёвую руну в слотах, пока хватает
+function levelAllRunes(){
+  let n=0, guard=0;
+  while(guard<20000){ guard++;
+    let bi=-1, bc=Infinity;
+    for(let i=0;i<D.slots;i++){ const r=save.runes[i]; if(!r) continue; const c=runeUpCost(r); if(c<=save.dust && c<bc){ bc=c; bi=i; } }
+    if(bi<0) break;
+    save.dust-=bc; save.runes[bi].lvl++; n++;
+  }
+  if(n){ recompute(); renderRunes(); if(detailIdx>=0) renderRuneDetail(); refreshTop(); queueSave(); toast("⬆️ Прокачано уровней: "+n); }
+  else toast("Мало пыли или нет рун в слотах");
+}
+function toggleAutoEquipBulk(){ save.autoEquipBulk=!save.autoEquipBulk; updateRuneLive(); queueSave();
+  toast(save.autoEquipBulk?"✅ Массом авто-надевает лучшую":"⬜ Массом показывает лучшую"); }
 function upRune(i){
   const r=save.runes[i]; if(!r) return;
   const cost=runeUpCost(r);
@@ -2116,6 +2149,8 @@ function updateRuneLive(){
   const n=Math.floor(save.energy);
   const bn=$("bulkN"); if(bn) bn.textContent=n;
   const bb=$("bulkRollBtn"); if(bb) bb.disabled = n<2;
+  const ae=$("autoEquipBtn"); if(ae){ ae.textContent=(save.autoEquipBulk?"✅":"⬜")+" авто-надеть"; ae.classList.toggle("on",!!save.autoEquipBulk); }
+  const la=$("levelAllBtn"); if(la){ let can=false; for(let i=0;i<D.slots;i++){ const r=save.runes[i]; if(r&&save.dust>=runeUpCost(r)){ can=true; break; } } la.disabled=!can; }
   document.querySelectorAll("#dustUpList .buyrow").forEach(row=>{
     const d=DUST_UP[row.dataset.dup]; const l=save.dustUps[d.id]||0; if(l>=d.max) return;
     const cost=d.cost(l); row.classList.toggle("afford",save.dust>=cost);
@@ -3224,6 +3259,8 @@ function runAutomation(edt){
     const now=Date.now();
     for(const p of POTIONS){ if((save.potions[p.id]||0)<=now && save.ore>=p.cost.ore && save.dust>=p.cost.dust){
       save.ore-=p.cost.ore; save.dust-=p.cost.dust; save.potions[p.id]=now+p.dur*1000; potionState=""; changed=true; } } }
+  if(save.prestiges>=3 && save.auto.bulk && Math.floor(save.energy)>=2 && save.energy>=(D.energyMax||0)-0.01){
+    if(bulkRoll(true)) changed=true; }
   if(changed){ recompute(); syncNoobSprites(); refreshTop(); if(!menuIsOpen()) renderAll(); }
 }
 function menuIsOpen(){ return !$("menuModal").classList.contains("hidden"); }
@@ -3250,7 +3287,9 @@ on("corrPlus","click", ()=>setCorruption(1));
 on("apMinus","click", ()=>setApMult(-0.5));
 on("apPlus","click", ()=>setApMult(0.5));
 on("rollBtn","click", rollRune);
-on("bulkRollBtn","click", bulkRoll);
+on("bulkRollBtn","click", ()=>bulkRoll(false));
+on("autoEquipBtn","click", toggleAutoEquipBulk);
+on("levelAllBtn","click", levelAllRunes);
 on("wipeBtn","click", ()=>askConfirm("Стереть весь прогресс безвозвратно?", wipeSave));
 
 /* ---- свой диалог подтверждения (системный confirm часто не работает в PWA) ---- */
