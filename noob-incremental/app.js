@@ -636,9 +636,28 @@ function labRate(){ if(!labBuilt()) return 0;
   let r = 0.06 * (save.labLevel) * Math.pow(1.09, save.labLevel-1);
   for(const u of LAB_UPS){ const l=save.labUps[u.id]||0; if(l>0 && u.rate) r*=u.rate(l); }
   if(save.elixirs.alch) r*=2;                 // эликсир алхимии
+  r *= (1 + (save.labDistill||0)*0.05);       // перегонка (дистиллят)
   r *= (1 + alchemySetBonus());               // сет-бонусы кодекса
   return r;
 }
+// ---- Трансмутация: 🌿 эссенция → ресурсы (замыкает экономику) ----
+const TRANSMUTES = [
+  { id:"t_ore",  icon:"🪨", give:"ore",   name:"Руда",       cost:40,  amt:()=>Math.ceil(4000*(1+(save.labLevel||0)*0.15)), req:()=>true },
+  { id:"t_dust", icon:"💠", give:"dust",  name:"Пыль рун",   cost:60,  amt:()=>Math.ceil(1500*(1+(save.labLevel||0)*0.12)), req:()=>true },
+  { id:"t_gear", icon:"⚙️", give:"gears", name:"Шестерёнки", cost:120, amt:()=>Math.ceil(300*(1+(save.labLevel||0)*0.1)),   req:()=>save.prestiges>=1 },
+];
+// ---- Перегонка (дистилляция): сброс лаборатории ради вечного множителя эссенции ----
+function distillReq(){ return 8; }            // мин. уровень лаборатории
+function distillGain(){ if((save.labLevel||0)<distillReq()) return 0; return Math.floor(Math.pow(save.labLevel-distillReq()+1, 0.8)); }
+function doDistill(){
+  const g=distillGain(); if(g<1){ toast("Нужен ур. лаборатории "+distillReq()+"+"); return; }
+  save.labDistill=(save.labDistill||0)+g;
+  save.labLevel=0; save.labUps={}; save.essence=0;
+  recompute(); renderAlchemy(); refreshTop(); queueSave();
+  toast("⚗️ Перегонка! +"+g+" дистиллята (эссенция ×"+(1+(save.labDistill)*0.05).toFixed(2)+")");
+}
+// ---- Концентрат: за эссенцию усиливает зелье (×2 длит., потенция ×1.5) ----
+function potionConcCost(id){ return 30 + potionTier(id)*10; }
 const LAB_UPS = [
   { id:"catalyst", icon:"⚗️", name:"Катализатор", max:60, desc:l=>"Эссенция ×"+(1+0.15*l).toFixed(2),
     cost:l=>Math.ceil(20*Math.pow(1.3,l)), rate:l=>1+0.15*l },
@@ -969,6 +988,7 @@ const DEFAULT = ()=>({
   miners:0, ore:0, oreEver:0, miningUps:{}, depth:0, digProg:0, artifacts:0,
   pets:{}, potions:{},
   essence:0, essenceEver:0, labLevel:0, labUps:{}, petEvo:{}, potionBrews:{}, elixirs:{},
+  potionsConc:{}, labDistill:0,
   activeChallenge:null, chalDone:{},
   quarks:0, quarksEver:0, transcends:0, quarkUps:{}, corruption:0, corr:0, corrEver:0, corrUps:{},
   pantheon:{}, darkShop:{}, godArtifacts:{}, gaCount:0,
@@ -995,6 +1015,8 @@ function load(){
       if(typeof save.essence!=="number") save.essence=0;
       if(typeof save.essenceEver!=="number") save.essenceEver=save.essence||0;
       if(typeof save.labLevel!=="number") save.labLevel=0;
+      if(!save.potionsConc) save.potionsConc={};
+      if(typeof save.labDistill!=="number") save.labDistill=0;
       if(!save.wsProjects||typeof save.wsProjects!=="object") save.wsProjects={active:null,until:0,done:{}};
       if(!save.wsProjects.done) save.wsProjects.done={};
       if(!save.overheat||typeof save.overheat!=="object") save.overheat={on:false,wear:0,coolUntil:0};
@@ -1101,8 +1123,9 @@ function recompute(){
   // зелья (временные баффы)
   const now=Date.now();
   for(const p of POTIONS){ if((save.potions[p.id]||0)>now){ const b=p.buff;
-    if(b.global) m.global*=b.global; if(b.click) m.click*=b.click;
-    if(b.luck) m._runeLuck+=b.luck; if(b.ore) m._oreBoost+=(b.ore-1); } }
+    const conc = (save.potionsConc && (save.potionsConc[p.id]||0)>now) ? 1.5 : 1;
+    if(b.global) m.global*=(b.global*conc); if(b.click) m.click*=(b.click*conc);
+    if(b.luck) m._runeLuck+=(b.luck*conc); if(b.ore) m._oreBoost+=((b.ore-1)*conc); } }
   // мутанты (вечные)
   for(const x of MUTANTS){ if(save.mutants[x.id] && x.apply) x.apply(m); }
   // кварки (трансценденция) + Пантеон-синергии
@@ -2753,6 +2776,30 @@ function buyElixir(id){
   recompute(); renderAlchemy(); refreshTop(); queueSave();
   toast(e.icon+" "+e.name+" выпит!");
 }
+function doTransmute(id){
+  const t=TRANSMUTES.find(x=>x.id===id); if(!t||!t.req()) return;
+  if((save.essence||0)<t.cost){ toast("Мало 🌿 эссенции"); return; }
+  save.essence-=t.cost; const a=t.amt();
+  save[t.give]=(save[t.give]||0)+a;
+  if(t.give==="ore") save.oreEver=(save.oreEver||0)+a;
+  if(t.give==="gears") save.gearsEver=(save.gearsEver||0)+a;
+  recompute(); renderAlchemy(); refreshTop(); queueSave();
+  toast(t.icon+" +"+fmt(a)+" "+t.name);
+}
+function brewConc(id){
+  const p=POTION[id], cc=potionConcCost(id), cm=potionCostMul(id);
+  const co=Math.ceil(p.cost.ore*cm), cd=Math.ceil(p.cost.dust*cm);
+  if((save.essence||0)<cc){ toast("Мало 🌿 для концентрата"); return; }
+  if(save.ore<co || save.dust<cd){ toast("Не хватает руды/пыли"); return; }
+  save.ore-=co; save.dust-=cd; save.essence-=cc;
+  save.potionBrews[id]=(save.potionBrews[id]||0)+1;
+  const now=Date.now();
+  const base=(save.potions[id]||0)>now ? save.potions[id] : now;
+  save.potions[id]=base + p.dur*1000*potionDurMul(id)*2;   // ×2 длительность
+  save.potionsConc[id]=save.potions[id];                    // концентрация до конца действия
+  potionState=""; recompute(); renderAlchemy(); refreshTop(); queueSave();
+  toast(p.icon+" концентрат «"+p.name+"» (×1.5)!");
+}
 function renderAlchemy(){
   renderAlchHead();
   if(alchSub==="pets") renderPets();
@@ -2798,13 +2845,16 @@ function renderPotions(){
     const co=Math.ceil(p.cost.ore*cm), cd=Math.ceil(p.cost.dust*cm);
     const tierTxt = tier>0 ? '<span class="buy-cnt">◆'+tier+'</span>' : '';
     const durTxt = potionDurMul(p.id)>1.001 ? ' · длит. ×'+potionDurMul(p.id).toFixed(2) : '';
+    const now=Date.now(), conc=(save.potionsConc[p.id]||0)>now;
+    const concBtn = labBuilt() ? `<button class="mini-btn conc-btn" data-conc="${p.id}">🌿×1.5 · ${potionConcCost(p.id)}</button>` : "";
     const row=document.createElement("div"); row.className="buyrow"; row.dataset.potion=p.id;
     row.innerHTML=`<div class="buy-ico">${p.icon}</div>
-      <div class="buy-main"><div class="buy-name">${p.name} ${tierTxt}</div>
+      <div class="buy-main"><div class="buy-name">${p.name} ${tierTxt} ${conc?'<span class="buy-cnt conc-tag">концентрат</span>':''}</div>
         <div class="buy-desc">${p.desc}${durTxt} · варок: ${save.potionBrews[p.id]||0}</div></div>
       <div class="buy-right"><div class="buy-cost ore">🪨 ${fmt(co)} · 💠 ${fmt(cd)}</div>
-        <div class="buy-prod" data-timer></div></div>`;
+        ${concBtn}<div class="buy-prod" data-timer></div></div>`;
     row.addEventListener("click", ()=>brewPotion(p.id));
+    const cb=row.querySelector("[data-conc]"); if(cb) cb.addEventListener("click",(e)=>{ e.stopPropagation(); brewConc(p.id); });
     bbox.appendChild(row);
   });
   updateAlchemyLive();
@@ -2836,6 +2886,26 @@ function renderLab(){
       if(!maxed) row.addEventListener("click", ()=>buyLabUp(u.id));
       box.appendChild(row);
     });
+  }
+  // трансмутация: эссенция → ресурсы
+  const tbox=$("transmuteList"); if(tbox){ tbox.innerHTML="";
+    TRANSMUTES.filter(t=>t.req()).forEach(t=>{
+      const row=document.createElement("div"); row.className="buyrow"; row.dataset.tm=t.id;
+      row.innerHTML=`<div class="buy-ico">${t.icon}</div>
+        <div class="buy-main"><div class="buy-name">${t.name}</div>
+          <div class="buy-desc">🌿 ${t.cost} → ${t.icon} ${fmt(t.amt())}</div></div>
+        <div class="buy-right"><div class="buy-cost" data-cost>🌿 ${t.cost}</div></div>`;
+      row.addEventListener("click", ()=>doTransmute(t.id));
+      tbox.appendChild(row);
+    });
+  }
+  // перегонка (дистилляция)
+  const db=$("distillBox"); if(db){
+    const g=distillGain(), mul=(1+(save.labDistill||0)*0.05);
+    db.innerHTML=`<div class="lab-stat">⚗️ Дистиллят: <b>${save.labDistill||0}</b> · эссенция ×${mul.toFixed(2)}</div>
+      <div class="sub-hint">Перегонка сбрасывает уровень лаборатории, её улучшения и эссенцию ради вечного множителя. Нужен ур. ${distillReq()}+.</div>
+      <button class="btn btn-primary massbtn" id="distillBtn" ${g<1?"disabled":""}>⚗️ Перегнать${g>0?" (+"+g+" дистиллята)":""}</button>`;
+    const btn=$("distillBtn"); if(btn) btn.addEventListener("click", ()=>askConfirm("Перегонка сбросит лабораторию (уровень, улучшения, эссенцию) ради +"+g+" дистиллята. Продолжить?", doDistill));
   }
   updateAlchemyLive();
 }
@@ -2896,6 +2966,12 @@ function updateAlchemyLive(){
     const exp=save.potions[p.id]||0, t=row.querySelector("[data-timer]");
     if(exp>now){ t.textContent="⏳ "+Math.ceil((exp-now)/1000)+"с"; t.classList.add("active"); }
     else { t.textContent=""; t.classList.remove("active"); }
+    const cb=row.querySelector("[data-conc]"); if(cb) cb.classList.toggle("cant",(save.essence||0)<potionConcCost(p.id));
+  });
+  document.querySelectorAll("#transmuteList .buyrow").forEach(row=>{
+    const t=TRANSMUTES.find(x=>x.id===row.dataset.tm); if(!t) return;
+    const ok=(save.essence||0)>=t.cost; row.classList.toggle("afford",ok);
+    const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",!ok);
   });
   document.querySelectorAll("#labUpList .buyrow").forEach(row=>{
     const u=LAB_UP[row.dataset.labup]; const l=save.labUps[u.id]||0; if(l>=u.max) return;
