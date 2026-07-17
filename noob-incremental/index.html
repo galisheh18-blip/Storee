@@ -36,6 +36,7 @@
   <section id="scene">
     <canvas id="c"></canvas>
     <div id="tapHint">Тапай по нубу — делай Oof!</div>
+    <div id="comboTag" class="hidden"></div>
   </section>
 
   <!-- КОНТЕНТ ВКЛАДОК -->
@@ -85,6 +86,8 @@
       <div data-subp="tokens" class="hidden">
         <div class="token-bal">🎟️ Жетоны: <b id="tokenVal">0</b> <span class="dim">· +1 за престиж</span></div>
         <div id="tokenList"></div>
+        <div class="sect-lab">💎 Легендарные <span class="dim">— разовые мощные перки</span></div>
+        <div id="legendList" class="list"></div>
       </div>
 
       <div data-subp="shop" class="hidden">
@@ -101,7 +104,11 @@
           <div class="energy-bar"><div id="energyFill"></div></div>
           <span>⚡ <b id="energyVal">0</b>/<span id="energyMax">5</span></span>
         </div>
-        <button class="btn btn-primary" id="rollBtn">🎲 Бросить руну</button>
+        <div class="roll-btns">
+          <button class="btn btn-primary" id="rollBtn">🎲 Бросить руну</button>
+          <button class="btn btn-ghost" id="bulkRollBtn">⚡ Массом ×<b id="bulkN">0</b></button>
+          <button class="btn btn-ghost mini-toggle" id="autoEquipBtn">⬜ авто-надеть</button>
+        </div>
       </div>
       <div class="salvage-row">
         <span>♻️ Авто-распыл ниже:</span>
@@ -110,7 +117,8 @@
       <div id="runeSets" class="rune-sets"></div>
       <div class="sect-lab">Слоты рун <span id="slotInfo" class="dim"></span> <span class="dim">· тап по руне — детали</span></div>
       <div id="runeSlots" class="rune-slots"></div>
-      <div class="dust-line">💠 Пыль рун: <b id="dustVal">0</b></div>
+      <div class="dust-line">💠 Пыль рун: <b id="dustVal">0</b>
+        <button class="btn btn-ghost lvlall-btn" id="levelAllBtn">⬆️ Прокачать слоты</button></div>
       <div class="sect-lab">💠 Пыльцевые улучшения <span class="dim">— трать пыль на Oof</span></div>
       <button class="btn btn-ghost massbtn" id="massDust">🛒 Купить всё за пыль</button>
       <div id="dustUpList" class="list"></div>
@@ -186,10 +194,13 @@
         <div class="dp-bar"><div id="depthFill"></div></div>
         <div class="dp-next" id="depthNext"></div>
       </div>
+      <div id="mineEventBanner" class="mine-event hidden"></div>
       <div id="minerRow" class="list"></div>
       <button class="btn btn-ghost massbtn" id="massMining">🛒 Купить всё за руду</button>
       <div class="sect-lab">Улучшения шахты</div>
       <div id="miningList" class="list"></div>
+      <div class="sect-lab">🏺 Инструменты кирки <span class="dim">— за артефакты</span></div>
+      <div id="pickList" class="list"></div>
     </div>
 
     <!-- МАСТЕРСКАЯ -->
@@ -220,6 +231,7 @@
         <button data-wsub="proj">📐 Проекты</button>
         <button data-wsub="bp">📜 Чертежи</button>
         <button data-wsub="conv">🔗 Конвейеры</button>
+        <button data-wsub="contract">📦 Контракты</button>
         <button data-wsub="reforge">♻️ Переоснастка</button>
       </div>
 
@@ -246,6 +258,10 @@
         <div id="convList" class="list"></div>
       </div>
 
+      <div data-wsp="contract" class="hidden">
+        <div id="contractBox"></div>
+      </div>
+
       <div data-wsp="reforge" class="hidden">
         <div class="sub-hint" id="reforgeInfo"></div>
         <button class="btn btn-primary massbtn" id="reforgeBtn">♻️ Переоснастить</button>
@@ -256,11 +272,53 @@
 
     <!-- АЛХИМИЯ -->
     <div class="tabpage hidden" data-page="alchemy">
-      <div class="page-head"><h2>🧪 Алхимия</h2><span class="page-hint">Питомцы и зелья из руды и пыли</span></div>
-      <div class="sect-lab">🐾 Питомцы <span class="dim">— вечные бонусы</span></div>
-      <div id="petList" class="list"></div>
-      <div class="sect-lab">⚗️ Зелья <span class="dim">— временные баффы</span></div>
-      <div id="potionList" class="list"></div>
+      <div class="page-head"><h2>🧪 Алхимия</h2><span class="page-hint">Питомцы, зелья и трансмутация</span></div>
+
+      <div class="alch-head">
+        <div class="ess-big">🌿 <b id="essBig">0</b></div>
+        <div class="ess-rate" id="essRateTxt">лаборатория не построена</div>
+      </div>
+
+      <div class="subtabs" id="alchSubs">
+        <button data-asub="pets" class="on">🐾 Питомцы</button>
+        <button data-asub="potions">⚗️ Зелья</button>
+        <button data-asub="lab">🔬 Лаборатория</button>
+        <button data-asub="elixirs">🧪 Эликсиры</button>
+        <button data-asub="codex">📖 Кодекс</button>
+      </div>
+
+      <div data-asp="pets">
+        <div class="sub-hint">Питомцы дают вечные бонусы. На максимуме — возвышай ⭐ за 🌿 и активируй ⚡ способности. Пары стихий дают сеты.</div>
+        <div id="petElements" class="elem-row"></div>
+        <div id="petList" class="list"></div>
+      </div>
+
+      <div data-asp="potions" class="hidden">
+        <div class="sub-hint">Зелья — временные баффы. Чем чаще варишь, тем выше мастерство ◆: дешевле и дольше действует.</div>
+        <div id="potionList" class="list"></div>
+      </div>
+
+      <div data-asp="lab" class="hidden">
+        <div class="sub-hint">Лаборатория трансмутирует руду и пыль в 🌿 эссенцию. Эссенция тратится на возвышение питомцев, улучшения лаборатории и эликсиры.</div>
+        <div id="labInfo"></div>
+        <button class="btn btn-primary massbtn" id="labBuildBtn">🔬 Построить лабораторию</button>
+        <div class="sect-lab">⚗️ Улучшения лаборатории <span class="dim">— за 🌿</span></div>
+        <div id="labUpList" class="list"></div>
+        <div class="sect-lab">🔀 Трансмутация <span class="dim">— 🌿 обратно в ресурсы</span></div>
+        <div id="transmuteList" class="list"></div>
+        <div class="sect-lab">⚗️ Перегонка <span class="dim">— престиж лаборатории</span></div>
+        <div id="distillBox"></div>
+      </div>
+
+      <div data-asp="elixirs" class="hidden">
+        <div class="sub-hint">Эликсиры — разовые вечные бонусы за 🌿 эссенцию.</div>
+        <div id="elixirList" class="list"></div>
+      </div>
+
+      <div data-asp="codex" class="hidden">
+        <div class="sub-hint">Коллекция алхимика. Полные наборы дают вечные сет-бонусы к Oof/с и скорости трансмутации.</div>
+        <div id="alchCodex"></div>
+      </div>
     </div>
 
     <!-- МЕТА-СЛОИ -->
@@ -303,6 +361,7 @@
           <div class="pc-note" id="corrNote"></div>
         </div>
         <div id="corrZoneBar" class="cat-bar"></div>
+        <div id="corrAnomBanner" class="mine-event hidden"></div>
         <div class="sect-lab">Улучшения искажения · ⚫ <b id="corrVal">0</b></div>
         <button class="btn btn-ghost massbtn" id="massCorr">🛒 Купить всё за искажение</button>
         <div id="corrUpList" class="list"></div>
@@ -381,6 +440,7 @@
         <div><b id="mStatNoobs">0</b><span>Нубов</span></div>
       </div>
       <button class="btn btn-ghost" id="achBtn">🏆 Достижения <span id="achCount" class="dim"></span></button>
+      <button class="btn btn-ghost" id="statsBtn">📊 Статистика</button>
       <button class="btn btn-ghost" id="codexBtn">🔮 Кодекс рун</button>
       <button class="btn btn-ghost hidden" id="autoBtn">🤖 Автоматизация</button>
       <button class="btn btn-ghost hidden" id="chalBtn">🎯 Испытания</button>
@@ -391,7 +451,18 @@
       <button class="btn btn-ghost" id="adminBtn">🛠️ Админ-панель</button>
       <button class="btn btn-ghost" id="wipeBtn">🗑️ Сбросить всё</button>
       <button class="btn btn-primary" id="closeMenu">Закрыть</button>
-      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v21</span></div>
+      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v34</span></div>
+    </div>
+  </div>
+
+  <!-- СТАТИСТИКА -->
+  <div id="statsModal" class="overlay hidden">
+    <div class="modal ach">
+      <div class="admin-head">
+        <h1>📊 Статистика</h1>
+        <button class="icon-btn" id="statsClose">✕</button>
+      </div>
+      <div id="statsBody"></div>
     </div>
   </div>
 
@@ -453,6 +524,7 @@
         <button class="icon-btn" id="achClose">✕</button>
       </div>
       <p class="ach-sub">Вечные бонусы за вехи. Не сбрасываются никогда.</p>
+      <div id="achMile" class="ach-mile"></div>
       <div id="achGrid" class="ach-grid"></div>
     </div>
   </div>
@@ -465,6 +537,7 @@
         <button class="icon-btn" id="chalClose">✕</button>
       </div>
       <p class="ach-sub">Забег с ограничением ради вечного перка. Вход сбрасывает текущий прогресс забега.</p>
+      <div id="chalStreak" class="chal-streak"></div>
       <div id="chalList"></div>
     </div>
   </div>
@@ -511,6 +584,15 @@
   </div>
 
   <!-- ПОДТВЕРЖДЕНИЕ -->
+  <div id="offlineModal" class="overlay hidden">
+    <div class="modal off-modal">
+      <div class="menu-logo">🌙</div>
+      <h1>С возвращением!</h1>
+      <div id="offlineBody"></div>
+      <button class="btn btn-primary" id="offlineClose">Забрать</button>
+    </div>
+  </div>
+
   <div id="confirmModal" class="overlay hidden">
     <div class="modal confirm-box">
       <div class="cf-ico">⚠️</div>
