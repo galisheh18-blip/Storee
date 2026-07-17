@@ -1067,6 +1067,16 @@ const ACHS = [
   { id:"gr2",  icon:"⚙️", name:"Инженер",         desc:"1e6 шестерёнок собрано", cond:()=>(save.gearsEver||0)>=1e6, buff:{global:0.25} },
   { id:"ore1", icon:"🪨", name:"Шахтёр",          desc:"1e3 руды всего",   cond:()=>(save.oreEver||0)>=1e3, buff:{global:0.1} },
   { id:"ore2", icon:"🪨", name:"Магнат руды",     desc:"1e6 руды всего",   cond:()=>(save.oreEver||0)>=1e6, buff:{global:0.25} },
+  // новый контент
+  { id:"combo1",icon:"🔥", name:"Комбо-мастер",    desc:"Комбо ×50",         cond:()=>(save.bestCombo||0)>=50, buff:{click:0.3} },
+  { id:"pet1", icon:"🐾", name:"Заводчик",         desc:"Питомец ⭐×5",       cond:()=>PETS.some(p=>petEvo(p.id)>=PET_EVO_MAX), buff:{global:0.2} },
+  { id:"lab1", icon:"🔬", name:"Алхимик",          desc:"Лаборатория ур.5",  cond:()=>(save.labLevel||0)>=5, buff:{global:0.15} },
+  { id:"ess1", icon:"🌿", name:"Эссенциолог",      desc:"1e4 эссенции всего",cond:()=>(save.essenceEver||0)>=1e4, buff:{global:0.2} },
+  { id:"dist1",icon:"⚗️", name:"Перегонщик",       desc:"1 перегонка",       cond:()=>(save.labDistill||0)>=1, buff:{global:0.25} },
+  { id:"leg1", icon:"💎", name:"Легенда",          desc:"1 легендарный перк",cond:()=>Object.keys(save.legends||{}).length>=1, buff:{global:0.2} },
+  { id:"boss1",icon:"💥", name:"Крушитель пород",  desc:"Глубина 50",        cond:()=>(save.depth||0)>=50, buff:{global:0.2} },
+  { id:"con1", icon:"📦", name:"Подрядчик",        desc:"5 контрактов",      cond:()=>(save.contractsDone||0)>=5, buff:{global:0.15} },
+  { id:"si1",  icon:"♾️", name:"За горизонтом",    desc:"1 сингулярность",   cond:()=>((save.singularity||{}).resets||0)>=1, buff:{global:0.5} },
 ];
 function achBuffText(b){
   const p=[];
@@ -1085,12 +1095,14 @@ function achProgress(a){
     nb1:[nb,50], nb2:[nb,250], nb3:[nb,1000],
     pr1:[pr,1], pr2:[pr,10], pr3:[pr,50],
     as1:[save.ascends||0,1], as2:[save.stars||0,25],
-    gr1:[ge,1e3], gr2:[ge,1e6], ore1:[oe,1e3], ore2:[oe,1e6] };
+    gr1:[ge,1e3], gr2:[ge,1e6], ore1:[oe,1e3], ore2:[oe,1e6],
+    combo1:[save.bestCombo||0,50], ess1:[save.essenceEver||0,1e4],
+    lab1:[save.labLevel||0,5], boss1:[save.depth||0,50], con1:[save.contractsDone||0,5] };
   return map[a.id]||null;
 }
 // вехи выполнения: % достижений → вечный множитель
 const ACH_MILESTONES = [
-  { at:5, g:0.05 }, { at:10, g:0.10 }, { at:15, g:0.15 }, { at:20, g:0.25 }, { at:24, g:0.40 },
+  { at:5, g:0.05 }, { at:10, g:0.10 }, { at:15, g:0.15 }, { at:20, g:0.25 }, { at:25, g:0.35 }, { at:30, g:0.50 },
 ];
 function achMileBonus(){ const d=achDone(); let g=1; for(const ms of ACH_MILESTONES){ if(d>=ms.at) g*=(1+ms.g); } return g; }
 
@@ -1104,7 +1116,7 @@ const DEFAULT = ()=>({
   runes:[], dust:0, energy:5, stars:0, ascends:0, starUps:{},
   gears:0, gearsEver:0, workshopUps:{}, salvageBelow:-1, achieved:{},
   wsProjects:{ active:null, until:0, done:{} }, blueprints:{}, bpCount:0,
-  wsQuality:{}, wsStars:{}, wsConveyors:{}, wsKeys:0, wsKeyUps:{}, wsReforges:0, wsBroken:false, wsContract:null,
+  wsQuality:{}, wsStars:{}, wsConveyors:{}, wsKeys:0, wsKeyUps:{}, wsReforges:0, wsBroken:false, wsContract:null, contractsDone:0,
   overheat:{ on:false, wear:0, coolUntil:0 },
   miners:0, ore:0, oreEver:0, miningUps:{}, depth:0, digProg:0, artifacts:0, pickUps:{}, mineEvent:null,
   pets:{}, potions:{},
@@ -1125,7 +1137,8 @@ const DEFAULT = ()=>({
   research:{ active:null, until:0, done:{} }, tokens:0, tokenUps:{}, shopGlobal:0, legends:{},
   shop:{ offers:[], next:0 },
   lastTime:Date.now(), seen:{},
-  admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }
+  admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 },
+  settings:{ fx:true, sound:false }
 });
 let save = DEFAULT();
 function load(){
@@ -1177,6 +1190,7 @@ function load(){
       if(!save.pickUps) save.pickUps={};
       if(!Array.isArray(save.runes)) save.runes=[];
       save.admin=Object.assign({ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }, save.admin||{});
+      save.settings=Object.assign({ fx:true, sound:false }, save.settings||{});
     }
   }catch(e){ save=DEFAULT(); }
 }
@@ -1193,6 +1207,25 @@ async function wipeSave(){
   location.replace(location.pathname + "?r=" + Date.now());
 }
 function queueSave(){ saveTimer=1.2; }
+// ---- Экспорт/импорт сейва (перенос прогресса между устройствами/браузерами) ----
+function exportSave(){
+  try{ persist(); return btoa(unescape(encodeURIComponent(JSON.stringify(save)))); }
+  catch(e){ return ""; }
+}
+function importSave(str){
+  if(!str){ toast("Пустая строка"); return false; }
+  let obj=null;
+  try{ obj=JSON.parse(decodeURIComponent(escape(atob(str.trim())))); }
+  catch(e){ try{ obj=JSON.parse(str); }catch(e2){ obj=null; } }
+  if(!obj || typeof obj!=="object" || typeof obj.oof!=="number" || !obj.noobs){
+    toast("❌ Неверный код сейва"); return false;
+  }
+  save=Object.assign(DEFAULT(), obj);
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }catch(e){}
+  toast("✅ Сейв загружен — перезапуск…");
+  setTimeout(()=>location.replace(location.pathname + "?r=" + Date.now()), 500);
+  return true;
+}
 
 /* ============ Производные характеристики ============ */
 let D = {}; // derived
@@ -1408,6 +1441,7 @@ function doClick(x,y){
   save.lifetimeClicks++;
   spawnFloat(x,y, "+"+fmt(amt), crit);
   if(crit) burst(x,y);
+  playBlip(crit);
   updateComboTag();
   hideHint();
   queueSave();
@@ -1814,13 +1848,28 @@ function makeSprite(){
   return { x:Math.random()*W, y:Hc*0.62+Math.random()*Hc*0.32, vx:(Math.random()-.5)*14,
     icon:"🧍", color:"#ffd23f", ph:Math.random()*6.28, sz:13+Math.random()*7 };
 }
+function fxOn(){ return !save.settings || save.settings.fx!==false; }
 function spawnFloat(x,y,txt,crit){
   floats.push({ x,y, txt, life:1, crit, vy:-46-Math.random()*20, vx:(Math.random()-.5)*24 });
   if(floats.length>40) floats.shift();
 }
 function burst(x,y){
+  if(!fxOn()) return;
   for(let i=0;i<14;i++){ const a=Math.random()*6.28, s=40+Math.random()*120;
     particles.push({ x,y, vx:Math.cos(a)*s, vy:Math.sin(a)*s-30, life:1, c:i%2?"#ffd23f":"#ff5d6c" }); }
+}
+// звук тапа (WebAudio, лёгкий блип) — по желанию
+let _audioCtx=null;
+function playBlip(crit){
+  if(!save.settings || !save.settings.sound) return;
+  try{
+    _audioCtx = _audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    const t=_audioCtx.currentTime, o=_audioCtx.createOscillator(), g=_audioCtx.createGain();
+    o.type="triangle"; o.frequency.setValueAtTime(crit?660:440, t);
+    o.frequency.exponentialRampToValueAtTime(crit?990:560, t+0.06);
+    g.gain.setValueAtTime(0.08, t); g.gain.exponentialRampToValueAtTime(0.0001, t+0.12);
+    o.connect(g); g.connect(_audioCtx.destination); o.start(t); o.stop(t+0.13);
+  }catch(e){}
 }
 function prestigeTier(){
   if((save.transcends||0)>0) return 4;
@@ -1879,8 +1928,8 @@ function render(dt){
   g.addColorStop(0,"rgba(60,80,160,.15)"); g.addColorStop(1,"rgba(20,30,80,.35)");
   ctx.fillStyle=g; ctx.fillRect(0,Hc*0.62,W,Hc*0.4);
 
-  // маленькие нубы
-  for(const s of sprites){
+  // маленькие нубы (можно отключить в настройках ради производительности)
+  if(fxOn()) for(const s of sprites){
     s.x+=s.vx*dt; s.ph+=dt*3;
     if(s.x<8){s.x=8;s.vx*=-1;} if(s.x>W-8){s.x=W-8;s.vx*=-1;}
     const bob=Math.sin(s.ph)*2;
@@ -2749,6 +2798,7 @@ function deliverContract(){ const c=save.wsContract; if(!c) return;
   if(Date.now()>c.until){ toast("Контракт просрочен"); save.wsContract=null; renderWsContracts(); return; }
   if(save.gears<c.need){ toast("Нужно "+fmt(c.need)+" ⚙️"); return; }
   save.gears-=c.need; save.wsKeys=(save.wsKeys||0)+c.keys;
+  save.contractsDone=(save.contractsDone||0)+1;
   toast("📦 Контракт сдан! +"+c.keys+" 🗝️"); save.wsContract=null;
   recompute(); renderWsContracts(); refreshTop(); queueSave();
 }
@@ -3462,6 +3512,44 @@ function renderStats(){
 on("statsBtn","click", ()=>{ $("menuModal").classList.add("hidden"); renderStats(); $("statsModal").classList.remove("hidden"); });
 on("statsClose","click", ()=>$("statsModal").classList.add("hidden"));
 on("statsModal","click", e=>{ if(e.target.id==="statsModal") $("statsModal").classList.add("hidden"); });
+
+/* ---- Настройки ---- */
+const SETTINGS = [
+  { key:"fx",    icon:"✨", name:"Эффекты сцены",  desc:"Частицы и анимация нубов (выключи ради производительности)" },
+  { key:"sound", icon:"🔊", name:"Звук тапа",       desc:"Короткий блип при тапе" },
+];
+function renderSettings(){
+  const box=$("settingsBody"); if(!box) return;
+  box.innerHTML=SETTINGS.map(s=>{ const on=!!(save.settings&&save.settings[s.key]);
+    return `<div class="set-toggle" data-set="${s.key}">
+      <div class="st-ico">${s.icon}</div>
+      <div class="st-main"><div class="st-name">${s.name}</div><div class="st-desc">${s.desc}</div></div>
+      <span class="tg ${on?'on':''}"><span class="knob"></span></span></div>`;
+  }).join("");
+  box.querySelectorAll("[data-set]").forEach(row=>row.addEventListener("click",()=>{
+    const k=row.dataset.set; save.settings[k]=!save.settings[k];
+    if(k==="sound" && save.settings.sound) playBlip(false);
+    renderSettings(); queueSave();
+  }));
+}
+on("settingsBtn","click", ()=>{ $("menuModal").classList.add("hidden"); renderSettings(); $("settingsModal").classList.remove("hidden"); });
+on("settingsClose","click", ()=>$("settingsModal").classList.add("hidden"));
+on("settingsModal","click", e=>{ if(e.target.id==="settingsModal") $("settingsModal").classList.add("hidden"); });
+
+/* ---- Перенос сейва ---- */
+on("dataBtn","click", ()=>{ $("menuModal").classList.add("hidden");
+  const eb=$("exportBox"); if(eb) eb.value=exportSave();
+  const ib=$("importBox"); if(ib) ib.value="";
+  $("dataModal").classList.remove("hidden"); });
+on("dataClose","click", ()=>$("dataModal").classList.add("hidden"));
+on("dataModal","click", e=>{ if(e.target.id==="dataModal") $("dataModal").classList.add("hidden"); });
+on("copySaveBtn","click", ()=>{ const eb=$("exportBox"); if(!eb) return; eb.select();
+  const txt=eb.value;
+  if(navigator.clipboard){ navigator.clipboard.writeText(txt).then(()=>toast("📋 Скопировано"),()=>{ try{document.execCommand("copy");toast("📋 Скопировано");}catch(e){toast("Выдели и скопируй вручную");} }); }
+  else { try{document.execCommand("copy");toast("📋 Скопировано");}catch(e){toast("Выдели и скопируй вручную");} } });
+on("importSaveBtn","click", ()=>{ const ib=$("importBox"); if(!ib) return;
+  const val=ib.value.trim(); if(!val){ toast("Вставь код сейва"); return; }
+  askConfirm("Импорт заменит текущий прогресс. Продолжить?", ()=>importSave(val)); });
 on("achClose","click", ()=>{ achOpen=false; $("achModal").classList.add("hidden"); });
 on("achModal","click", e=>{ if(e.target.id==="achModal"){ achOpen=false; $("achModal").classList.add("hidden"); } });
 

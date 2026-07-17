@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="apple-touch-icon" href="icons/icon.svg" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <title>Нуб Инкрементал</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
@@ -447,11 +447,13 @@
       <button class="btn btn-ghost hidden" id="mktBtn">🔄 Хроно-биржа</button>
       <button class="btn btn-ghost hidden" id="mutBtn">🧬 Конвейер мутаций</button>
       <button class="btn btn-ghost hidden" id="portalBtn">🌀 Глитч-портал</button>
+      <button class="btn btn-ghost" id="settingsBtn">⚙️ Настройки</button>
+      <button class="btn btn-ghost" id="dataBtn">💾 Перенос сейва</button>
       <button class="btn btn-ghost" id="howBtn2">❓ Как играть</button>
       <button class="btn btn-ghost" id="adminBtn">🛠️ Админ-панель</button>
       <button class="btn btn-ghost" id="wipeBtn">🗑️ Сбросить всё</button>
       <button class="btn btn-primary" id="closeMenu">Закрыть</button>
-      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v34</span></div>
+      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v36</span></div>
     </div>
   </div>
 
@@ -463,6 +465,28 @@
         <button class="icon-btn" id="statsClose">✕</button>
       </div>
       <div id="statsBody"></div>
+    </div>
+  </div>
+
+  <!-- НАСТРОЙКИ -->
+  <div id="settingsModal" class="overlay hidden">
+    <div class="modal ach">
+      <div class="admin-head"><h1>⚙️ Настройки</h1><button class="icon-btn" id="settingsClose">✕</button></div>
+      <div id="settingsBody"></div>
+    </div>
+  </div>
+
+  <!-- ПЕРЕНОС СЕЙВА -->
+  <div id="dataModal" class="overlay hidden">
+    <div class="modal ach">
+      <div class="admin-head"><h1>💾 Перенос сейва</h1><button class="icon-btn" id="dataClose">✕</button></div>
+      <div class="sub-hint">Экспортируй код и сохрани его, чтобы перенести прогресс на другое устройство или в другой браузер. Импорт заменит текущий прогресс.</div>
+      <div class="sect-lab">📤 Экспорт</div>
+      <textarea id="exportBox" class="save-box" readonly rows="4"></textarea>
+      <button class="btn btn-ghost" id="copySaveBtn">📋 Скопировать</button>
+      <div class="sect-lab">📥 Импорт</div>
+      <textarea id="importBox" class="save-box" rows="4" placeholder="Вставь код сейва сюда…"></textarea>
+      <button class="btn btn-primary" id="importSaveBtn">📥 Загрузить сейв</button>
     </div>
   </div>
 
