@@ -328,6 +328,8 @@ b{font-variant-numeric:tabular-nums}
 .dp-bar{height:8px;background:var(--card2);border-radius:5px;overflow:hidden;margin-bottom:6px}
 #depthFill{height:100%;width:0;background:linear-gradient(90deg,var(--ore),#ff9f40);transition:width .2s}
 .dp-next{font-size:11px;color:var(--muted)}
+.mine-event{background:linear-gradient(135deg,#4a3a1a,#2a2416);border:1px solid var(--star);border-radius:12px;
+  padding:10px 12px;margin-bottom:10px;font-size:13px;font-weight:700;color:var(--star);text-align:center;animation:fade .2s}
 .wf-note{font-size:12px;color:var(--muted);line-height:1.45;margin:12px 2px 0}
 
 /* ---------- Алхимия ---------- */

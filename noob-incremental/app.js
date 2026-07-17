@@ -618,8 +618,34 @@ const STRATA = [
   { d:260, icon:"☀️", name:"Ядро" },
 ];
 function stratumIndex(depth){ let i=0; for(let k=0;k<STRATA.length;k++){ if(depth>=STRATA[k].d) i=k; } return i; }
-function depthNeed(d){ return 8*Math.pow(1.16, d); }
-function digRate(){ return (0.3 + (save.miners||0)*0.03) * (1 + (save.miningUps.drill||0)*0.3); }
+function bossDepth(d){ return d>0 && d%25===0; }   // каждые 25м — укреплённая порода-босс
+function depthNeed(d){ return 8*Math.pow(1.16, d) * (bossDepth(d)?6:1); }
+function mineEv(){ const e=save.mineEvent; return (e && Date.now()<e.until)?e:null; }
+function digRate(){ const ev=mineEv();
+  return (0.3 + (save.miners||0)*0.03) * (1 + (save.miningUps.drill||0)*0.3)
+    * (1 + (save.pickUps.pdig||0)*0.2) * (ev&&ev.dig?ev.dig:1); }
+// Инструменты кирки — прокачка за 🏺 артефакты (даёт сток редкой валюте)
+const PICK_UPS = [
+  { id:"pdig",  icon:"🛠️", name:"Алмазный бур",   max:50, desc:l=>"Спуск ×"+(1+0.2*l).toFixed(1),   cost:l=>l+1, },
+  { id:"pore",  icon:"⛏️", name:"Мифрил-кирка",   max:50, desc:l=>"Добыча ×"+(1+0.25*l).toFixed(2), cost:l=>l+1, rate:l=>1+0.25*l },
+  { id:"pglob", icon:"💠", name:"Резонатор недр", max:30, desc:l=>"Всё ×"+(1+0.1*l).toFixed(2),      cost:l=>l+2, apply:(m,l)=>m.global*=(1+0.1*l) },
+];
+const PICK_UP = Object.fromEntries(PICK_UPS.map(p=>[p.id,p]));
+// События пласта — временные риск/награда, пока работает шахта
+const MINE_EVENTS = [
+  { id:"vein",   icon:"⛏️", text:"Богатая жила! Добыча ×3",         dur:20, ore:3 },
+  { id:"rush",   icon:"🔥", text:"Жар недр: добыча ×2, спуск ×1.5",  dur:25, ore:2, dig:1.5 },
+  { id:"geode",  icon:"✨", text:"Друза: щедрый выброс руды",        dur:0,  instant:true },
+  { id:"gas",    icon:"💨", text:"Газовый карман: спуск ×0.5",       dur:15, dig:0.5 },
+  { id:"cavein", icon:"🪨", text:"Обвал: спуск ×0.4",                dur:18, dig:0.4 },
+];
+function triggerMineEvent(){
+  const ev=MINE_EVENTS[Math.floor(Math.random()*MINE_EVENTS.length)];
+  if(ev.instant){ const g=(D.oreRate||1)*60*(2+Math.random()*3); save.ore+=g; save.oreEver=(save.oreEver||0)+g;
+    toast(ev.icon+" "+ev.text+": +"+fmt(g)+" 🪨"); return; }
+  save.mineEvent={ id:ev.id, icon:ev.icon, text:ev.text, until:Date.now()+ev.dur*1000, ore:ev.ore||1, dig:ev.dig||1 };
+  toast(ev.icon+" "+ev.text);
+}
 
 // ---- Алхимия: питомцы (вечные %) и зелья (временные баффы). Валюта: руда + пыль ----
 const PETS = [
@@ -1050,7 +1076,7 @@ const DEFAULT = ()=>({
   wsProjects:{ active:null, until:0, done:{} }, blueprints:{}, bpCount:0,
   wsQuality:{}, wsStars:{}, wsConveyors:{}, wsKeys:0, wsKeyUps:{}, wsReforges:0,
   overheat:{ on:false, wear:0, coolUntil:0 },
-  miners:0, ore:0, oreEver:0, miningUps:{}, depth:0, digProg:0, artifacts:0,
+  miners:0, ore:0, oreEver:0, miningUps:{}, depth:0, digProg:0, artifacts:0, pickUps:{}, mineEvent:null,
   pets:{}, potions:{},
   essence:0, essenceEver:0, labLevel:0, labUps:{}, petEvo:{}, potionBrews:{}, elixirs:{},
   potionsConc:{}, labDistill:0, petBuff:{}, petCd:{},
@@ -1117,6 +1143,7 @@ function load(){
       if(typeof save.depth!=="number") save.depth=0;
       if(typeof save.digProg!=="number") save.digProg=0;
       if(typeof save.artifacts!=="number") save.artifacts=0;
+      if(!save.pickUps) save.pickUps={};
       if(!Array.isArray(save.runes)) save.runes=[];
       save.admin=Object.assign({ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }, save.admin||{});
     }
@@ -1232,6 +1259,8 @@ function recompute(){
   // шахта: руда усиливает основную экономику
   let oreMul=1, miningGlob=1;
   for(const mu of MINING_UPS){ const l=save.miningUps[mu.id]||0; if(l>0){ if(mu.rate) oreMul*=mu.rate(l); if(mu.glob) miningGlob*=mu.glob(l); } }
+  for(const pu of PICK_UPS){ const l=save.pickUps[pu.id]||0; if(l>0){ if(pu.rate) oreMul*=pu.rate(l); if(pu.apply) pu.apply(m,l); } } // инструменты кирки
+  const _mev=mineEv(); if(_mev && _mev.ore) oreMul*=_mev.ore;   // событие пласта
   oreMul *= (1 + Math.max(0, m._oreBoost));
   m.global *= miningGlob;
   D.oreRate = (save.miners||0)*MINER_RATE*oreMul;
@@ -1885,6 +1914,9 @@ function loop(now){
     let need=depthNeed(save.depth||0), guard=0, changed=false;
     while(save.digProg>=need && guard<300){ save.digProg-=need; descendCore(); changed=true; need=depthNeed(save.depth||0); guard++; }
     if(changed){ recompute(); if(curTab==="mining") updateMiningLive(); }
+    // события пласта: раз в ~40с активной шахты (глубже 3м)
+    if((save.depth||0)>3){ mineEvTimer=(mineEvTimer||0)+edt;
+      if(mineEvTimer>=40 && !mineEv()){ mineEvTimer=0; if(Math.random()<0.6){ triggerMineEvent(); recompute(); if(curTab==="mining") renderMining(); } } }
   }
   // тёмная валюта искажения
   if(D.corrRate>0){ const cc=D.corrRate*edt; save.corr+=cc; save.corrEver=(save.corrEver||0)+cc; }
@@ -1935,7 +1967,7 @@ let abTimer=0;
 let apTimer=0;
 let mnTimer=0;
 let boomTimer=0;
-let asTimer=0, tsTimer=0, metaTimer=0;
+let asTimer=0, tsTimer=0, metaTimer=0, mineEvTimer=0;
 // G — хроно-кристаллы: капают на рыночных событиях + авто-трейд
 function tickChrono(){ const mk=save.market; if(mk.event && Date.now()<mk.event.until){
     save.chronoCrystals=(save.chronoCrystals||0)+1;
@@ -2809,9 +2841,11 @@ function drawGear(c,x,y,r,teeth,ang,col){
 /* ---- Шахта: спуск и находки ---- */
 function descendCore(){
   const before=stratumIndex(save.depth||0);
+  const wasBoss=bossDepth(save.depth||0);   // только что пробили укреплённую породу
   save.depth=(save.depth||0)+1;
   const after=stratumIndex(save.depth);
   if(after>before){ const st=STRATA[after]; toast(st.icon+" Новый пласт: "+st.name+" (глубина "+save.depth+"м)"); }
+  if(wasBoss){ save.artifacts=(save.artifacts||0)+2; toast("💥 Порода-босс пробита! +2 🏺 артефакта"); }
   const chance=Math.min(0.02 + save.depth*0.0006, 0.3);
   if(Math.random()<chance) rareFind();
 }
@@ -2860,7 +2894,25 @@ function renderMining(){
     if(!maxed) r2.addEventListener("click", ()=>buyMiningUp(mu.id));
     box.appendChild(r2);
   });
+  // инструменты кирки (за артефакты)
+  const pbox=$("pickList"); if(pbox){ pbox.innerHTML="";
+    PICK_UPS.forEach(pu=>{ const l=save.pickUps[pu.id]||0, maxed=l>=pu.max, cost=pu.cost(l);
+      const row=document.createElement("div"); row.className="buyrow"; row.dataset.pick=pu.id;
+      row.innerHTML=`<div class="buy-ico">${pu.icon}</div>
+        <div class="buy-main"><div class="buy-name">${pu.name} ${l>0?'<span class="buy-cnt">'+l+'</span>':''}</div>
+          <div class="buy-desc">${pu.desc(l)}</div></div>
+        <div class="buy-right"><div class="buy-cost" data-cost>${maxed?"МАКС":("🏺 "+fmt(cost))}</div></div>`;
+      if(!maxed) row.addEventListener("click", ()=>buyPickUp(pu.id));
+      pbox.appendChild(row); });
+  }
   updateMiningLive();
+}
+function buyPickUp(id){
+  const pu=PICK_UP[id], l=save.pickUps[id]||0; if(l>=pu.max) return;
+  const cost=pu.cost(l);
+  if((save.artifacts||0)<cost){ toast("Мало 🏺 артефактов"); return; }
+  save.artifacts-=cost; save.pickUps[id]=l+1;
+  recompute(); renderMining(); refreshTop(); queueSave();
 }
 function updateMiningLive(){
   const ob=$("oreBig"); if(ob) ob.textContent=fmt(save.ore);
@@ -2870,9 +2922,19 @@ function updateMiningLive(){
   if(sI){ const dep=save.depth||0, si=stratumIndex(dep), st=STRATA[si], nextSt=STRATA[si+1], need=depthNeed(dep);
     sI.textContent=st.icon; $("stratumName").textContent=st.name; $("depthVal").textContent=fmt(dep);
     $("depthFill").style.width=Math.min(100,(save.digProg||0)/need*100)+"%";
-    $("depthNext").textContent = "добыча ×"+(D.depthMul||1).toFixed(2)+(nextSt?(" · след. пласт «"+nextSt.name+"» на "+nextSt.d+"м"):" · глубочайший пласт");
+    const bossTxt = bossDepth(dep) ? " · 💥 порода-босс (×6 прочность, +2 🏺)" : "";
+    $("depthNext").textContent = "добыча ×"+(D.depthMul||1).toFixed(2)+(nextSt?(" · след. пласт «"+nextSt.name+"» на "+nextSt.d+"м"):" · глубочайший пласт")+bossTxt;
     const at=$("artifactTxt"); if(at) at.textContent=(save.artifacts||0)>0?(" · 🏺"+save.artifacts):"";
   }
+  // баннер события пласта
+  const eb=$("mineEventBanner"); if(eb){ const ev=mineEv();
+    if(ev){ eb.classList.remove("hidden"); eb.textContent=ev.icon+" "+ev.text+" · ⏳"+Math.ceil((ev.until-Date.now())/1000)+"с"; }
+    else eb.classList.add("hidden"); }
+  document.querySelectorAll("#pickList .buyrow").forEach(row=>{
+    const pu=PICK_UP[row.dataset.pick]; if(!pu) return; const l=save.pickUps[pu.id]||0; if(l>=pu.max) return;
+    const cost=pu.cost(l); row.classList.toggle("afford",(save.artifacts||0)>=cost);
+    const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",(save.artifacts||0)<cost);
+  });
   const mb=$("minerBuy"); if(mb){ const c=minerCost();
     mb.classList.toggle("afford",save.oof>=c);
     mb.querySelector("[data-cnt]").textContent=fmt(save.miners);
