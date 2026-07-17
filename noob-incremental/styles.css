@@ -94,6 +94,15 @@ b{font-variant-numeric:tabular-nums}
 .nc-rank.ready{border-color:var(--star);color:var(--star)}
 .nc-rank.cant,.nc-rank.need,.nc-rank.maxed{opacity:.6}
 .nc-rank:active{transform:scale(.95)}
+.nc-foot2{display:flex;gap:8px;margin-top:8px}
+.nc-lead,.nc-evo{flex:1;background:var(--card2);border:1px solid var(--line);color:var(--muted);
+  border-radius:9px;padding:7px 6px;font-size:10.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nc-lead.on{border-color:var(--oof);color:var(--oof);background:rgba(255,210,63,.1)}
+.nc-evo.ready{border-color:var(--green);color:var(--green)}
+.nc-lead.cant,.nc-evo.cant,.nc-evo.need,.nc-evo.maxed{opacity:.55}
+.nc-lead:active,.nc-evo:active{transform:scale(.95)}
+#comboTag{position:absolute;left:0;right:0;top:8px;text-align:center;font-size:14px;font-weight:800;
+  color:var(--oof);text-shadow:0 2px 8px rgba(0,0,0,.6);pointer-events:none;animation:fade .2s}
 
 .upcard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px;
   display:flex;flex-direction:column;gap:6px;position:relative;transition:transform .06s}

@@ -55,6 +55,16 @@ const SYN_AT = 100;      // веха, открывающая синергию
 const SYN_PCT = 0.003;   // +0.3% нижнему виду за каждый вышестоящий
 const MAX_RANK = 10;
 function rankMult(r){ return 1 + r; }                       // ★r → ×(1+r) к этому нубу
+// Лидер: назначенный вид даёт ауру всем нубам (сильнее у старших видов)
+function captainAura(){ if(!save.captain) return 0; const idx=NOOBS.findIndex(n=>n.id===save.captain);
+  if(idx<0 || (save.noobs[save.captain]||0)<=0) return 0; return 0.05*(idx+1); }
+// Эволюция вида: на большом владении вид можно возвысить (⭐), ×прод + общий бонус
+const NOOB_EVO_MAX=5;
+function noobEvoReq(){ return 300; }                        // нужно во владении для 1-й эволюции
+function noobEvoLvl(id){ return save.noobEvo[id]||0; }
+function noobEvoMul(id){ return 1 + 0.4*noobEvoLvl(id); }   // ×прод этому виду
+function noobEvoCost(id,e){ return NOOB[id].base * 5e5 * Math.pow(30,e); }  // цена в Oof
+function noobEvoBonus(){ let t=0; for(const id in save.noobEvo) t+=save.noobEvo[id]||0; return t*0.05; } // +5%/ур. всем
 function rankReq(r){ return Math.floor(50*Math.pow(2.6,r)); } // нужно во владении, чтобы взять ранг r→r+1
 function rankCost(nb,r){ return nb.base * 120 * Math.pow(12,r); } // цена в Oof
 function msLabel(ms, loName){
@@ -1023,7 +1033,7 @@ function toRoman(n){ const r=["","I","II","III","IV","V","VI","VII","VIII","IX",
 const SAVE_KEY = "noobinc_v1";
 const DEFAULT = ()=>({
   oof:0, totalOof:0, lifetimeOof:0, lifetimeClicks:0,
-  noobs:{}, ups:{}, prisms:0, prestiges:0, prismUps:{},
+  noobs:{}, ups:{}, prisms:0, prestiges:0, prismUps:{}, captain:null, noobEvo:{},
   runes:[], dust:0, energy:5, stars:0, ascends:0, starUps:{},
   gears:0, gearsEver:0, workshopUps:{}, salvageBelow:-1, achieved:{},
   wsProjects:{ active:null, until:0, done:{} }, blueprints:{}, bpCount:0,
@@ -1062,6 +1072,7 @@ function load(){
       if(!save.potionsConc) save.potionsConc={};
       if(typeof save.labDistill!=="number") save.labDistill=0;
       if(!save.petBuff) save.petBuff={}; if(!save.petCd) save.petCd={};
+      if(!save.noobEvo) save.noobEvo={}; if(save.captain===undefined) save.captain=null;
       if(!save.wsProjects||typeof save.wsProjects!=="object") save.wsProjects={active:null,until:0,done:{}};
       if(!save.wsProjects.done) save.wsProjects.done={};
       if(!save.overheat||typeof save.overheat!=="object") save.overheat={on:false,wear:0,coolUntil:0};
@@ -1244,15 +1255,18 @@ function recompute(){
   const cnt={}; for(const nb of NOOBS) cnt[nb.id]=save.noobs[nb.id]||0;
   const nm={}; let allBonus=0;
   for(const nb of NOOBS){
-    let mult=(m.noob[nb.id]||1) * rankMult(save.ranks[nb.id]||0);
+    let mult=(m.noob[nb.id]||1) * rankMult(save.ranks[nb.id]||0) * noobEvoMul(nb.id);
     for(const ms of NOOB_MILESTONES){ if(cnt[nb.id]>=ms.at){
       if(ms.type==="self") mult*=ms.val;
       else if(ms.type==="all") allBonus+=ms.val;
       else if(ms.type==="crit") m.crit+=ms.val;
       else if(ms.type==="click") m.click*=ms.val;
     }}
+    if(save.captain===nb.id) mult*=1.5;   // капитан усиливает свой вид
     nm[nb.id]=mult;
   }
+  allBonus += captainAura();              // лидер — общий бонус всем нубам
+  allBonus += noobEvoBonus();             // эволюции видов — общий бонус
   // синергия: вышестоящий вид бустит соседа снизу, если открыта веха
   for(let i=1;i<NOOBS.length;i++){ if(cnt[NOOBS[i].id]>=SYN_AT) nm[NOOBS[i-1].id]*=(1+SYN_PCT*cnt[NOOBS[i].id]); }
   D.noobEff=nm; D.noobAllBonus=allBonus;
@@ -1305,16 +1319,30 @@ function starGain(prisms){
 }
 
 /* ============ Действия ============ */
+let comboN=0, comboLast=0;
+const COMBO_WINDOW=1500, COMBO_CAP=100;
+function comboMul(){ return 1 + Math.min(comboN,COMBO_CAP)*0.01; }   // до ×2 при 100 комбо
 function doClick(x,y){
   recompute();
-  let amt=D.clickBase; let crit=false;
+  const now=Date.now();
+  if(now-comboLast<COMBO_WINDOW) comboN=Math.min(comboN+1, COMBO_CAP); else comboN=1;
+  comboLast=now;
+  let amt=D.clickBase*comboMul(); let crit=false;
   if(Math.random()<D.crit){ amt*=D.critPow; crit=true; }
   gainOof(amt);
   save.lifetimeClicks++;
   spawnFloat(x,y, "+"+fmt(amt), crit);
   if(crit) burst(x,y);
+  updateComboTag();
   hideHint();
   queueSave();
+}
+function updateComboTag(){
+  const el=$("comboTag"); if(!el) return;
+  if(comboN>=4 && Date.now()-comboLast<COMBO_WINDOW){
+    el.textContent="🔥 Комбо ×"+comboN+" (×"+comboMul().toFixed(2)+" тап)";
+    el.classList.remove("hidden");
+  } else el.classList.add("hidden");
 }
 function gainOof(a){ save.oof+=a; save.totalOof+=a; save.lifetimeOof+=a; }
 
@@ -1884,7 +1912,7 @@ function loop(now){
   // периодические обновления UI (не каждый кадр)
   uiAcc+=dt;
   tickResearch();
-  if(uiAcc>0.12){ uiAcc=0; refreshTop(); refreshLive(); checkAchievements(); tickPotions(); updateChalLive(); refreshShop(); if(mutOpen) updateMutLive(); }
+  if(uiAcc>0.12){ uiAcc=0; refreshTop(); refreshLive(); checkAchievements(); tickPotions(); updateChalLive(); refreshShop(); updateComboTag(); if(mutOpen) updateMutLive(); }
   saveTimer-=dt; if(saveTimer<0 && saveTimer>-1){ saveTimer=-2; persist(); }
   save.lastTime=Date.now();
   requestAnimationFrame(loop);
@@ -1988,6 +2016,10 @@ function renderNoobs(){
        <div class="nc-foot">
          <div class="nc-ms"><div class="nc-msbar"><div data-msfill></div></div><span class="nc-mstext" data-ms></span></div>
          <button class="nc-rank" data-rankbtn></button>
+       </div>
+       <div class="nc-foot2">
+         <button class="nc-lead" data-leadbtn>⭐ Лидер</button>
+         <button class="nc-evo" data-evobtn></button>
        </div>`;
     const top=row.querySelector(".nc-top");
     top.addEventListener("click", ()=>buyNoob(nb.id));
@@ -1995,6 +2027,8 @@ function renderNoobs(){
     top.addEventListener("pointerup", ()=>clearTimeout(pt));
     top.addEventListener("pointerleave", ()=>clearTimeout(pt));
     row.querySelector("[data-rankbtn]").addEventListener("click", e=>{ e.stopPropagation(); buyRank(nb.id); });
+    row.querySelector("[data-leadbtn]").addEventListener("click", e=>{ e.stopPropagation(); setCaptain(nb.id); });
+    row.querySelector("[data-evobtn]").addEventListener("click", e=>{ e.stopPropagation(); evolveNoob(nb.id); });
     box.appendChild(row);
   });
   updateNoobLive();
@@ -2027,7 +2061,32 @@ function updateNoobLive(){
     if(rank>=MAX_RANK){ rk.textContent="★ Ранг МАКС"; rk.className="nc-rank maxed"; }
     else if(owned<req){ rk.textContent="⬆ Ранг "+(rank+1)+": нужно "+fmt(req); rk.className="nc-rank need"; }
     else { rk.textContent="⬆ Ранг "+(rank+1)+" · 🪙"+fmt(rc); rk.className="nc-rank"+(save.oof>=rc?" ready":" cant"); }
+    // кнопка лидера
+    const lb=row.querySelector("[data-leadbtn]"), isCap=save.captain===id;
+    lb.textContent = isCap ? ("⭐ Лидер (+"+Math.round(captainAura()*100)+"% всем)") : "⭐ Сделать лидером";
+    lb.className = "nc-lead"+(isCap?" on":"")+(owned<=0?" cant":"");
+    // кнопка эволюции вида
+    const ev=row.querySelector("[data-evobtn]"), el=noobEvoLvl(id);
+    if(el>=NOOB_EVO_MAX){ ev.textContent="🧬 Эволюция МАКС"; ev.className="nc-evo maxed"; }
+    else if(owned<noobEvoReq()){ ev.textContent="🧬 Эвол.: нужно "+fmt(noobEvoReq()); ev.className="nc-evo need"; }
+    else { const ec=noobEvoCost(id,el); ev.textContent="🧬 Эвол. "+(el+1)+" · 🪙"+fmt(ec)+(el>0?" ("+el+"⭐)":""); ev.className="nc-evo"+(save.oof>=ec?" ready":" cant"); }
   });
+}
+function setCaptain(id){
+  if((save.noobs[id]||0)<=0){ toast("Сначала заведи этого нуба"); return; }
+  save.captain = (save.captain===id) ? null : id;
+  recompute(); renderNoobs(); refreshTop(); queueSave();
+  toast(save.captain? ("⭐ Лидер: "+NOOB[id].name) : "Лидер снят");
+}
+function evolveNoob(id){
+  const owned=save.noobs[id]||0, e=noobEvoLvl(id);
+  if(e>=NOOB_EVO_MAX){ return; }
+  if(owned<noobEvoReq()){ toast("Нужно "+fmt(noobEvoReq())+" во владении"); return; }
+  const cost=noobEvoCost(id,e);
+  if(save.oof<cost){ toast("Мало Oof"); return; }
+  save.oof-=cost; save.noobEvo[id]=e+1;
+  recompute(); renderNoobs(); refreshTop(); queueSave();
+  toast("🧬 "+NOOB[id].name+" эволюционировал! ⭐"+(e+1));
 }
 
 /* ---- Улучшения ---- */
