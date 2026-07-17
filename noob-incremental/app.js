@@ -831,7 +831,7 @@ function marketPrice(res){
 // ---- Трансцендентность: ⚛️ кварки (3-й слой сброса) + Пантеон (синергии) ----
 function quarkGain(stars){ if(stars<1000) return 0;
   const bonus = 1 + gaQuarkBonus() + (save.singularity?(save.singularity.ups.siQuark||0)*0.2:0);
-  return Math.floor(Math.pow(stars/1000, 0.5) * (D.allCurMul||1) * bonus) + 1; }   // +1 «пол» — первая трансценденция награждает
+  return Math.floor(Math.pow(stars/1000, 0.4) * (D.allCurMul||1) * bonus) + 1; }   // 0.4 — круче кривая; +1 «пол» — первая трансценденция награждает
 const QUARK_UPS = [
   { id:"qall",  icon:"⚛️", name:"Квантовый множитель", max:500, desc:l=>"Всё ×"+fmt(1+0.5*l),
     cost:l=>Math.ceil(3*Math.pow(1.4,l)), apply:(m,l)=>m.global*=(1+0.5*l) },
@@ -996,7 +996,7 @@ function checkMetaAch(){ let any=false; for(const a of META_ACH){ if(!save.metaA
 
 // J — Сингулярность: 4-й слой сброса (♾️ бесконечные очки)
 function siGain(){ const q=save.quarksEver||0; if((save.transcends||0)<10 && (save.singularity.resets||0)===0) return 0;
-  return Math.floor(Math.pow(Math.max(0,q)/50, 0.4)); }
+  return Math.floor(Math.pow(Math.max(0,q)/50, 0.33)) + 1; }   // 0.33 — круче кривая; +1 «пол»
 const SI_UPS = [
   { id:"siAll",   icon:"♾️", name:"Бесконечный множитель", max:1000, cost:l=>Math.ceil(2*Math.pow(1.3,l)), desc:l=>"Всё ×"+fmt(1+l), apply:(m,l)=>m.global*=(1+l) },
   { id:"siAuto",  icon:"🤖", name:"Полный автопилот",      max:1,    cost:l=>15, desc:l=>l?"Авто престиж+вознес+транс":"Автоматизирует все сбросы", apply:()=>{} },
@@ -1440,12 +1440,12 @@ function recompute(){
 function noobCost(id, owned){ return NOOB[id].base * Math.pow(COST_MUL, owned) * D.costMul; }
 function prismGain(total){ // призмы за престиж
   if(total < 3e5) return 0;                       // ранний первый престиж (было 1e6)
-  const g = Math.pow(total/6e5, 0.5) * D.prismMul * (D.allCurMul||1) * (1+runGoalBonus());
-  return Math.floor(g) + 1;                        // +1 «пол» — первый престиж ощутимо награждает
+  const g = Math.pow(total/6e5, 0.4) * D.prismMul * (D.allCurMul||1) * (1+runGoalBonus());
+  return Math.floor(g) + 1;                        // 0.4 — умеренно круче кривая; +1 «пол» держит ранний темп
 }
 function starGain(prisms){
   if(prisms < 500) return 0;
-  return Math.floor(Math.pow(prisms/500, 0.6) * (D.allCurMul||1)) + 1;   // +1 «пол» — первое вознесение награждает
+  return Math.floor(Math.pow(prisms/500, 0.5) * (D.allCurMul||1)) + 1;   // 0.5 — круче кривая; +1 «пол» — первое вознесение награждает
 }
 
 /* ============ Действия ============ */
