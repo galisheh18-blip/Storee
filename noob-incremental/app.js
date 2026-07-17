@@ -1116,7 +1116,7 @@ const DEFAULT = ()=>({
   chronoCrystals:0, chronoUps:{},
   realities:{ shards:0, worlds:{} }, metaAch:{}, corrAnomaly:null,
   singularity:{ si:0, siEver:0, resets:0, ups:{} },
-  mutants:{}, market:{ ore:1, dust:1, gears:1, nextDrift:0, event:null },
+  mutants:{}, market:{ ore:1, dust:1, gears:1, nextDrift:0, event:null, auto:{ore:0,dust:0,gears:0} },
   dustUps:{}, auto:{ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false, bulk:false, infups:false },
   autoEquipBulk:false,
   ranks:{}, prismsEver:0, relics:{}, crossUps:{}, apMult:2,
@@ -1164,6 +1164,7 @@ function load(){
       if(typeof save.apMult!=="number") save.apMult=2;
       if(typeof save.corruption!=="number") save.corruption=0;
       if(!save.market) save.market={ ore:1, dust:1, gears:1, nextDrift:0, event:null };
+      if(!save.market.auto) save.market.auto={ore:0,dust:0,gears:0};
       save.auto=Object.assign({ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false, bulk:false, infups:false }, save.auto||{});
       if(typeof save.salvageBelow!=="number") save.salvageBelow=-1;
       if(typeof save.gearsEver!=="number") save.gearsEver=save.gears||0;
@@ -1400,6 +1401,7 @@ function doClick(x,y){
   const now=Date.now();
   if(now-comboLast<COMBO_WINDOW) comboN=Math.min(comboN+1, COMBO_CAP); else comboN=1;
   comboLast=now;
+  if(comboN>(save.bestCombo||0)) save.bestCombo=comboN;
   let amt=D.clickBase*comboMul(); let crit=false;
   if(Math.random()<D.crit){ amt*=D.critPow; crit=true; }
   gainOof(amt);
@@ -3428,6 +3430,38 @@ function renderAch(){
   });
 }
 on("achBtn","click", ()=>{ $("menuModal").classList.add("hidden"); achOpen=true; renderAch(); $("achModal").classList.remove("hidden"); });
+function renderStats(){
+  recompute();
+  const rows=[
+    ["💰 Oof сейчас", fmt(save.oof)],
+    ["💰 Oof за забег", fmt(save.totalOof)],
+    ["💰 Oof за всё время", fmt(save.lifetimeOof||0)],
+    ["⚡ Oof/с", fmt(D.ops||0)],
+    ["👆 Всего тапов", fmt(save.lifetimeClicks||0)],
+    ["🔥 Лучшее комбо", fmt(save.bestCombo||0)],
+    ["🧍 Нубов сейчас", fmt(totalNoobs())],
+    ["💎 Престижей", fmt(save.prestiges||0)],
+    ["💎 Призм", fmt(save.prisms||0)],
+    ["⭐ Звёзд", fmt(save.stars||0)],
+    ["⚛️ Кварков (всего)", fmt(save.quarksEver||0)],
+    ["♾️ Сингулярностей", fmt(save.singularity?.resets||0)],
+    ["⚙️ Шестерёнок (всего)", fmt(save.gearsEver||0)],
+    ["🪨 Руды (всего)", fmt(save.oreEver||0)],
+    ["⛏️ Глубина", fmt(save.depth||0)+"м"],
+    ["🏺 Артефактов", fmt(save.artifacts||0)],
+    ["🌿 Эссенции (всего)", fmt(save.essenceEver||0)],
+    ["🔬 Ур. лаборатории", fmt(save.labLevel||0)],
+    ["🏆 Достижений", achDone()+"/"+ACHS.length],
+    ["🎯 Испытаний пройдено", Object.keys(save.chalDone||{}).length+" · серия "+(save.chalStreakBest||0)],
+    ["🎟️ Жетонов", fmt(save.tokens||0)],
+    ["💎 Легендарных", Object.keys(save.legends||{}).length+"/"+LEGEND_UPS.length],
+  ];
+  const box=$("statsBody"); if(box) box.innerHTML='<div class="stats-grid">'+
+    rows.map(([k,v])=>`<div class="stat-row"><span>${k}</span><b>${v}</b></div>`).join("")+'</div>';
+}
+on("statsBtn","click", ()=>{ $("menuModal").classList.add("hidden"); renderStats(); $("statsModal").classList.remove("hidden"); });
+on("statsClose","click", ()=>$("statsModal").classList.add("hidden"));
+on("statsModal","click", e=>{ if(e.target.id==="statsModal") $("statsModal").classList.add("hidden"); });
 on("achClose","click", ()=>{ achOpen=false; $("achModal").classList.add("hidden"); });
 on("achModal","click", e=>{ if(e.target.id==="achModal"){ achOpen=false; $("achModal").classList.add("hidden"); } });
 
@@ -3475,14 +3509,17 @@ function driftMarket(){
       m.event={ res:e.res, mult:e.mult, text:e.text, until:now+28000 }; }
     else m.event=null;
   }
+  // лимитные ордера: авто-продажа при достижении курса-цели
+  if(m.auto){ for(const r of MARKET_RES){ const tgt=m.auto[r.id]||0;
+    if(tgt>0 && (save[r.id]||0)>0 && marketPrice(r.id)/r.base >= tgt){ sellRes(r.id, true); } } }
   if(mktOpen) renderMarket();
 }
-function sellRes(res){
-  const amt=save[res]||0; if(amt<=0){ toast("Нечего продавать"); return; }
+function sellRes(res, auto){
+  const amt=save[res]||0; if(amt<=0){ if(!auto) toast("Нечего продавать"); return; }
   const oof=amt*marketPrice(res);
   save[res]=0; gainOof(oof);
-  refreshTop(); renderMarket(); queueSave();
-  toast("Продано "+fmt(amt)+" за "+fmt(oof)+" Oof");
+  refreshTop(); if(mktOpen) renderMarket(); queueSave();
+  toast((auto?"📈 Лимит: продано ":"Продано ")+fmt(amt)+" за "+fmt(oof)+" Oof");
 }
 function buyRes(res){
   const spend=save.oof*0.1; if(spend<=0){ toast("Мало Oof"); return; }
@@ -3499,17 +3536,28 @@ function renderMarket(){
   const box=$("mktList"); box.innerHTML="";
   MARKET_RES.forEach(r=>{
     const price=marketPrice(r.id), have=save[r.id]||0;
+    const pf=(price/r.base), auto=(m.auto&&m.auto[r.id])||0;
+    const autoLabel = auto>0 ? ("📈 авто ≥"+auto+"×") : "📈 лимит выкл";
     const row=document.createElement("div"); row.className="mkt-row";
-    row.innerHTML=`<div class="mkt-head"><span>${r.icon} ${r.name}</span><span class="mkt-price">💱 ${fmt(price)} Oof/шт</span></div>
+    row.innerHTML=`<div class="mkt-head"><span>${r.icon} ${r.name}</span><span class="mkt-price">💱 ${fmt(price)} Oof/шт (${pf.toFixed(2)}×)</span></div>
       <div class="mkt-have">В наличии: ${fmt(have)}</div>
       <div class="mkt-btns">
         <button class="adm-btn" data-sell="${r.id}">Продать всё</button>
         <button class="adm-btn pri" data-buy="${r.id}">Купить на 10% Oof</button>
+        <button class="adm-btn ${auto>0?'on':''}" data-limit="${r.id}">${autoLabel}</button>
       </div>`;
     box.appendChild(row);
   });
   box.querySelectorAll("[data-sell]").forEach(b=>b.addEventListener("click",()=>sellRes(b.dataset.sell)));
   box.querySelectorAll("[data-buy]").forEach(b=>b.addEventListener("click",()=>buyRes(b.dataset.buy)));
+  box.querySelectorAll("[data-limit]").forEach(b=>b.addEventListener("click",()=>cycleLimit(b.dataset.limit)));
+}
+function cycleLimit(res){
+  if(!save.market.auto) save.market.auto={ore:0,dust:0,gears:0};
+  const seq=[0,1.5,2,2.5]; const cur=save.market.auto[res]||0;
+  const i=(seq.indexOf(cur)+1)%seq.length; save.market.auto[res]=seq[i];
+  renderMarket(); queueSave();
+  toast(seq[i]>0 ? ("📈 Авто-продажа "+res+" при ≥"+seq[i]+"× базовой цены") : ("Лимит "+res+" выключен"));
 }
 
 /* ---- Карманные реальности (глитч-портал) ---- */

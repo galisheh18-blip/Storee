@@ -394,6 +394,12 @@ b{font-variant-numeric:tabular-nums}
 .chal-streak{font-size:13px;color:var(--muted);text-align:center;margin-bottom:12px;
   padding:8px;background:var(--card);border-radius:10px}
 .chal-streak b{color:var(--oof)}
+.stats-grid{display:flex;flex-direction:column;gap:4px}
+.stat-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;
+  background:var(--card);border:1px solid var(--line);border-radius:9px;font-size:13px}
+.stat-row span{color:var(--muted)}
+.stat-row b{color:var(--text)}
+.mkt-btns .adm-btn.on{border-color:var(--star);color:var(--star)}
 .how{text-align:left}
 .how-list{list-style:none;padding:0;margin:0 0 18px;display:flex;flex-direction:column;gap:12px}
 .how-list li{font-size:14px;line-height:1.4;color:var(--text)}
