@@ -904,10 +904,10 @@ function metaUnlocked(name){ for(const ms of TRANS_MILE){ if(ms.unlock===name &&
 
 // D — Искажение 2.0: искажённые зоны (активны, пока искажение ≥ порога)
 const CORR_ZONES = [
-  { at:5,  icon:"🌑", name:"Сумрак",           buff:{global:0.3},  darkMul:1, txt:"+30% всего" },
-  { at:15, icon:"🕳️", name:"Бездна",            buff:{},            darkMul:2, txt:"×2 тёмной валюты" },
-  { at:30, icon:"👁️", name:"Всевидящее око",    buff:{click:1},     darkMul:3, txt:"×2 тап" },
-  { at:50, icon:"💀", name:"Забвение",          buff:{global:1.5},  darkMul:5, txt:"+150% всего" },
+  { at:5,  icon:"🌑", name:"Сумрак",           buff:{global:0.4},            darkMul:1, txt:"+40% всего" },
+  { at:15, icon:"🕳️", name:"Бездна",            buff:{global:0.5},            darkMul:2, txt:"+50% всего · ×2 тёмной" },
+  { at:30, icon:"👁️", name:"Всевидящее око",    buff:{global:0.8, click:1},   darkMul:3, txt:"+80% всего · ×2 тап" },
+  { at:50, icon:"💀", name:"Забвение",          buff:{global:2.5},            darkMul:5, txt:"+250% всего" },
 ];
 function corrDarkMul(){ let mul=1; for(const z of CORR_ZONES) if((save.corruption||0)>=z.at) mul=z.darkMul; return mul; }
 // D2 — Аномалии искажения: случайные модификаторы забега за тёмную валюту
@@ -927,10 +927,10 @@ function triggerCorrAnomaly(){
 
 // E — Тёмная лавка (трата тёмной валюты ⚫ на мощные проклятия с побочкой)
 const DARK_SHOP = [
-  { id:"dpow",  icon:"☠️", name:"Проклятая мощь",     cost:400,  desc:"+60% всего · −15% фарма ⚙️", apply:m=>{ m.global*=1.6; m._gearBoost-=0.15; } },
-  { id:"dgreed",icon:"🩸", name:"Жажда крови",        cost:1500, desc:"×2 Oof · нубы дороже ×1.4", apply:m=>{ m.global*=2; m.cost*=1.4; } },
-  { id:"dvoid", icon:"⚫", name:"Пустотный резонанс", cost:6000, desc:"+удача рун +60%, крит +6% · реген −30%", apply:m=>{ m._runeLuck+=0.6; m.crit+=0.06; m.runeRegen*=0.7; } },
-  { id:"dcrown",icon:"👺", name:"Корона забвения",    cost:2.5e4,desc:"×3 всего · тёмная валюта −40%", apply:m=>{ m.global*=3; }, darkPen:0.4 },
+  { id:"dpow",  icon:"☠️", name:"Проклятая мощь",     cost:6e3,  desc:"+60% всего · −15% фарма ⚙️", apply:m=>{ m.global*=1.6; m._gearBoost-=0.15; } },
+  { id:"dgreed",icon:"🩸", name:"Жажда крови",        cost:2.5e4,desc:"×2 Oof · нубы дороже ×1.4", apply:m=>{ m.global*=2; m.cost*=1.4; } },
+  { id:"dvoid", icon:"⚫", name:"Пустотный резонанс", cost:1e5,  desc:"+удача рун +60%, крит +6% · реген −30%", apply:m=>{ m._runeLuck+=0.6; m.crit+=0.06; m.runeRegen*=0.7; } },
+  { id:"dcrown",icon:"👺", name:"Корона забвения",    cost:5e5,  desc:"×3 всего · тёмная валюта −40%", apply:m=>{ m.global*=3; }, darkPen:0.4 },
 ];
 const DARK_SHOP_M = Object.fromEntries(DARK_SHOP.map(d=>[d.id,d]));
 function buyDark(id){ const d=DARK_SHOP_M[id]; if(save.darkShop[id]) return;
@@ -1320,7 +1320,7 @@ function recompute(){
   // улучшения искажения
   for(const c of CORR_UPS){ const l=save.corrUps[c.id]||0; if(l>0 && c.apply) c.apply(m,l); }
   // дебафф искажения
-  if(save.corruption>0) m.global /= (1+save.corruption*0.4);
+  if(save.corruption>0) m.global /= (1+save.corruption*0.25);   // смягчён дебафф (было 0.4 — ÷21 при 50)
   const _canom=corrAnom(); if(_canom){ m.global*=_canom.glob; m.click*=_canom.click; }   // аномалия искажения
   /* ---- МЕТА-СЛОИ ---- */
   for(const p of PANTHEON){ const l=save.pantheon[p.id]||0; if(l>0 && p.apply) p.apply(m,l); }        // A — Пантеон
@@ -1424,7 +1424,8 @@ function recompute(){
     : 0;
   // тёмная валюта: генерится при искажении, пропорц. дебаффу и производству
   let darkPen=1; for(const d of DARK_SHOP){ if(save.darkShop[d.id]&&d.darkPen) darkPen*=(1-d.darkPen); }
-  D.corrRate = save.corruption>0 ? save.corruption*0.05*(1+Math.max(0,Math.log10(1+Math.max(0,D.ops))))*corrDarkMul()*darkPen*(corrAnom()?corrAnom().dark:1) : 0;
+  // тёмная валюта масштабируется со степенью производства (было log10 — почти плоско → стена)
+  D.corrRate = save.corruption>0 ? save.corruption*0.04*Math.pow(Math.max(1,D.ops),0.15)*corrDarkMul()*darkPen*(corrAnom()?corrAnom().dark:1) : 0;
   // алхимия: скорость трансмутации эссенции (с учётом запаса топлива)
   D.essRate = labRate();
   D.essFuelFrac = 1;
@@ -2707,7 +2708,7 @@ function metaRefreshLive(){
       if(l>=q.max||!quarkReqMet(q)) return; const cost=q.cost(l); row.classList.toggle("afford",save.quarks>=cost);
       const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",save.quarks<cost); });
   } else if(metaSub==="corr"){ const cn=$("corrNote");
-    if(cn) cn.textContent=(save.corruption||0)>0?("Выработка ÷"+(1+save.corruption*0.4).toFixed(1)+" · тёмная +"+fmt(D.corrRate||0)+"/с"):"Подними уровень, чтобы копить ⚫";
+    if(cn) cn.textContent=(save.corruption||0)>0?("Выработка ÷"+(1+save.corruption*0.25).toFixed(1)+" · тёмная +"+fmt(D.corrRate||0)+"/с"):"Подними уровень, чтобы копить ⚫";
     const cv=$("corrVal"); if(cv) cv.textContent=fmt(save.corr); const cl=$("corrLvl"); if(cl) cl.textContent=save.corruption||0;
     const ab=$("corrAnomBanner"); if(ab){ const a=corrAnom();
       if(a){ ab.classList.remove("hidden"); ab.textContent=a.icon+" "+a.text+" · ⏳"+Math.ceil((a.until-Date.now())/1000)+"с"; } else ab.classList.add("hidden"); }
