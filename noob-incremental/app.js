@@ -1305,7 +1305,7 @@ function recompute(){
   // руны (усиливаются резонансом/крепежом)
   const rp = 1 + Math.max(0, m._runePow);
   if(!cr.noRunes){
-    for(const r of save.runes){ if(!r) continue;
+    for(const r of save.runes){ if(!r || !RTYPE[r.type]) continue;
       RTYPE[r.type].apply(m, runeValue(r)*rp*masteryMul(r.type));   // осн. эффект (звёзды/мастерство внутри)
       if(r.subs) for(const s of r.subs){ if(RTYPE[s.t]) RTYPE[s.t].apply(m, s.v*rp); }  // сабстаты
     }
