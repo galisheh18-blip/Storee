@@ -117,6 +117,8 @@
       <div id="runeSets" class="rune-sets"></div>
       <div class="sect-lab">Слоты рун <span id="slotInfo" class="dim"></span> <span class="dim">· тап по руне — детали</span></div>
       <div id="runeSlots" class="rune-slots"></div>
+      <div class="sect-lab">📦 Запас рун <span id="stashInfo" class="dim"></span> <span class="dim">· тап — надеть/свап</span></div>
+      <div id="runeStash" class="rune-slots"></div>
       <div class="dust-line">💠 Пыль рун: <b id="dustVal">0</b>
         <button class="btn btn-ghost lvlall-btn" id="levelAllBtn">⬆️ Прокачать слоты</button></div>
       <div class="sect-lab">💠 Пыльцевые улучшения <span class="dim">— трать пыль на Oof</span></div>
@@ -423,6 +425,7 @@
       <div class="modal-btns">
         <button class="btn btn-primary" id="equipBtn">Поставить</button>
         <button class="btn btn-ghost hidden" id="fuseBtn">⭐ Слить</button>
+        <button class="btn btn-ghost" id="stashBtn">📥 В запас</button>
         <button class="btn btn-ghost" id="scrapBtn">💠 Разобрать</button>
       </div>
       <div id="slotPick" class="slot-pick hidden"></div>
@@ -453,7 +456,7 @@
       <button class="btn btn-ghost" id="adminBtn">🛠️ Админ-панель</button>
       <button class="btn btn-ghost" id="wipeBtn">🗑️ Сбросить всё</button>
       <button class="btn btn-primary" id="closeMenu">Закрыть</button>
-      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v36</span></div>
+      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v37</span></div>
     </div>
   </div>
 
@@ -527,6 +530,7 @@
         <button class="btn btn-ghost" id="rdSubs">🎲 Сабы</button>
         <button class="btn btn-ghost" id="rdType">🔁 Тип</button>
       </div>
+      <button class="btn btn-ghost" id="rdStash">📥 В запас</button>
       <button class="btn btn-ghost" id="rdClose">Закрыть</button>
     </div>
   </div>
@@ -562,6 +566,7 @@
       </div>
       <p class="ach-sub">Забег с ограничением ради вечного перка. Вход сбрасывает текущий прогресс забега.</p>
       <div id="chalStreak" class="chal-streak"></div>
+      <div id="chalModBar" class="chalmod-bar"></div>
       <div id="chalList"></div>
     </div>
   </div>

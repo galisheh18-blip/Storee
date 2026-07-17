@@ -1042,6 +1042,25 @@ const CHALLENGES = [
     restrict:{weak:12}, reward:{global:1.5} },
 ];
 const CHAL = Object.fromEntries(CHALLENGES.map(c=>[c.id,c]));
+// Модификаторы испытаний: доп-ограничение → множитель награды (стакаются)
+const CHAL_MODS = [
+  { id:"m_weak",   icon:"🩸", name:"Кровопускание", desc:"Выработка ÷4",  mult:1.5, restrict:{weak:4} },
+  { id:"m_costly", icon:"💸", name:"Ростовщик",     desc:"Нубы ×4 дороже", mult:1.4, restrict:{costX:4} },
+  { id:"m_nocrit", icon:"🚫", name:"Без крита",     desc:"Крит отключён",  mult:1.3, restrict:{noCrit:true} },
+  { id:"m_slowtap",icon:"🐌", name:"Ватные пальцы", desc:"Тап ÷3",         mult:1.3, restrict:{tapDiv:3} },
+];
+const CHAL_MOD = Object.fromEntries(CHAL_MODS.map(m=>[m.id,m]));
+function activeRestrict(){
+  if(!save.activeChallenge) return {};
+  const base=(CHAL[save.activeChallenge]||{}).restrict||{};
+  const r=Object.assign({}, base);
+  for(const mid of (save.chalMods||[])){ const m=CHAL_MOD[mid]; if(!m) continue; const mr=m.restrict;
+    if(mr.noPassive) r.noPassive=true; if(mr.noUps) r.noUps=true; if(mr.noRunes) r.noRunes=true; if(mr.noCrit) r.noCrit=true;
+    if(mr.weak) r.weak=(r.weak||1)*mr.weak; if(mr.costX) r.costX=(r.costX||1)*mr.costX; if(mr.tapDiv) r.tapDiv=(r.tapDiv||1)*mr.tapDiv;
+  }
+  return r;
+}
+function chalModMult(mods){ let x=1; for(const mid of (mods||[])){ const m=CHAL_MOD[mid]; if(m) x*=m.mult; } return x; }
 
 // ---- Достижения / Вехи (вечные бонусы, не сбрасываются) ----
 function totalNoobs(){ let t=0; for(const nb of NOOBS) t+=(save.noobs[nb.id]||0); return t; }
@@ -1113,7 +1132,7 @@ const SAVE_KEY = "noobinc_v1";
 const DEFAULT = ()=>({
   oof:0, totalOof:0, lifetimeOof:0, lifetimeClicks:0,
   noobs:{}, ups:{}, prisms:0, prestiges:0, prismUps:{}, captain:null, noobEvo:{},
-  runes:[], dust:0, energy:5, stars:0, ascends:0, starUps:{},
+  runes:[], runeStash:[], dust:0, energy:5, stars:0, ascends:0, starUps:{},
   gears:0, gearsEver:0, workshopUps:{}, salvageBelow:-1, achieved:{},
   wsProjects:{ active:null, until:0, done:{} }, blueprints:{}, bpCount:0,
   wsQuality:{}, wsStars:{}, wsConveyors:{}, wsKeys:0, wsKeyUps:{}, wsReforges:0, wsBroken:false, wsContract:null, contractsDone:0,
@@ -1122,7 +1141,7 @@ const DEFAULT = ()=>({
   pets:{}, potions:{},
   essence:0, essenceEver:0, labLevel:0, labUps:{}, petEvo:{}, potionBrews:{}, elixirs:{},
   potionsConc:{}, labDistill:0, petBuff:{}, petCd:{},
-  activeChallenge:null, chalDone:{}, chalStreak:0, chalStreakBest:0,
+  activeChallenge:null, chalDone:{}, chalStreak:0, chalStreakBest:0, chalMods:[], chalRewardMul:{},
   quarks:0, quarksEver:0, transcends:0, quarkUps:{}, corruption:0, corr:0, corrEver:0, corrUps:{},
   pantheon:{}, darkShop:{}, godArtifacts:{}, gaCount:0,
   chronoCrystals:0, chronoUps:{},
@@ -1189,6 +1208,7 @@ function load(){
       if(typeof save.artifacts!=="number") save.artifacts=0;
       if(!save.pickUps) save.pickUps={};
       if(!Array.isArray(save.runes)) save.runes=[];
+      if(!Array.isArray(save.runeStash)) save.runeStash=[];
       save.admin=Object.assign({ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }, save.admin||{});
       save.settings=Object.assign({ fx:true, sound:false }, save.settings||{});
     }
@@ -1233,7 +1253,7 @@ function recompute(){
   const m = { global:1, click:1, clickFromPs:0, crit:0, critPow:1.5, cost:1,
     prism:1, runeRegen:1, offline:0, autoClick:0, autoBuy:false, autoPrestige:false,
     _runePow:0, _runeLuck:0, _megaClick:0, _bonusSlots:0, _oreBoost:0, _allCur:0, _gearBoost:0, noob:{} };
-  const cr = save.activeChallenge ? ((CHAL[save.activeChallenge]||{}).restrict||{}) : {};
+  const cr = activeRestrict();
   // обычные улучшения
   if(!cr.noUps){
     for(const id in save.ups){ if(save.ups[id] && UP[id]) UP[id].apply(m); }
@@ -1273,8 +1293,8 @@ function recompute(){
   m.global*=(1+ag); m.click*=(1+ac); m.prism*=(1+ap); m._runePow+=arp;
   m.global *= achMileBonus();   // вехи выполнения достижений
   // награды за пройденные испытания (вечные)
-  for(const c of CHALLENGES){ if(save.chalDone[c.id]){ const r=c.reward;
-    if(r.global) m.global*=(1+r.global); if(r.click) m.click*=(1+r.click); if(r.cost) m.cost*=(1-r.cost); } }
+  for(const c of CHALLENGES){ if(save.chalDone[c.id]){ const r=c.reward, mul=(save.chalRewardMul&&save.chalRewardMul[c.id])||1;
+    if(r.global) m.global*=(1+r.global*mul); if(r.click) m.click*=(1+r.click*mul); if(r.cost) m.cost*=(1-Math.min(0.9,r.cost*mul)); } }
   m.global *= (1 + (save.chalStreakBest||0)*0.05);   // стрик испытаний — вечный множитель
   // питомцы (вечные бонусы) + эволюция (⭐ усиливает эффект уровня)
   for(const p of PETS){ const l=save.pets[p.id]||0; if(l>0) p.apply(m, l*petEvoMul(p.id)); }
@@ -1353,6 +1373,8 @@ function recompute(){
   // ограничения испытания
   if(cr.costX) m.cost*=cr.costX;
   if(cr.weak) m.global/=cr.weak;
+  if(cr.tapDiv) m.click/=cr.tapDiv;
+  if(cr.noCrit) m.crit=0;
   // админ-множители
   const a=save.admin||{};
   m.global *= (a.oofMul||1); m.click *= (a.clickMul||1);
@@ -1557,6 +1579,33 @@ function pickRarity(){
 function equipRune(r, slot){
   save.runes[slot]=r;
   recompute(); renderRunes(); refreshTop(); queueSave();
+}
+// ---- Запас рун (инвентарь): держать лишние руны и свапать в слоты ----
+const RUNE_STASH_CAP = 12;
+function stashRoom(){ return (save.runeStash||[]).length < RUNE_STASH_CAP; }
+function stashPending(){
+  if(!pendingRune) return;
+  if(!stashRoom()){ toast("Запас полон ("+RUNE_STASH_CAP+")"); return; }
+  save.runeStash.push(pendingRune); closeDrop(); renderRunes(); queueSave();
+  toast("📥 В запасе: "+(save.runeStash.length)+"/"+RUNE_STASH_CAP);
+}
+function stashSlot(i){
+  const r=save.runes[i]; if(!r) return;
+  if(!stashRoom()){ toast("Запас полон ("+RUNE_STASH_CAP+")"); return; }
+  save.runeStash.push(r); save.runes[i]=null;
+  recompute(); renderRunes(); refreshTop(); queueSave(); toast("📥 Руна в запасе");
+}
+function equipFromStash(i){
+  const r=save.runeStash[i]; if(!r) return;
+  let slot=-1; for(let s=0;s<D.slots;s++){ if(!save.runes[s]){ slot=s; break; } }
+  if(slot>=0){ save.runes[slot]=r; save.runeStash.splice(i,1); }
+  else { const old=save.runes[0]; save.runes[0]=r; save.runeStash[i]=old; toast("🔄 Свап со слотом 1"); }
+  recompute(); renderRunes(); refreshTop(); queueSave();
+}
+function scrapFromStash(i){
+  const r=save.runeStash[i]; if(!r) return;
+  save.dust+=scrapValue(r); save.runeStash.splice(i,1);
+  recompute(); renderRunes(); refreshTop(); queueSave(); toast("💠 Разобрано из запаса");
 }
 function scrapValue(r){ return Math.ceil((r.rar+1)*(r.rar+1)*1.5); }
 function scrapRune(r){
@@ -2422,7 +2471,25 @@ function renderRunes(){
     el.addEventListener("click", ()=>openRuneDetail(i));
     box.appendChild(el);
   }
+  renderRuneStash();
   updateRuneLive();
+}
+function renderRuneStash(){
+  const info=$("stashInfo"); if(info) info.textContent="("+(save.runeStash||[]).length+"/"+RUNE_STASH_CAP+")";
+  const box=$("runeStash"); if(!box) return; box.innerHTML="";
+  const st=save.runeStash||[];
+  if(!st.length){ box.innerHTML=`<div class="rune empty" style="grid-column:1/-1"><div class="r-name dim">Запас пуст · клади сюда лишние руны из дропа или слота</div></div>`; return; }
+  st.forEach((r,i)=>{
+    const t=RTYPE[r.type]||RUNE_TYPES[0], rar=RARITIES[r.rar], val=runeValue(r);
+    const el=document.createElement("div"); el.className="rune filled "+rar.cls;
+    el.innerHTML=`<div class="r-ico">${t.icon}</div>
+      <div class="r-name">${rar.name}${(r.star||0)>0?' <span class="r-star">'+'★'.repeat(r.star)+'</span>':''}</div>
+      <div class="r-eff">${t.fmt(val)}</div>
+      <div class="stash-btns"><button class="mini-btn" data-eq="${i}">надеть</button><button class="mini-btn" data-sc="${i}">💠</button></div>`;
+    el.querySelector("[data-eq]").addEventListener("click",(e)=>{ e.stopPropagation(); equipFromStash(i); });
+    el.querySelector("[data-sc]").addEventListener("click",(e)=>{ e.stopPropagation(); scrapFromStash(i); });
+    box.appendChild(el);
+  });
 }
 function fuseTarget(r){ for(let i=0;i<D.slots;i++){ const s=save.runes[i]; if(s&&s.type===r.type&&s.rar===r.rar&&(s.star||0)<RUNE_MAX_STAR) return i; } return -1; }
 /* ---- детали руны: уровень / сабы / перекат типа ---- */
@@ -2501,6 +2568,8 @@ on("fuseBtn","click", ()=>{ if(!pendingRune) return; const ft=fuseTarget(pending
   recompute(); renderRunes(); refreshTop(); closeDrop(); queueSave();
   toast("⭐ Слияние! "+RTYPE[s.type].name+" "+"★".repeat(s.star)); });
 // детали руны
+on("stashBtn","click", stashPending);
+on("rdStash","click", ()=>{ if(detailIdx>=0){ stashSlot(detailIdx); detailIdx=-1; $("runeDetailModal").classList.add("hidden"); } });
 on("rdUp","click", ()=>{ if(detailIdx>=0) upRune(detailIdx); });
 on("rdSubs","click", ()=>{ if(detailIdx>=0) rerollSubs(detailIdx); });
 on("rdType","click", ()=>{ if(detailIdx>=0) rerollType(detailIdx); });
@@ -3693,7 +3762,11 @@ let chalOpen=false;
 function completeChallenge(){
   const id=save.activeChallenge, c=CHAL[id]; if(!c) return;
   const already=!!save.chalDone[id];
-  save.chalDone[id]=1; save.activeChallenge=null;
+  save.chalDone[id]=1;
+  const mul=chalModMult(save.chalMods);                                 // множитель награды за модификаторы
+  if(!save.chalRewardMul) save.chalRewardMul={};
+  save.chalRewardMul[id]=Math.max(save.chalRewardMul[id]||1, mul);      // держим лучший достигнутый
+  save.activeChallenge=null; save.chalMods=[];
   if(!already){ save.chalStreak=(save.chalStreak||0)+1;                 // стрик только за новые
     if(save.chalStreak>(save.chalStreakBest||0)) save.chalStreakBest=save.chalStreak; }
   softReset(); recompute(); syncNoobSprites(); refreshTop(); renderAll();
@@ -3702,25 +3775,46 @@ function completeChallenge(){
 }
 function enterChallenge(id){
   if(save.activeChallenge) return;
-  save.activeChallenge=id; softReset(); recompute(); syncNoobSprites(); refreshTop(); renderAll();
-  toast(CHAL[id].icon+" Испытание: "+CHAL[id].name); renderChallenges(); persist();
+  save.activeChallenge=id; save.chalMods=chalModSel.slice();   // фиксируем выбранные модификаторы
+  softReset(); recompute(); syncNoobSprites(); refreshTop(); renderAll();
+  const mm=chalModMult(save.chalMods);
+  toast(CHAL[id].icon+" Испытание: "+CHAL[id].name+(mm>1?" · награда ×"+mm.toFixed(2):"")); renderChallenges(); persist();
 }
 function abandonChallenge(){
-  save.activeChallenge=null; save.chalStreak=0;   // выход обрывает серию
+  save.activeChallenge=null; save.chalMods=[]; save.chalStreak=0;   // выход обрывает серию
   softReset(); recompute(); syncNoobSprites(); refreshTop(); renderAll();
   renderChallenges(); persist();
 }
+let chalModSel=[];
 function renderChallenges(){
   const cs=$("chalStreak"); if(cs){ const s=save.chalStreak||0, best=save.chalStreakBest||0;
     cs.innerHTML=`🔥 Серия: <b>${s}</b> · рекорд <b>${best}</b> · вечный бонус <b>+${Math.round(best*5)}%</b> Oof/с`; }
+  // селектор модификаторов (действует на следующий вход; при активном испытании — только показ)
+  const mbox=$("chalModBar");
+  if(mbox){
+    const activeMods = save.activeChallenge ? (save.chalMods||[]) : chalModSel;
+    const locked = !!save.activeChallenge;
+    const mult=chalModMult(activeMods);
+    mbox.innerHTML=`<div class="chalmod-head">🎲 Модификаторы ${locked?'(активны)':''} · награда <b>×${mult.toFixed(2)}</b></div>
+      <div class="chalmod-chips">${CHAL_MODS.map(m=>{ const on=activeMods.includes(m.id);
+        return `<button class="chalmod-chip ${on?'on':''}" data-mod="${m.id}" ${locked?'disabled':''} title="${m.desc}">${m.icon} ${m.name} <span>×${m.mult}</span></button>`;
+      }).join("")}</div>`;
+    if(!locked) mbox.querySelectorAll("[data-mod]").forEach(b=>b.addEventListener("click",()=>{
+      const id=b.dataset.mod; const i=chalModSel.indexOf(id);
+      if(i>=0) chalModSel.splice(i,1); else chalModSel.push(id);
+      renderChallenges();
+    }));
+  }
   const box=$("chalList"); box.innerHTML="";
   CHALLENGES.forEach(c=>{
     const done=!!save.chalDone[c.id], active=save.activeChallenge===c.id;
     const el=document.createElement("div"); el.className="chal-card"+(done?" done":"")+(active?" active":"");
     let btn;
-    if(done) btn=`<div class="chal-status">✓ Пройдено</div>`;
+    if(done){ const rm=(save.chalRewardMul&&save.chalRewardMul[c.id])||1;
+      btn=`<div class="chal-status">✓ Пройдено${rm>1?" ×"+rm.toFixed(2):""}</div>`; }
     else if(active) btn=`<button class="btn btn-ghost chal-b" data-abandon>Выйти из испытания</button>`;
-    else btn=`<button class="btn btn-primary chal-b" data-enter="${c.id}" ${save.activeChallenge?'disabled':''}>Войти</button>`;
+    else { const mm=chalModMult(chalModSel);
+      btn=`<button class="btn btn-primary chal-b" data-enter="${c.id}" ${save.activeChallenge?'disabled':''}>Войти${mm>1?" (награда ×"+mm.toFixed(2)+")":""}</button>`; }
     el.innerHTML=`<div class="chal-top"><span class="chal-ico">${c.icon}</span>
         <div><div class="chal-name">${c.name}</div><div class="chal-desc">${c.desc}</div></div></div>
       <div class="chal-goal">Цель: ${fmt(c.goal)} Oof · Награда: <b>${c.rewardText}</b></div>
