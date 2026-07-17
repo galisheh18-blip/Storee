@@ -256,11 +256,48 @@
 
     <!-- АЛХИМИЯ -->
     <div class="tabpage hidden" data-page="alchemy">
-      <div class="page-head"><h2>🧪 Алхимия</h2><span class="page-hint">Питомцы и зелья из руды и пыли</span></div>
-      <div class="sect-lab">🐾 Питомцы <span class="dim">— вечные бонусы</span></div>
-      <div id="petList" class="list"></div>
-      <div class="sect-lab">⚗️ Зелья <span class="dim">— временные баффы</span></div>
-      <div id="potionList" class="list"></div>
+      <div class="page-head"><h2>🧪 Алхимия</h2><span class="page-hint">Питомцы, зелья и трансмутация</span></div>
+
+      <div class="alch-head">
+        <div class="ess-big">🌿 <b id="essBig">0</b></div>
+        <div class="ess-rate" id="essRateTxt">лаборатория не построена</div>
+      </div>
+
+      <div class="subtabs" id="alchSubs">
+        <button data-asub="pets" class="on">🐾 Питомцы</button>
+        <button data-asub="potions">⚗️ Зелья</button>
+        <button data-asub="lab">🔬 Лаборатория</button>
+        <button data-asub="elixirs">🧪 Эликсиры</button>
+        <button data-asub="codex">📖 Кодекс</button>
+      </div>
+
+      <div data-asp="pets">
+        <div class="sub-hint">Питомцы дают вечные бонусы. На максимуме их можно возвысить ⭐ за 🌿 эссенцию — эффект усиливается.</div>
+        <div id="petList" class="list"></div>
+      </div>
+
+      <div data-asp="potions" class="hidden">
+        <div class="sub-hint">Зелья — временные баффы. Чем чаще варишь, тем выше мастерство ◆: дешевле и дольше действует.</div>
+        <div id="potionList" class="list"></div>
+      </div>
+
+      <div data-asp="lab" class="hidden">
+        <div class="sub-hint">Лаборатория трансмутирует руду и пыль в 🌿 эссенцию. Эссенция тратится на возвышение питомцев, улучшения лаборатории и эликсиры.</div>
+        <div id="labInfo"></div>
+        <button class="btn btn-primary massbtn" id="labBuildBtn">🔬 Построить лабораторию</button>
+        <div class="sect-lab">⚗️ Улучшения лаборатории <span class="dim">— за 🌿</span></div>
+        <div id="labUpList" class="list"></div>
+      </div>
+
+      <div data-asp="elixirs" class="hidden">
+        <div class="sub-hint">Эликсиры — разовые вечные бонусы за 🌿 эссенцию.</div>
+        <div id="elixirList" class="list"></div>
+      </div>
+
+      <div data-asp="codex" class="hidden">
+        <div class="sub-hint">Коллекция алхимика. Полные наборы дают вечные сет-бонусы к Oof/с и скорости трансмутации.</div>
+        <div id="alchCodex"></div>
+      </div>
     </div>
 
     <!-- МЕТА-СЛОИ -->

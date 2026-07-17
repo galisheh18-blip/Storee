@@ -621,6 +621,73 @@ const POTIONS = [
 ];
 const POTION = Object.fromEntries(POTIONS.map(p=>[p.id,p]));
 
+/* ============ АЛХИМИЯ 2.0: лаборатория, эволюция, мастерство, эликсиры, кодекс ============
+   Новая валюта: 🌿 Эссенция — трансмутируется из руды и пыли в лаборатории. */
+
+// ---- Лаборатория: пассивная трансмутация руды+пыли → эссенция ----
+const LAB_FUEL_ORE = 6, LAB_FUEL_DUST = 0.4; // топливо на 1 эссенцию
+function labBuilt(){ return (save.labLevel||0) >= 1; }
+function labCost(lvl){ return { ore:Math.ceil(500*Math.pow(1.35,lvl)), dust:Math.ceil(40*Math.pow(1.3,lvl)) }; }
+function labFuelMul(){ return 1 - Math.min(0.7, (save.labUps.purify||0)*0.02); }
+function labRate(){ if(!labBuilt()) return 0;
+  let r = 0.06 * (save.labLevel) * Math.pow(1.09, save.labLevel-1);
+  for(const u of LAB_UPS){ const l=save.labUps[u.id]||0; if(l>0 && u.rate) r*=u.rate(l); }
+  if(save.elixirs.alch) r*=2;                 // эликсир алхимии
+  r *= (1 + alchemySetBonus());               // сет-бонусы кодекса
+  return r;
+}
+const LAB_UPS = [
+  { id:"catalyst", icon:"⚗️", name:"Катализатор", max:60, desc:l=>"Эссенция ×"+(1+0.15*l).toFixed(2),
+    cost:l=>Math.ceil(20*Math.pow(1.3,l)), rate:l=>1+0.15*l },
+  { id:"purify",   icon:"💧", name:"Очистка",     max:35, desc:l=>"Расход руды/пыли −"+Math.min(70,l*2)+"%",
+    cost:l=>Math.ceil(30*Math.pow(1.35,l)) },
+  { id:"infuse",   icon:"🌟", name:"Инфузия",     max:40, desc:l=>"Всё ×"+(1+0.04*l).toFixed(2),
+    cost:l=>Math.ceil(25*Math.pow(1.4,l)), apply:(m,l)=>m.global*=(1+0.04*l) },
+  { id:"reflux",   icon:"🔄", name:"Рефлюкс",     max:25, desc:l=>"Эффект зелий +"+(l*6)+"% длит.",
+    cost:l=>Math.ceil(40*Math.pow(1.45,l)) },
+];
+const LAB_UP = Object.fromEntries(LAB_UPS.map(u=>[u.id,u]));
+
+// ---- Эволюция питомцев: макс. питомца можно возвысить за эссенцию (⭐, до 5) ----
+const PET_EVO_MAX = 5;
+function petEvo(id){ return save.petEvo[id]||0; }
+function petEvoCost(star){ return Math.ceil(60*Math.pow(1.9,star)); } // эссенция
+function petMaxed(id){ const p=PET[id]; return (save.pets[id]||0)>=p.max; }
+function petEvoMul(id){ return 1 + 0.25*petEvo(id); } // множитель уровня-эффекта питомца
+
+// ---- Мастерство зелий: число варок → скидка + длительность + вечная потенция ----
+const POT_TIERS = [5,20,50,120,300]; // пороги варок для тиров 1..5
+function potionTier(id){ const n=save.potionBrews[id]||0; let t=0; for(const th of POT_TIERS){ if(n>=th) t++; } return t; }
+function potionDurMul(id){ return 1 + potionTier(id)*0.15 + (save.labUps.reflux||0)*0.06; }
+function potionCostMul(id){ return 1 - Math.min(0.5, potionTier(id)*0.1); }
+function potionMasterCount(){ let c=0; for(const p of POTIONS){ if(potionTier(p.id)>=3) c++; } return c; }
+
+// ---- Эликсиры: разовые вечные бонусы за эссенцию (аналог мутантов) ----
+const ELIXIRS = [
+  { id:"vitae", icon:"❤️", name:"Эликсир жизни",   cost:200,  desc:"+40% Oof/с навсегда",  apply:m=>m.global*=1.4, req:()=>true },
+  { id:"alch",  icon:"🌿", name:"Эликсир алхимии", cost:280,  desc:"Эссенция ×2",           apply:()=>{}, req:()=>(save.essenceEver||0)>=120 },
+  { id:"mind",  icon:"🧠", name:"Эликсир разума",  cost:400,  desc:"Эффект рун +25%",       apply:m=>m._runePow+=0.25, req:()=>(save.essenceEver||0)>=250 },
+  { id:"might", icon:"💪", name:"Эликсир мощи",    cost:600,  desc:"×2 к тапу навсегда",    apply:m=>m.click*=2, req:()=>(save.essenceEver||0)>=500 },
+  { id:"gold",  icon:"🪙", name:"Эликсир золота",  cost:1000, desc:"Призм +30%",            apply:m=>m.prism*=1.3, req:()=>Object.keys(save.elixirs).length>=3 },
+  { id:"void",  icon:"🌌", name:"Эликсир пустоты", cost:2000, desc:"×2 ко всему навсегда",  apply:m=>m.global*=2, req:()=>Object.keys(save.elixirs).length>=5 },
+];
+const ELIXIR = Object.fromEntries(ELIXIRS.map(e=>[e.id,e]));
+
+// ---- Кодекс алхимика: сет-бонусы за коллекцию ----
+function petsAllMax(){ return PETS.every(p=>(save.pets[p.id]||0)>=p.max); }
+function petsAllEvo(){ return PETS.every(p=>petEvo(p.id)>=PET_EVO_MAX); }
+function potionsAllMaster(){ return POTIONS.every(p=>potionTier(p.id)>=3); }
+function elixirsAll(){ return ELIXIRS.every(e=>save.elixirs[e.id]); }
+function alchemySetBonus(){ let b=0;
+  if(petsAllMax()) b+=0.25;
+  if(petsAllEvo()) b+=0.5;
+  if(potionsAllMaster()) b+=0.25;
+  if(elixirsAll()) b+=0.5;
+  b += (save.labLevel||0)*0.02;              // уровень лаборатории
+  b += potionMasterCount()*0.05;             // каждое освоенное зелье
+  return b;
+}
+
 // ---- Конвейер мутаций: скрещивание за руду+пыль+шестерёнки → вечные мутанты ----
 const MUTANTS = [
   { id:"magnet", icon:"🧲", name:"Нуб-магнит",     desc:"+30% Oof/с навсегда",
@@ -898,6 +965,7 @@ const DEFAULT = ()=>({
   overheat:{ on:false, wear:0, coolUntil:0 },
   miners:0, ore:0, oreEver:0, miningUps:{}, depth:0, digProg:0, artifacts:0,
   pets:{}, potions:{},
+  essence:0, essenceEver:0, labLevel:0, labUps:{}, petEvo:{}, potionBrews:{}, elixirs:{},
   activeChallenge:null, chalDone:{},
   quarks:0, quarksEver:0, transcends:0, quarkUps:{}, corruption:0, corr:0, corrEver:0, corrUps:{},
   pantheon:{}, darkShop:{}, godArtifacts:{}, gaCount:0,
@@ -919,7 +987,10 @@ function load(){
   try{
     const raw=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");
     if(raw){ save=Object.assign(DEFAULT(),raw);
-      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","dustUps","ranks","relics","crossUps","runeMastery","runeSeen","infUps","synUps","infQuality","tokenUps","seen","blueprints","wsQuality","wsStars","wsConveyors","wsKeyUps"]) if(!save[k]) save[k]={};
+      for(const k of ["noobs","ups","prismUps","starUps","workshopUps","achieved","miningUps","pets","potions","chalDone","quarkUps","corrUps","mutants","dustUps","ranks","relics","crossUps","runeMastery","runeSeen","infUps","synUps","infQuality","tokenUps","seen","blueprints","wsQuality","wsStars","wsConveyors","wsKeyUps","labUps","petEvo","potionBrews","elixirs"]) if(!save[k]) save[k]={};
+      if(typeof save.essence!=="number") save.essence=0;
+      if(typeof save.essenceEver!=="number") save.essenceEver=save.essence||0;
+      if(typeof save.labLevel!=="number") save.labLevel=0;
       if(!save.wsProjects||typeof save.wsProjects!=="object") save.wsProjects={active:null,until:0,done:{}};
       if(!save.wsProjects.done) save.wsProjects.done={};
       if(!save.overheat||typeof save.overheat!=="object") save.overheat={on:false,wear:0,coolUntil:0};
@@ -1017,8 +1088,12 @@ function recompute(){
   // награды за пройденные испытания (вечные)
   for(const c of CHALLENGES){ if(save.chalDone[c.id]){ const r=c.reward;
     if(r.global) m.global*=(1+r.global); if(r.click) m.click*=(1+r.click); if(r.cost) m.cost*=(1-r.cost); } }
-  // питомцы (вечные бонусы)
-  for(const p of PETS){ const l=save.pets[p.id]||0; if(l>0) p.apply(m,l); }
+  // питомцы (вечные бонусы) + эволюция (⭐ усиливает эффект уровня)
+  for(const p of PETS){ const l=save.pets[p.id]||0; if(l>0) p.apply(m, l*petEvoMul(p.id)); }
+  // алхимия 2.0: лаборатория, эликсиры, кодекс
+  for(const u of LAB_UPS){ const l=save.labUps[u.id]||0; if(l>0 && u.apply) u.apply(m,l); }
+  for(const e of ELIXIRS){ if(save.elixirs[e.id] && e.apply) e.apply(m); }
+  m.global *= (1 + alchemySetBonus());
   // зелья (временные баффы)
   const now=Date.now();
   for(const p of POTIONS){ if((save.potions[p.id]||0)>now){ const b=p.buff;
@@ -1126,6 +1201,16 @@ function recompute(){
   // тёмная валюта: генерится при искажении, пропорц. дебаффу и производству
   let darkPen=1; for(const d of DARK_SHOP){ if(save.darkShop[d.id]&&d.darkPen) darkPen*=(1-d.darkPen); }
   D.corrRate = save.corruption>0 ? save.corruption*0.05*(1+Math.max(0,Math.log10(1+Math.max(0,D.ops))))*corrDarkMul()*darkPen : 0;
+  // алхимия: скорость трансмутации эссенции (с учётом запаса топлива)
+  D.essRate = labRate();
+  D.essFuelFrac = 1;
+  if(D.essRate>0){ const fm=labFuelMul();
+    const needOre=D.essRate*LAB_FUEL_ORE*fm, needDust=D.essRate*LAB_FUEL_DUST*fm;
+    let frac=1;
+    if(needOre>0 && save.ore<needOre) frac=Math.min(frac, save.ore/needOre);
+    if(needDust>0 && save.dust<needDust) frac=Math.min(frac, save.dust/needDust);
+    D.essFuelFrac = Math.max(0, Math.min(1, frac||0));
+  }
 }
 
 function noobCost(id, owned){ return NOOB[id].base * Math.pow(COST_MUL, owned) * D.costMul; }
@@ -1604,6 +1689,13 @@ function loop(now){
   }
   // тёмная валюта искажения
   if(D.corrRate>0){ const cc=D.corrRate*edt; save.corr+=cc; save.corrEver=(save.corrEver||0)+cc; }
+  // алхимия: лаборатория трансмутирует руду+пыль → эссенцию
+  if(D.essRate>0 && D.essFuelFrac>0){ const fm=labFuelMul();
+    const got=D.essRate*D.essFuelFrac*edt;
+    save.ore=Math.max(0, save.ore - got*LAB_FUEL_ORE*fm);
+    save.dust=Math.max(0, save.dust - got*LAB_FUEL_DUST*fm);
+    save.essence=(save.essence||0)+got; save.essenceEver=(save.essenceEver||0)+got;
+  }
   if(D.autoMiner){ mnTimer+=edt; if(mnTimer>=0.5){ mnTimer=0; const c=minerCost();
     if(save.oof>=c && save.oof-c>c*0.5){ save.oof-=c; save.miners++; recompute(); } } }
   // авто-престиж (звёздный автопилот)
@@ -2538,8 +2630,14 @@ function updateMiningLive(){
   crossLive("#miningList");
 }
 
-/* ---- Алхимия: питомцы и зелья ---- */
+/* ---- Алхимия 2.0: питомцы, зелья, лаборатория, эликсиры, кодекс ---- */
 let potionState="";
+let alchSub="pets";
+function alchSwitchSub(sub){ alchSub=sub;
+  document.querySelectorAll("#alchSubs button").forEach(b=>b.classList.toggle("on",b.dataset.asub===sub));
+  document.querySelectorAll('.tabpage[data-page="alchemy"] [data-asp]').forEach(p=>p.classList.toggle("hidden",p.dataset.asp!==sub));
+  renderAlchemy();
+}
 function buyPet(id){
   const p=PET[id]; const l=save.pets[id]||0;
   if(l>=p.max) return; const c=p.cost(l);
@@ -2547,63 +2645,212 @@ function buyPet(id){
   save.ore-=c.ore; save.dust-=c.dust; save.pets[id]=l+1;
   recompute(); renderAlchemy(); refreshTop(); queueSave();
 }
+function evolvePet(id){
+  if(!petMaxed(id)){ toast("Сначала прокачай питомца до макс."); return; }
+  const s=petEvo(id); if(s>=PET_EVO_MAX){ toast("Максимум эволюции"); return; }
+  const cost=petEvoCost(s);
+  if((save.essence||0)<cost){ toast("Мало 🌿 эссенции"); return; }
+  save.essence-=cost; save.petEvo[id]=s+1;
+  recompute(); renderAlchemy(); refreshTop(); queueSave();
+  toast("⭐ "+PET[id].name+" возвышен!");
+}
 function brewPotion(id){
-  const p=POTION[id], c=p.cost;
-  if(save.ore<c.ore || save.dust<c.dust){ toast("Не хватает руды/пыли"); return; }
-  save.ore-=c.ore; save.dust-=c.dust;
+  const p=POTION[id]; const cm=potionCostMul(id);
+  const co=Math.ceil(p.cost.ore*cm), cd=Math.ceil(p.cost.dust*cm);
+  if(save.ore<co || save.dust<cd){ toast("Не хватает руды/пыли"); return; }
+  save.ore-=co; save.dust-=cd;
+  save.potionBrews[id]=(save.potionBrews[id]||0)+1;
   const now=Date.now();
   const base=(save.potions[id]||0)>now ? save.potions[id] : now;
-  save.potions[id]=base + p.dur*1000;
+  save.potions[id]=base + p.dur*1000*potionDurMul(id);
   potionState=""; recompute(); renderAlchemy(); refreshTop(); queueSave();
   toast(p.icon+" "+p.name+" активно!");
 }
+function buildLab(){
+  const c=labCost(save.labLevel||0);
+  if(save.ore<c.ore || save.dust<c.dust){ toast("Не хватает руды/пыли"); return; }
+  save.ore-=c.ore; save.dust-=c.dust; save.labLevel=(save.labLevel||0)+1;
+  recompute(); renderAlchemy(); refreshTop(); queueSave();
+}
+function buyLabUp(id){
+  const u=LAB_UP[id], l=save.labUps[id]||0; if(l>=u.max) return;
+  const cost=u.cost(l);
+  if((save.essence||0)<cost){ toast("Мало 🌿 эссенции"); return; }
+  save.essence-=cost; save.labUps[id]=l+1;
+  recompute(); renderAlchemy(); refreshTop(); queueSave();
+}
+function buyElixir(id){
+  const e=ELIXIR[id]; if(save.elixirs[id]) return;
+  if(!e.req()){ toast("Ещё недоступно"); return; }
+  if((save.essence||0)<e.cost){ toast("Мало 🌿 эссенции"); return; }
+  save.essence-=e.cost; save.elixirs[id]=1;
+  recompute(); renderAlchemy(); refreshTop(); queueSave();
+  toast(e.icon+" "+e.name+" выпит!");
+}
 function renderAlchemy(){
+  renderAlchHead();
+  if(alchSub==="pets") renderPets();
+  else if(alchSub==="potions") renderPotions();
+  else if(alchSub==="lab") renderLab();
+  else if(alchSub==="elixirs") renderElixirs();
+  else if(alchSub==="codex") renderAlchCodex();
+}
+function renderAlchHead(){
+  const eb=$("essBig"); if(eb) eb.textContent=fmt(save.essence||0);
+  const er=$("essRateTxt"); if(er){
+    const eff=(D.essRate||0)*(D.essFuelFrac==null?1:D.essFuelFrac);
+    er.textContent = labBuilt() ? ("+"+eff.toFixed(2)+" 🌿/с"+((D.essFuelFrac!=null&&D.essFuelFrac<0.99)?" ⚠️мало топлива":"")) : "лаборатория не построена";
+  }
+}
+function renderPets(){
   const pbox=$("petList"); pbox.innerHTML="";
   PETS.forEach(p=>{
     const l=save.pets[p.id]||0, maxed=l>=p.max, c=maxed?null:p.cost(l);
+    const evo=petEvo(p.id), stars="⭐".repeat(evo);
     const costTxt = maxed?"МАКС":("🪨 "+fmt(c.ore)+" · 💠 "+fmt(c.dust));
     const row=document.createElement("div"); row.className="buyrow"; row.dataset.pet=p.id;
+    let evoHtml="";
+    if(maxed){
+      if(evo<PET_EVO_MAX){ const ec=petEvoCost(evo);
+        evoHtml=`<button class="mini-btn evo-btn" data-evo="${p.id}">⭐ ${fmt(ec)} 🌿</button>`;
+      } else evoHtml=`<span class="buy-cnt">⭐макс</span>`;
+    }
     row.innerHTML=`<div class="buy-ico">${p.icon}</div>
-      <div class="buy-main"><div class="buy-name">${p.name} ${l>0?'<span class="buy-cnt">ур.'+l+'</span>':''}</div>
-        <div class="buy-desc">${p.desc(l)}</div></div>
-      <div class="buy-right"><div class="buy-cost ore" data-cost>${costTxt}</div></div>`;
+      <div class="buy-main"><div class="buy-name">${p.name} ${l>0?'<span class="buy-cnt">ур.'+l+'</span>':''} ${stars}</div>
+        <div class="buy-desc">${p.desc(l)}${evo>0?' · эффект ×'+petEvoMul(p.id).toFixed(2):''}</div></div>
+      <div class="buy-right"><div class="buy-cost ore" data-cost>${costTxt}</div>${evoHtml}</div>`;
     if(!maxed) row.addEventListener("click", ()=>buyPet(p.id));
+    const eb=row.querySelector("[data-evo]"); if(eb) eb.addEventListener("click",(e)=>{ e.stopPropagation(); evolvePet(p.id); });
     pbox.appendChild(row);
   });
+  updateAlchemyLive();
+}
+function renderPotions(){
   const bbox=$("potionList"); bbox.innerHTML="";
   POTIONS.forEach(p=>{
+    const cm=potionCostMul(p.id), tier=potionTier(p.id);
+    const co=Math.ceil(p.cost.ore*cm), cd=Math.ceil(p.cost.dust*cm);
+    const tierTxt = tier>0 ? '<span class="buy-cnt">◆'+tier+'</span>' : '';
+    const durTxt = potionDurMul(p.id)>1.001 ? ' · длит. ×'+potionDurMul(p.id).toFixed(2) : '';
     const row=document.createElement("div"); row.className="buyrow"; row.dataset.potion=p.id;
     row.innerHTML=`<div class="buy-ico">${p.icon}</div>
-      <div class="buy-main"><div class="buy-name">${p.name}</div>
-        <div class="buy-desc">${p.desc}</div></div>
-      <div class="buy-right"><div class="buy-cost ore">🪨 ${fmt(p.cost.ore)} · 💠 ${fmt(p.cost.dust)}</div>
+      <div class="buy-main"><div class="buy-name">${p.name} ${tierTxt}</div>
+        <div class="buy-desc">${p.desc}${durTxt} · варок: ${save.potionBrews[p.id]||0}</div></div>
+      <div class="buy-right"><div class="buy-cost ore">🪨 ${fmt(co)} · 💠 ${fmt(cd)}</div>
         <div class="buy-prod" data-timer></div></div>`;
     row.addEventListener("click", ()=>brewPotion(p.id));
     bbox.appendChild(row);
   });
   updateAlchemyLive();
 }
+function renderLab(){
+  const info=$("labInfo");
+  if(info){
+    if(!labBuilt()){ const c=labCost(0);
+      info.innerHTML=`<div class="sub-hint">Построй лабораторию, чтобы трансмутировать руду и пыль в 🌿 эссенцию.</div>`;
+    } else {
+      const c=labCost(save.labLevel), fm=labFuelMul();
+      info.innerHTML=`<div class="lab-stat">Лаборатория ур.<b>${save.labLevel}</b> · база ${labRate().toFixed(2)} 🌿/с</div>
+        <div class="sub-hint">Топливо: 🪨 ${(D.essRate*LAB_FUEL_ORE*fm).toFixed(1)}/с · 💠 ${(D.essRate*LAB_FUEL_DUST*fm).toFixed(2)}/с</div>`;
+    }
+  }
+  const lb=$("labBuildBtn");
+  if(lb){ const c=labCost(save.labLevel||0);
+    lb.textContent=(labBuilt()?"⬆️ Улучшить лабораторию":"🔬 Построить лабораторию")+" — 🪨 "+fmt(c.ore)+" · 💠 "+fmt(c.dust);
+    lb.disabled = save.ore<c.ore || save.dust<c.dust;
+  }
+  const box=$("labUpList"); if(box){ box.innerHTML="";
+    LAB_UPS.forEach(u=>{
+      const l=save.labUps[u.id]||0, maxed=l>=u.max, cost=maxed?null:u.cost(l);
+      const row=document.createElement("div"); row.className="buyrow"; row.dataset.labup=u.id;
+      row.innerHTML=`<div class="buy-ico">${u.icon}</div>
+        <div class="buy-main"><div class="buy-name">${u.name} ${l>0?'<span class="buy-cnt">ур.'+l+'</span>':''}</div>
+          <div class="buy-desc">${u.desc(l)}</div></div>
+        <div class="buy-right"><div class="buy-cost" data-cost>${maxed?"МАКС":("🌿 "+fmt(cost))}</div></div>`;
+      if(!maxed) row.addEventListener("click", ()=>buyLabUp(u.id));
+      box.appendChild(row);
+    });
+  }
+  updateAlchemyLive();
+}
+function renderElixirs(){
+  const box=$("elixirList"); if(!box) return; box.innerHTML="";
+  ELIXIRS.forEach(e=>{
+    const done=!!save.elixirs[e.id], avail=e.req();
+    const row=document.createElement("div"); row.className="buyrow"+(done?" owned":""); row.dataset.elix=e.id;
+    const right = done ? '<div class="buy-cost done">✅ выпит</div>' : (avail?('<div class="buy-cost" data-cost>🌿 '+fmt(e.cost)+'</div>'):'<div class="buy-cost cant">🔒</div>');
+    row.innerHTML=`<div class="buy-ico">${e.icon}</div>
+      <div class="buy-main"><div class="buy-name">${e.name}</div>
+        <div class="buy-desc">${e.desc}</div></div>
+      <div class="buy-right">${right}</div>`;
+    if(!done && avail) row.addEventListener("click", ()=>buyElixir(e.id));
+    box.appendChild(row);
+  });
+  updateAlchemyLive();
+}
+function renderAlchCodex(){
+  const box=$("alchCodex"); if(!box) return;
+  const petMax=PETS.filter(p=>(save.pets[p.id]||0)>=p.max).length;
+  const evoTot=PETS.reduce((a,p)=>a+petEvo(p.id),0);
+  const potMast=potionMasterCount();
+  const elixN=Object.keys(save.elixirs).length;
+  const sets=[
+    { ok:petsAllMax(),      txt:"Все питомцы на максимуме → +25% Oof/с" },
+    { ok:petsAllEvo(),      txt:"Все питомцы ⭐×5 → +50% Oof/с" },
+    { ok:potionsAllMaster(),txt:"Все зелья освоены (◆3+) → +25% Oof/с" },
+    { ok:elixirsAll(),      txt:"Все эликсиры выпиты → +50% Oof/с" },
+  ];
+  box.innerHTML=`
+    <div class="codex-grid">
+      <div class="codex-cell"><div class="cc-v">${petMax}/${PETS.length}</div><div class="cc-l">🐾 макс. питомцев</div></div>
+      <div class="codex-cell"><div class="cc-v">${evoTot}/${PETS.length*PET_EVO_MAX}</div><div class="cc-l">⭐ эволюций</div></div>
+      <div class="codex-cell"><div class="cc-v">${potMast}/${POTIONS.length}</div><div class="cc-l">⚗️ освоено зелий</div></div>
+      <div class="codex-cell"><div class="cc-v">${elixN}/${ELIXIRS.length}</div><div class="cc-l">🧪 эликсиров</div></div>
+      <div class="codex-cell"><div class="cc-v">${save.labLevel||0}</div><div class="cc-l">🔬 ур. лаборатории</div></div>
+      <div class="codex-cell"><div class="cc-v">+${Math.round(alchemySetBonus()*100)}%</div><div class="cc-l">🌿 общий бонус</div></div>
+    </div>
+    <div class="sect-lab" style="margin-top:10px">🏅 Сет-бонусы</div>
+    ${sets.map(s=>`<div class="set-row ${s.ok?'on':''}">${s.ok?'✅':'⬜'} ${s.txt}</div>`).join("")}`;
+}
 function updateAlchemyLive(){
   const now=Date.now();
   document.querySelectorAll("#petList .buyrow").forEach(row=>{
-    const p=PET[row.dataset.pet]; const l=save.pets[p.id]||0; if(l>=p.max) return;
-    const c=p.cost(l), ok=save.ore>=c.ore&&save.dust>=c.dust;
-    row.classList.toggle("afford",ok);
-    const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",!ok);
+    const p=PET[row.dataset.pet]; const l=save.pets[p.id]||0;
+    if(l<p.max){ const c=p.cost(l), ok=save.ore>=c.ore&&save.dust>=c.dust;
+      row.classList.toggle("afford",ok);
+      const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",!ok);
+    }
+    const eb=row.querySelector("[data-evo]"); if(eb){ const s=petEvo(p.id);
+      eb.classList.toggle("cant",(save.essence||0)<petEvoCost(s)); }
   });
   document.querySelectorAll("#potionList .buyrow").forEach(row=>{
-    const p=POTION[row.dataset.potion], c=p.cost, ok=save.ore>=c.ore&&save.dust>=c.dust;
+    const p=POTION[row.dataset.potion], cm=potionCostMul(p.id);
+    const co=Math.ceil(p.cost.ore*cm), cd=Math.ceil(p.cost.dust*cm), ok=save.ore>=co&&save.dust>=cd;
     row.classList.toggle("afford",ok);
     const exp=save.potions[p.id]||0, t=row.querySelector("[data-timer]");
     if(exp>now){ t.textContent="⏳ "+Math.ceil((exp-now)/1000)+"с"; t.classList.add("active"); }
     else { t.textContent=""; t.classList.remove("active"); }
   });
+  document.querySelectorAll("#labUpList .buyrow").forEach(row=>{
+    const u=LAB_UP[row.dataset.labup]; const l=save.labUps[u.id]||0; if(l>=u.max) return;
+    const ok=(save.essence||0)>=u.cost(l);
+    row.classList.toggle("afford",ok);
+    const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",!ok);
+  });
+  document.querySelectorAll("#elixirList .buyrow").forEach(row=>{
+    const e=ELIXIR[row.dataset.elix]; if(save.elixirs[e.id]) return;
+    const ok=e.req() && (save.essence||0)>=e.cost;
+    row.classList.toggle("afford",ok);
+  });
+  const lb=$("labBuildBtn");
+  if(lb && alchSub==="lab"){ const c=labCost(save.labLevel||0);
+    lb.disabled = save.ore<c.ore || save.dust<c.dust; }
 }
 function tickPotions(){
   const now=Date.now();
   const key=POTIONS.map(p=>(save.potions[p.id]||0)>now?"1":"0").join("");
   if(key!==potionState){ potionState=key; recompute(); refreshTop(); if(curTab==="alchemy") renderAlchemy(); }
-  else if(curTab==="alchemy") updateAlchemyLive();
+  else if(curTab==="alchemy"){ renderAlchHead(); updateAlchemyLive(); }
 }
 
 /* ============ Вкладки/навигация ============ */
@@ -2625,6 +2872,8 @@ document.querySelectorAll("#tabbar .tab").forEach(b=>b.addEventListener("click",
 document.querySelectorAll("#upSubs button").forEach(b=>b.addEventListener("click",()=>switchSub(b.dataset.sub)));
 document.querySelectorAll("#wsSubs button").forEach(b=>b.addEventListener("click",()=>wsSwitchSub(b.dataset.wsub)));
 document.querySelectorAll("#metaSubs button").forEach(b=>b.addEventListener("click",()=>metaSwitchSub(b.dataset.msub)));
+document.querySelectorAll("#alchSubs button").forEach(b=>b.addEventListener("click",()=>alchSwitchSub(b.dataset.asub)));
+on("labBuildBtn","click", buildLab);
 on("overheatBtn","click", toggleOverheat);
 on("maintainBtn","click", maintainWorkshop);
 on("reforgeBtn","click", ()=>askConfirm("Переоснастить мастерскую? Улучшения станков, звёзды и текущие шестерёнки сбросятся ради 🗝️ ключей.", doReforge));
