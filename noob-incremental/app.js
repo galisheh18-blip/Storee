@@ -910,6 +910,20 @@ const CORR_ZONES = [
   { at:50, icon:"💀", name:"Забвение",          buff:{global:1.5},  darkMul:5, txt:"+150% всего" },
 ];
 function corrDarkMul(){ let mul=1; for(const z of CORR_ZONES) if((save.corruption||0)>=z.at) mul=z.darkMul; return mul; }
+// D2 — Аномалии искажения: случайные модификаторы забега за тёмную валюту
+const CORR_ANOMALIES = [
+  { id:"surge",   icon:"🌩️", text:"Всплеск тьмы: ⚫ ×3",             dur:22, dark:3 },
+  { id:"rift",    icon:"🕳️", text:"Разлом: всё ×2, ⚫ ×0.5",         dur:26, glob:2, dark:0.5 },
+  { id:"whisper", icon:"👁️", text:"Шёпот бездны: ⚫ ×2, тап ×3",     dur:20, dark:2, click:3 },
+  { id:"drain",   icon:"🩸", text:"Вытягивание: всё ×0.6, ⚫ ×4",    dur:18, glob:0.6, dark:4 },
+  { id:"eclipse", icon:"🌑", text:"Затмение: всё ×2.5",              dur:24, glob:2.5, dark:1 },
+];
+function corrAnom(){ const a=save.corrAnomaly; return (a && Date.now()<a.until)?a:null; }
+function triggerCorrAnomaly(){
+  const a=CORR_ANOMALIES[Math.floor(Math.random()*CORR_ANOMALIES.length)];
+  save.corrAnomaly={ id:a.id, icon:a.icon, text:a.text, until:Date.now()+a.dur*1000, glob:a.glob||1, click:a.click||1, dark:a.dark||1 };
+  toast(a.icon+" "+a.text);
+}
 
 // E — Тёмная лавка (трата тёмной валюты ⚫ на мощные проклятия с побочкой)
 const DARK_SHOP = [
@@ -988,9 +1002,15 @@ const SI_UPS = [
   { id:"siAuto",  icon:"🤖", name:"Полный автопилот",      max:1,    cost:l=>15, desc:l=>l?"Авто престиж+вознес+транс":"Автоматизирует все сбросы", apply:()=>{} },
   { id:"siKeep",  icon:"🎁", name:"Осколок вечности",       max:10,   cost:l=>Math.ceil(3*Math.pow(1.5,l)), desc:l=>"Старт забега: +"+fmt(Math.pow(10,3+l))+" Oof", apply:()=>{} },
   { id:"siQuark", icon:"⚛️", name:"Вечный квант",           max:50,   cost:l=>Math.ceil(4*Math.pow(1.35,l)), desc:l=>"Кварков за транс +"+(l*20)+"%", apply:()=>{} },
+  // ── Слой 2 сингулярности (открывается после нескольких сбросов) ──
+  { id:"siCrush", icon:"🌑", name:"Сжатие реальности", max:300, cost:l=>Math.ceil(5*Math.pow(1.42,l)), desc:l=>"Всё ×"+fmt(1+2*l), apply:(m,l)=>m.global*=(1+2*l), req:()=>(save.singularity.resets||0)>=3 },
+  { id:"siFist",  icon:"👊", name:"Вечный удар",       max:300, cost:l=>Math.ceil(4*Math.pow(1.4,l)),  desc:l=>"Тап ×"+fmt(1+2*l), apply:(m,l)=>m.click*=(1+2*l), req:()=>(save.singularity.resets||0)>=3 },
+  { id:"siPrism", icon:"💠", name:"Кристалл бесконечности", max:100, cost:l=>Math.ceil(6*Math.pow(1.45,l)), desc:l=>"Призм ×"+fmt(1+0.5*l), apply:(m,l)=>m.prism*=(1+0.5*l), req:()=>(save.singularity.resets||0)>=5 },
+  { id:"siWarp",  icon:"🌀", name:"Складка пространства", max:50, cost:l=>Math.ceil(10*Math.pow(1.5,l)), desc:l=>"Все валюты ×"+(1+0.3*l).toFixed(2), apply:(m,l)=>m._allCur+=0.3*l, req:()=>(save.singularity.resets||0)>=7 },
 ];
 const SI_UP_M = Object.fromEntries(SI_UPS.map(s=>[s.id,s]));
-function buySiUp(id){ const s=SI_UP_M[id], l=save.singularity.ups[id]||0; if(l>=s.max) return; const cost=s.cost(l);
+function siReqMet(s){ return !s.req || s.req(); }
+function buySiUp(id){ const s=SI_UP_M[id], l=save.singularity.ups[id]||0; if(l>=s.max||!siReqMet(s)) return; const cost=s.cost(l);
   if((save.singularity.si||0)<cost){ toast("Мало ♾️"); return; } save.singularity.si-=cost; save.singularity.ups[id]=l+1;
   recompute(); renderSingularity(); refreshTop(); queueSave(); }
 function doSingularity(){ const g=siGain(); if(g<1){ toast("Пока рано для сингулярности"); return; }
@@ -1094,7 +1114,7 @@ const DEFAULT = ()=>({
   quarks:0, quarksEver:0, transcends:0, quarkUps:{}, corruption:0, corr:0, corrEver:0, corrUps:{},
   pantheon:{}, darkShop:{}, godArtifacts:{}, gaCount:0,
   chronoCrystals:0, chronoUps:{},
-  realities:{ shards:0, worlds:{} }, metaAch:{},
+  realities:{ shards:0, worlds:{} }, metaAch:{}, corrAnomaly:null,
   singularity:{ si:0, siEver:0, resets:0, ups:{} },
   mutants:{}, market:{ ore:1, dust:1, gears:1, nextDrift:0, event:null },
   dustUps:{}, auto:{ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false, bulk:false, infups:false },
@@ -1247,6 +1267,7 @@ function recompute(){
   for(const c of CORR_UPS){ const l=save.corrUps[c.id]||0; if(l>0 && c.apply) c.apply(m,l); }
   // дебафф искажения
   if(save.corruption>0) m.global /= (1+save.corruption*0.4);
+  const _canom=corrAnom(); if(_canom){ m.global*=_canom.glob; m.click*=_canom.click; }   // аномалия искажения
   /* ---- МЕТА-СЛОИ ---- */
   for(const p of PANTHEON){ const l=save.pantheon[p.id]||0; if(l>0 && p.apply) p.apply(m,l); }        // A — Пантеон
   for(const ms of TRANS_MILE){ if((save.transcends||0)>=ms.at) applyMetaBonus(ms.buff,m); }            // C — вехи транса
@@ -1257,7 +1278,7 @@ function recompute(){
   for(const c of CHRONO_UPS){ const l=save.chronoUps[c.id]||0; if(l>0 && c.apply) c.apply(m,l); }      // G — хроно-улучшения
   for(const w of REALITY_WORLDS){ if(save.realities.worlds[w.id] && w.apply) w.apply(m); }             // H — миры
   for(const ac of META_ACH){ if(save.metaAch[ac.id]) applyMetaBonus(ac.buff,m); }                      // I — мета-достижения
-  for(const s of SI_UPS){ const l=save.singularity.ups[s.id]||0; if(l>0 && s.apply) s.apply(m,l); }    // J — сингулярность
+  for(const s of SI_UPS){ const l=save.singularity.ups[s.id]||0; if(l>0 && s.apply && siReqMet(s)) s.apply(m,l); }    // J — сингулярность
   m.global *= (1 + 0.5*(save.singularity.resets||0));                                                  // J — множитель за сброс
   // престиж: сила престижа (D) + вехи (B) + реликвии (C)
   const ppow=prestigePower(); m.global*=ppow; D.prestigePow=ppow;
@@ -1347,7 +1368,7 @@ function recompute(){
     : 0;
   // тёмная валюта: генерится при искажении, пропорц. дебаффу и производству
   let darkPen=1; for(const d of DARK_SHOP){ if(save.darkShop[d.id]&&d.darkPen) darkPen*=(1-d.darkPen); }
-  D.corrRate = save.corruption>0 ? save.corruption*0.05*(1+Math.max(0,Math.log10(1+Math.max(0,D.ops))))*corrDarkMul()*darkPen : 0;
+  D.corrRate = save.corruption>0 ? save.corruption*0.05*(1+Math.max(0,Math.log10(1+Math.max(0,D.ops))))*corrDarkMul()*darkPen*(corrAnom()?corrAnom().dark:1) : 0;
   // алхимия: скорость трансмутации эссенции (с учётом запаса топлива)
   D.essRate = labRate();
   D.essFuelFrac = 1;
@@ -1930,6 +1951,9 @@ function loop(now){
   }
   // тёмная валюта искажения
   if(D.corrRate>0){ const cc=D.corrRate*edt; save.corr+=cc; save.corrEver=(save.corrEver||0)+cc; }
+  // аномалии искажения: раз в ~45с при искажении
+  if((save.corruption||0)>0){ corrAnomTimer+=edt;
+    if(corrAnomTimer>=45 && !corrAnom()){ corrAnomTimer=0; if(Math.random()<0.6){ triggerCorrAnomaly(); recompute(); if(curTab==="meta"&&metaSub==="corr") renderCorr(); } } }
   // алхимия: лаборатория трансмутирует руду+пыль → эссенцию
   if(D.essRate>0 && D.essFuelFrac>0){ const fm=labFuelMul();
     const got=D.essRate*D.essFuelFrac*edt;
@@ -1977,7 +2001,7 @@ let abTimer=0;
 let apTimer=0;
 let mnTimer=0;
 let boomTimer=0;
-let asTimer=0, tsTimer=0, metaTimer=0, mineEvTimer=0;
+let asTimer=0, tsTimer=0, metaTimer=0, mineEvTimer=0, corrAnomTimer=0;
 // G — хроно-кристаллы: капают на рыночных событиях + авто-трейд
 function tickChrono(){ const mk=save.market; if(mk.event && Date.now()<mk.event.until){
     save.chronoCrystals=(save.chronoCrystals||0)+1;
@@ -2564,6 +2588,8 @@ function metaRefreshLive(){
   } else if(metaSub==="corr"){ const cn=$("corrNote");
     if(cn) cn.textContent=(save.corruption||0)>0?("Выработка ÷"+(1+save.corruption*0.4).toFixed(1)+" · тёмная +"+fmt(D.corrRate||0)+"/с"):"Подними уровень, чтобы копить ⚫";
     const cv=$("corrVal"); if(cv) cv.textContent=fmt(save.corr); const cl=$("corrLvl"); if(cl) cl.textContent=save.corruption||0;
+    const ab=$("corrAnomBanner"); if(ab){ const a=corrAnom();
+      if(a){ ab.classList.remove("hidden"); ab.textContent=a.icon+" "+a.text+" · ⏳"+Math.ceil((a.until-Date.now())/1000)+"с"; } else ab.classList.add("hidden"); }
   } else if(metaSub==="chrono"){ const cvv=$("chronoVal"); if(cvv) cvv.textContent=fmt(save.chronoCrystals||0);
   } else if(metaSub==="singularity"){ const g=siGain(); const b=$("singularityBtn"); if(b) b.disabled=g<1;
     const sg=$("siGain"); if(sg) sg.textContent=fmt(g); const sh=$("siHave"); if(sh) sh.textContent=fmt(save.singularity.si||0); }
@@ -2600,6 +2626,9 @@ function renderPantheon(){
 // ⚫ Искажение 2.0 (D) + тёмная лавка (E)
 function renderCorr(){
   $("corrLvl").textContent=save.corruption||0; $("corrVal").textContent=fmt(save.corr);
+  const ab=$("corrAnomBanner"); if(ab){ const a=corrAnom();
+    if(a){ ab.classList.remove("hidden"); ab.textContent=a.icon+" "+a.text+" · ⏳"+Math.ceil((a.until-Date.now())/1000)+"с"; }
+    else ab.classList.add("hidden"); }
   const zb=$("corrZoneBar"); if(zb){ zb.innerHTML="";
     CORR_ZONES.forEach(z=>{ const on=(save.corruption||0)>=z.at; const el=document.createElement("div");
       el.className="cat-chip"+(on?" done":""); el.textContent=z.icon+" "+z.at+(on?"✓":""); el.title=z.name+" · "+z.txt+" · ×"+z.darkMul+" тёмной"; zb.appendChild(el); }); }
@@ -2671,10 +2700,17 @@ function renderSingularity(){
   const b=$("singularityBtn"); if(b) b.disabled=g<1;
   $("siNote").textContent = g<1 ? ("Нужно 10 трансценденций (есть "+(save.transcends||0)+")") : "Сбросит призмы/звёзды/кварки/пантеон/искажение/мастерскую";
   const box=$("siUpList"); if(!box) return; box.innerHTML="";
-  SI_UPS.forEach(s=>{ const l=S.ups[s.id]||0, maxed=l>=s.max, cost=s.cost(l);
+  SI_UPS.forEach(s=>{ if(!siReqMet(s)) return;   // слой 2 скрыт до нужного числа сбросов
+    const l=S.ups[s.id]||0, maxed=l>=s.max, cost=s.cost(l);
     const row=document.createElement("div"); row.className="buyrow"; row.dataset.siu=s.id;
     row.innerHTML=upRowHTML(s.icon,s.name+" "+(l>0?"("+l+(s.max<50?"/"+s.max:"")+")":""),s.desc(l),l,s.max,maxed?"МАКС":"♾️ "+fmt(cost),"si");
     if(!maxed) row.addEventListener("click",()=>buySiUp(s.id)); box.appendChild(row); });
+  // подсказка о слое 2
+  const locked=SI_UPS.filter(s=>!siReqMet(s)).length;
+  if(locked){ const hint=document.createElement("div"); hint.className="sub-hint";
+    const nextReset=[3,5,7].find(n=>(S.resets||0)<n);
+    hint.textContent="🔒 Слой 2 сингулярности открывается со сбросами (следующий узел — с "+nextReset+" сбросов, сейчас "+(S.resets||0)+")";
+    box.appendChild(hint); }
   document.querySelectorAll("#siUpList .buyrow").forEach(row=>{ const s=SI_UP_M[row.dataset.siu]; const l=S.ups[s.id]||0;
     if(l>=s.max) return; row.classList.toggle("afford",(S.si||0)>=s.cost(l)); });
 }
