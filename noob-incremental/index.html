@@ -512,6 +512,7 @@
         <button class="icon-btn" id="chalClose">✕</button>
       </div>
       <p class="ach-sub">Забег с ограничением ради вечного перка. Вход сбрасывает текущий прогресс забега.</p>
+      <div id="chalStreak" class="chal-streak"></div>
       <div id="chalList"></div>
     </div>
   </div>
@@ -558,6 +559,15 @@
   </div>
 
   <!-- ПОДТВЕРЖДЕНИЕ -->
+  <div id="offlineModal" class="overlay hidden">
+    <div class="modal off-modal">
+      <div class="menu-logo">🌙</div>
+      <h1>С возвращением!</h1>
+      <div id="offlineBody"></div>
+      <button class="btn btn-primary" id="offlineClose">Забрать</button>
+    </div>
+  </div>
+
   <div id="confirmModal" class="overlay hidden">
     <div class="modal confirm-box">
       <div class="cf-ico">⚠️</div>

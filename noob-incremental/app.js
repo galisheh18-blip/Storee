@@ -1016,7 +1016,7 @@ const DEFAULT = ()=>({
   pets:{}, potions:{},
   essence:0, essenceEver:0, labLevel:0, labUps:{}, petEvo:{}, potionBrews:{}, elixirs:{},
   potionsConc:{}, labDistill:0, petBuff:{}, petCd:{},
-  activeChallenge:null, chalDone:{},
+  activeChallenge:null, chalDone:{}, chalStreak:0, chalStreakBest:0,
   quarks:0, quarksEver:0, transcends:0, quarkUps:{}, corruption:0, corr:0, corrEver:0, corrUps:{},
   pantheon:{}, darkShop:{}, godArtifacts:{}, gaCount:0,
   chronoCrystals:0, chronoUps:{},
@@ -1142,6 +1142,7 @@ function recompute(){
   // награды за пройденные испытания (вечные)
   for(const c of CHALLENGES){ if(save.chalDone[c.id]){ const r=c.reward;
     if(r.global) m.global*=(1+r.global); if(r.click) m.click*=(1+r.click); if(r.cost) m.cost*=(1-r.cost); } }
+  m.global *= (1 + (save.chalStreakBest||0)*0.05);   // стрик испытаний — вечный множитель
   // питомцы (вечные бонусы) + эволюция (⭐ усиливает эффект уровня)
   for(const p of PETS){ const l=save.pets[p.id]||0; if(l>0) p.apply(m, l*petEvoMul(p.id)); }
   for(const el of ELEMENTS){ const t=elemTier(el); if(t>0) el.apply(m,t); }   // стихийные сеты
@@ -1616,21 +1617,43 @@ function softReset(){
 }
 
 /* ============ Оффлайн-доход ============ */
+let pendingOffline=null;
 function applyOffline(){
   const now=Date.now();
   const dt=Math.min((now-(save.lastTime||now))/1000, 60*60*24); // до 24ч
   save.lastTime=now;
   if(dt<5) return;
   recompute();
+  const rep={ dt, oof:0, ore:0, essence:0, gears:0 };
   const rate=D.offline;
-  if(rate>0 && D.ops>0){
-    const earn=D.ops*rate*dt;
-    if(earn>0){ gainOof(earn); setTimeout(()=>toast("🌙 Оффлайн: +"+fmt(earn)+" Oof"),400); }
-  }
+  if(rate>0 && D.ops>0){ const earn=D.ops*rate*dt; if(earn>0){ gainOof(earn); rep.oof=earn; } }
   // руда копится оффлайн (шахтёры работают всегда)
-  if(D.oreRate>0){ const o=D.oreRate*dt; save.ore+=o; save.oreEver=(save.oreEver||0)+o; }
+  if(D.oreRate>0){ const o=D.oreRate*dt; save.ore+=o; save.oreEver=(save.oreEver||0)+o; rep.ore=o; }
+  // мастерская фармит шестерёнки и оффлайн
+  if(D.gearRate>0){ const g=D.gearRate*dt; save.gears+=g; save.gearsEver=(save.gearsEver||0)+g; rep.gears=g; }
+  // лаборатория трансмутирует эссенцию оффлайн (в пределах топлива)
+  if(labBuilt()){ const eRate=labRate(); if(eRate>0){ const fm=labFuelMul();
+    const needOre=eRate*LAB_FUEL_ORE*fm*dt, needDust=eRate*LAB_FUEL_DUST*fm*dt;
+    let frac=1; if(needOre>0&&save.ore<needOre)frac=Math.min(frac,save.ore/needOre);
+    if(needDust>0&&save.dust<needDust)frac=Math.min(frac,save.dust/needDust);
+    frac=Math.max(0,Math.min(1,frac||0));
+    const got=eRate*frac*dt; save.ore-=needOre*frac; save.dust-=needDust*frac;
+    save.essence=(save.essence||0)+got; save.essenceEver=(save.essenceEver||0)+got; rep.essence=got; } }
   // энергия рун копится и оффлайн
   save.energy=Math.min((D.energyMax||D.slots+2), (save.energy||0) + dt/ (60/D.runeRegen));
+  if(dt>=60 && (rep.oof>0||rep.ore>0||rep.essence>0||rep.gears>0)) pendingOffline=rep;
+}
+function fmtDur(s){ s=Math.floor(s); const h=Math.floor(s/3600), m=Math.floor(s%3600/60);
+  if(h>0) return h+"ч "+m+"м"; if(m>0) return m+"м "+(s%60)+"с"; return s+"с"; }
+function showOfflineModal(){
+  if(!pendingOffline) return; const r=pendingOffline; pendingOffline=null;
+  const rows=[];
+  if(r.oof>0)     rows.push(`<div class="off-row"><span>💰 Oof</span><b>+${fmt(r.oof)}</b></div>`);
+  if(r.ore>0)     rows.push(`<div class="off-row"><span>🪨 Руда</span><b>+${fmt(r.ore)}</b></div>`);
+  if(r.gears>0)   rows.push(`<div class="off-row"><span>⚙️ Шестерёнки</span><b>+${fmt(r.gears)}</b></div>`);
+  if(r.essence>0) rows.push(`<div class="off-row"><span>🌿 Эссенция</span><b>+${fmt(r.essence)}</b></div>`);
+  const body=$("offlineBody"); if(body) body.innerHTML=`<div class="off-time">🌙 Вас не было ${fmtDur(r.dt)}</div>${rows.join("")}`;
+  const mod=$("offlineModal"); if(mod) mod.classList.remove("hidden");
 }
 
 /* ============ 2D СЦЕНА ============ */
@@ -3253,9 +3276,12 @@ function tickPortal(dt){
 let chalOpen=false;
 function completeChallenge(){
   const id=save.activeChallenge, c=CHAL[id]; if(!c) return;
+  const already=!!save.chalDone[id];
   save.chalDone[id]=1; save.activeChallenge=null;
+  if(!already){ save.chalStreak=(save.chalStreak||0)+1;                 // стрик только за новые
+    if(save.chalStreak>(save.chalStreakBest||0)) save.chalStreakBest=save.chalStreak; }
   softReset(); recompute(); syncNoobSprites(); refreshTop(); renderAll();
-  toast("🎯 Пройдено: "+c.name+" — "+c.rewardText); persist();
+  toast("🎯 Пройдено: "+c.name+" — "+c.rewardText+(save.chalStreak>1?" · 🔥серия "+save.chalStreak:"")); persist();
   if(chalOpen) renderChallenges();
 }
 function enterChallenge(id){
@@ -3264,10 +3290,13 @@ function enterChallenge(id){
   toast(CHAL[id].icon+" Испытание: "+CHAL[id].name); renderChallenges(); persist();
 }
 function abandonChallenge(){
-  save.activeChallenge=null; softReset(); recompute(); syncNoobSprites(); refreshTop(); renderAll();
+  save.activeChallenge=null; save.chalStreak=0;   // выход обрывает серию
+  softReset(); recompute(); syncNoobSprites(); refreshTop(); renderAll();
   renderChallenges(); persist();
 }
 function renderChallenges(){
+  const cs=$("chalStreak"); if(cs){ const s=save.chalStreak||0, best=save.chalStreakBest||0;
+    cs.innerHTML=`🔥 Серия: <b>${s}</b> · рекорд <b>${best}</b> · вечный бонус <b>+${Math.round(best*5)}%</b> Oof/с`; }
   const box=$("chalList"); box.innerHTML="";
   CHALLENGES.forEach(c=>{
     const done=!!save.chalDone[c.id], active=save.activeChallenge===c.id;
@@ -3425,6 +3454,7 @@ function askConfirm(text, onYes){
   $("cfText").textContent=text; cfCb=onYes||null;
   $("confirmModal").classList.remove("hidden");
 }
+on("offlineClose","click", ()=>{ $("offlineModal").classList.add("hidden"); refreshTop(); });
 on("cfYes","click", ()=>{ $("confirmModal").classList.add("hidden"); const cb=cfCb; cfCb=null; if(cb) cb(); });
 on("cfNo","click", ()=>{ $("confirmModal").classList.add("hidden"); cfCb=null; });
 on("confirmModal","click", e=>{ if(e.target.id==="confirmModal"){ $("confirmModal").classList.add("hidden"); cfCb=null; } });
@@ -3573,6 +3603,7 @@ function init(){
   syncNoobSprites();
   switchTab("noobs");
   refreshTop();
+  showOfflineModal();
   // подсказка исчезает сама
   setTimeout(()=>{ if(!hintHidden){ $("tapHint").style.opacity=.0; } }, 6000);
   last=performance.now();
