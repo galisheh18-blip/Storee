@@ -202,6 +202,16 @@ const TOKEN_UPS = [
   { id:"tprism",icon:"🎟️", name:"Жетон призм", max:100, desc:l=>"Призм +"+(l*20)+"%",            cost:l=>l+2, apply:(m,l)=>m.prism*=(1+0.2*l) },
 ];
 const TOKEN_UP = Object.fromEntries(TOKEN_UPS.map(t=>[t.id,t]));
+// Легендарные улучшения — разовые мощные перки за 🎟️ жетоны
+const LEGEND_UPS = [
+  { id:"lg_prod", icon:"🌟", name:"Ядро легенды",    cost:50,  desc:"×3 Oof/с навсегда",   req:()=>save.prestiges>=5,  apply:m=>m.global*=3 },
+  { id:"lg_tap",  icon:"👊", name:"Кулак легенды",   cost:40,  desc:"×5 к тапу навсегда",  req:()=>save.lifetimeClicks>=1e4, apply:m=>m.click*=5 },
+  { id:"lg_rune", icon:"🔮", name:"Резонанс легенды",cost:60,  desc:"Эффект рун +100%",     req:()=>save.stars>=10,     apply:m=>m._runePow+=1 },
+  { id:"lg_cost", icon:"🔻", name:"Дефляция легенды",cost:70,  desc:"Цена нубов −30%",      req:()=>save.prestiges>=8,  apply:m=>m.cost*=0.7 },
+  { id:"lg_prism",icon:"💎", name:"Грань легенды",   cost:80,  desc:"Призм ×2",             req:()=>save.prestiges>=10, apply:m=>m.prism*=2 },
+  { id:"lg_all",  icon:"♾️", name:"Вечность легенды",cost:150, desc:"×5 ко всему навсегда", req:()=>Object.keys(save.legends||{}).length>=4, apply:m=>m.global*=5 },
+];
+const LEGEND_UP = Object.fromEntries(LEGEND_UPS.map(l=>[l.id,l]));
 
 // G — ротационный магазин (обновляется по времени)
 const SHOP_POOL = [
@@ -269,6 +279,7 @@ const AUTOS = [
   { id:"workshop", icon:"⚙️", name:"Автомастерская",       unlock:()=>save.prestiges>=5||save.transcends>0, hint:"С 5 престижей" },
   { id:"potions",  icon:"⚗️", name:"Автоварка зелий",      unlock:()=>save.transcends>0, hint:"С 1 трансценденции" },
   { id:"bulk",     icon:"🎲", name:"Авто-массовый ролл рун", unlock:()=>save.prestiges>=3, hint:"С 3 престижей · крутит при полной энергии, лучшую надевает" },
+  { id:"infups",   icon:"♾️", name:"Авто-бесконечные улучш.", unlock:()=>save.prestiges>=4, hint:"С 4 престижей · берёт самое дешёвое, держит резерв Oof" },
 ];
 function runeValue(r){ // сила руны: тип × редкость × уровень × звёзды
   const t=RTYPE[r.type], rar=RARITIES[r.rar];
@@ -1050,12 +1061,12 @@ const DEFAULT = ()=>({
   realities:{ shards:0, worlds:{} }, metaAch:{},
   singularity:{ si:0, siEver:0, resets:0, ups:{} },
   mutants:{}, market:{ ore:1, dust:1, gears:1, nextDrift:0, event:null },
-  dustUps:{}, auto:{ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false, bulk:false },
+  dustUps:{}, auto:{ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false, bulk:false, infups:false },
   autoEquipBulk:false,
   ranks:{}, prismsEver:0, relics:{}, crossUps:{}, apMult:2,
   runeMastery:{}, runeSeen:{},
   infUps:{}, synUps:{}, infQuality:{},
-  research:{ active:null, until:0, done:{} }, tokens:0, tokenUps:{}, shopGlobal:0,
+  research:{ active:null, until:0, done:{} }, tokens:0, tokenUps:{}, shopGlobal:0, legends:{},
   shop:{ offers:[], next:0 },
   lastTime:Date.now(), seen:{},
   admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }
@@ -1088,6 +1099,7 @@ function load(){
       if(!save.singularity||typeof save.singularity!=="object") save.singularity={si:0,siEver:0,resets:0,ups:{}};
       if(!save.singularity.ups) save.singularity.ups={};
       if(typeof save.tokens!=="number") save.tokens=0;
+      if(!save.legends) save.legends={};
       if(typeof save.shopGlobal!=="number") save.shopGlobal=0;
       if(!save.research||typeof save.research!=="object") save.research={active:null,until:0,done:{}};
       if(!save.research.done) save.research.done={};
@@ -1096,7 +1108,7 @@ function load(){
       if(typeof save.apMult!=="number") save.apMult=2;
       if(typeof save.corruption!=="number") save.corruption=0;
       if(!save.market) save.market={ ore:1, dust:1, gears:1, nextDrift:0, event:null };
-      save.auto=Object.assign({ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false, bulk:false }, save.auto||{});
+      save.auto=Object.assign({ click:true, noobs:true, ups:true, mining:true, workshop:true, potions:false, bulk:false, infups:false }, save.auto||{});
       if(typeof save.salvageBelow!=="number") save.salvageBelow=-1;
       if(typeof save.gearsEver!=="number") save.gearsEver=save.gears||0;
       if(typeof save.miners!=="number") save.miners=0;
@@ -1140,6 +1152,7 @@ function recompute(){
     for(const id in save.research.done){ if(save.research.done[id]&&RESEARCH_M[id]) applyResearch(RESEARCH_M[id].bonus,m); } // E
   }
   for(const t of TOKEN_UPS){ const l=save.tokenUps[t.id]||0; if(l>0) t.apply(m,l); }   // H — жетоны (вечные, не гейтятся испытанием)
+  for(const lg of LEGEND_UPS){ if(save.legends[lg.id]) lg.apply(m); }                  // легендарные перки
   m.global *= (1+(save.shopGlobal||0));  // G — магазинные множители
   // призматические
   for(const p of PRISM_UPS){ const l=save.prismUps[p.id]||0; if(l>0 && p.apply) p.apply(m,l); }
@@ -2171,6 +2184,14 @@ function updateResearchTimer(){ const R=save.research; if(!R.active) return; con
   const left=Math.max(0,(R.until-Date.now())/1000), f=1-left/r.time;
   const fill=$("raFill"), tt=$("raTime"); if(fill) fill.style.width=Math.min(100,f*100)+"%"; if(tt) tt.textContent=Math.ceil(left)+"с осталось"; }
 /* H — жетоны */
+function buyLegend(id){
+  const lg=LEGEND_UP[id]; if(save.legends[id]) return;
+  if(!lg.req()){ toast("Ещё недоступно"); return; }
+  if((save.tokens||0)<lg.cost){ toast("Мало 🎟️ жетонов"); return; }
+  save.tokens-=lg.cost; save.legends[id]=1;
+  recompute(); renderTokens(); refreshTop(); queueSave();
+  toast(lg.icon+" "+lg.name+"!");
+}
 function renderTokens(){
   const tv=$("tokenVal"); if(tv) tv.textContent=fmt(save.tokens||0);
   const box=$("tokenList"); if(!box) return; box.innerHTML="";
@@ -2179,6 +2200,17 @@ function renderTokens(){
     row.innerHTML=upRowHTML(t.icon, t.name+" "+(l>0?"("+l+")":""), t.desc(l), l, t.max, maxed?"МАКС":"🎟️ "+fmt(cost), "token");
     if(!maxed) row.addEventListener("click", ()=>buyTokenUp(t.id));
     box.appendChild(row); });
+  // легендарные
+  const lbox=$("legendList"); if(lbox){ lbox.innerHTML="";
+    LEGEND_UPS.forEach(lg=>{ const done=!!save.legends[lg.id], avail=lg.req();
+      const row=document.createElement("div"); row.className="buyrow"+(done?" owned":""); row.dataset.legend=lg.id;
+      const right = done ? '<div class="buy-cost done">✅</div>' : (avail?('<div class="buy-cost" data-cost>🎟️ '+lg.cost+'</div>'):'<div class="buy-cost cant">🔒</div>');
+      row.innerHTML=`<div class="buy-ico">${lg.icon}</div>
+        <div class="buy-main"><div class="buy-name">${lg.name}</div><div class="buy-desc">${lg.desc}</div></div>
+        <div class="buy-right">${right}</div>`;
+      if(!done && avail) row.addEventListener("click", ()=>buyLegend(lg.id));
+      lbox.appendChild(row); });
+  }
   updateTokenLive();
 }
 function updateTokenLive(){
@@ -2186,6 +2218,8 @@ function updateTokenLive(){
   document.querySelectorAll("#tokenList .buyrow").forEach(row=>{ const t=TOKEN_UP[row.dataset.token]; const l=save.tokenUps[t.id]||0;
     if(l>=t.max) return; const cost=t.cost(l); row.classList.toggle("afford",(save.tokens||0)>=cost);
     const ce=row.querySelector("[data-cost]"); if(ce) ce.classList.toggle("cant",(save.tokens||0)<cost); });
+  document.querySelectorAll("#legendList .buyrow").forEach(row=>{ const lg=LEGEND_UP[row.dataset.legend];
+    if(save.legends[lg.id]) return; const ok=lg.req()&&(save.tokens||0)>=lg.cost; row.classList.toggle("afford",ok); });
 }
 /* G — магазин */
 function renderShop(){
@@ -3494,6 +3528,14 @@ function runAutomation(edt){
   let changed=false;
   if(save.prestiges>=3 && save.auto.ups!==false){
     for(const u of UPS){ if(!save.ups[u.id]&&u.req()&&save.oof>=u.cost){ save.oof-=u.cost; save.ups[u.id]=true; changed=true; } } }
+  // приоритетная авто-покупка бесконечных улучшений: самое дешёвое сначала, с резервом
+  if(save.prestiges>=4 && save.auto.infups){
+    let k=0;
+    while(k<200){ let bi=null, bc=Infinity;
+      for(const u of INF_UPS){ const c=infCost(u, save.infUps[u.id]||0); if(c<bc){ bc=c; bi=u; } }
+      if(bi && save.oof>=bc && save.oof-bc>save.oof*0.25){ save.oof-=bc; save.infUps[bi.id]=(save.infUps[bi.id]||0)+1; changed=true; k++; }
+      else break;
+    } }
   if(((save.miningUps||{}).auto>0) && save.auto.mining!==false){
     let c=minerCost(),k=0; while(save.oof>=c && save.oof-c>c*0.4 && k<100){ save.oof-=c; save.miners++; c=minerCost(); k++; changed=true; }
     for(const d of MINING_UPS){ const l=save.miningUps[d.id]||0; if(l<d.max && save.ore>=d.cost(l)){ save.ore-=d.cost(l); save.miningUps[d.id]=l+1; changed=true; } } }
