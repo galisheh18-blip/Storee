@@ -570,16 +570,26 @@ function buyKeyUp(id){ const k=WS_KEY_M[id], l=save.wsKeyUps[id]||0; if(l>=k.max
   recompute(); renderWsReforge(); refreshTop(); queueSave(); }
 
 // E — перегрев/обслуживание (риск-механика фарма)
-function wsOverheatFactor(){ const o=save.overheat; if(!o) return 1; const now=Date.now();
+function wsOverheatFactor(){ if(save.wsBroken) return 0; const o=save.overheat; if(!o) return 1; const now=Date.now();
   if(o.coolUntil>now) return 0.3; if(o.on) return 3; return 1; }
+function wsRepairCost(){ return Math.max(2, wsLevel()+(save.wsReforges||0)); }  // ключи
 function toggleOverheat(){ const o=save.overheat; if(o.coolUntil>Date.now()){ toast("Идёт обслуживание"); return; }
-  o.on=!o.on; toast(o.on?"🔥 Форсаж: фарм ×3, копится износ":"❄️ Форсаж выключен"); recompute(); renderWsFarm(); }
-function maintainWorkshop(){ const o=save.overheat; const cost=Math.ceil(20+(save.gearsEver||0)*0.0002);
+  if(save.wsBroken){ toast("Станок сломан — почини"); return; }
+  o.on=!o.on; toast(o.on?"🔥 Форсаж: фарм ×3, износ и риск поломки":"❄️ Форсаж выключен"); recompute(); renderWsFarm(); }
+function maintainWorkshop(){ const o=save.overheat;
+  if(save.wsBroken){ const kc=wsRepairCost();  // починка сломанного станка за ключи
+    if((save.wsKeys||0)<kc){ toast("Нужно "+kc+" 🗝️ для починки"); return; }
+    save.wsKeys-=kc; save.wsBroken=false; o.wear=0; o.on=false; toast("🔧 Станок починен!"); recompute(); renderWsFarm(); refreshTop(); queueSave(); return; }
+  const cost=Math.ceil(20+(save.gearsEver||0)*0.0002);
   if(save.gears<cost){ toast("Мало ⚙️ для обслуживания ("+fmt(cost)+")"); return; }
   save.gears-=cost; o.wear=0; o.coolUntil=0; o.on=false; toast("🛠️ Обслужено — износ сброшен"); recompute(); renderWsFarm(); refreshTop(); queueSave(); }
 function tickOverheat(edt){ const o=save.overheat; if(!o) return; const now=Date.now();
   if(o.coolUntil>now) return;
-  if(o.on){ o.wear=Math.min(100,o.wear+edt*3.5); if(o.wear>=100){ o.on=false; o.coolUntil=now+45000; toast("🔥 Перегрев! Обслуживание 45с (фарм ×0.3)"); if(curTab==="workshop") renderWsFarm(); } }
+  if(o.on){ o.wear=Math.min(100,o.wear+edt*3.5);
+    // риск поломки при форсаже (тем выше, чем больше износ)
+    if(!save.wsBroken && Math.random() < edt*0.01*(0.5+o.wear/100)){ save.wsBroken=true; o.on=false;
+      toast("💥 Поломка станка! Почини за 🗝️ (кнопка 🛠️)"); if(curTab==="workshop") renderWsFarm(); return; }
+    if(o.wear>=100){ o.on=false; o.coolUntil=now+45000; toast("🔥 Перегрев! Обслуживание 45с (фарм ×0.3)"); if(curTab==="workshop") renderWsFarm(); } }
   else if(o.wear>0){ o.wear=Math.max(0,o.wear-edt*7); } }
 
 // ---- Шахта: 🪨 руда (шахтёры копают, руда усиливает всё) ----
@@ -1074,7 +1084,7 @@ const DEFAULT = ()=>({
   runes:[], dust:0, energy:5, stars:0, ascends:0, starUps:{},
   gears:0, gearsEver:0, workshopUps:{}, salvageBelow:-1, achieved:{},
   wsProjects:{ active:null, until:0, done:{} }, blueprints:{}, bpCount:0,
-  wsQuality:{}, wsStars:{}, wsConveyors:{}, wsKeys:0, wsKeyUps:{}, wsReforges:0,
+  wsQuality:{}, wsStars:{}, wsConveyors:{}, wsKeys:0, wsKeyUps:{}, wsReforges:0, wsBroken:false, wsContract:null,
   overheat:{ on:false, wear:0, coolUntil:0 },
   miners:0, ore:0, oreEver:0, miningUps:{}, depth:0, digProg:0, artifacts:0, pickUps:{}, mineEvent:null,
   pets:{}, potions:{},
@@ -2683,12 +2693,54 @@ function wsRenderSub(){
   else if(wsSub==="bp") renderWsBlueprints();
   else if(wsSub==="conv") renderWsConveyors();
   else if(wsSub==="reforge") renderWsReforge();
+  else if(wsSub==="contract") renderWsContracts();
 }
 function wsRefreshLive(){
   renderWsFarm();
   if(wsSub==="normal") updateWorkshopLive();
   else if(wsSub==="proj") updateWsProjTimer();
   else if(wsSub==="conv") renderWsConveyors();
+  else if(wsSub==="contract") updateWsContractLive();
+}
+// ---- Контракты: заказы на шестерёнки к сроку → 🗝️ ключи ----
+function genContract(){ const lvl=wsLevel()+1;
+  const need=Math.ceil(Math.max(100,(D.gearRate||1)*75)*lvl*(0.8+Math.random()*0.6));
+  save.wsContract={ need, until:Date.now()+150000, keys:1+lvl+Math.floor(Math.random()*2), done:false };
+}
+function deliverContract(){ const c=save.wsContract; if(!c) return;
+  if(Date.now()>c.until){ toast("Контракт просрочен"); save.wsContract=null; renderWsContracts(); return; }
+  if(save.gears<c.need){ toast("Нужно "+fmt(c.need)+" ⚙️"); return; }
+  save.gears-=c.need; save.wsKeys=(save.wsKeys||0)+c.keys;
+  toast("📦 Контракт сдан! +"+c.keys+" 🗝️"); save.wsContract=null;
+  recompute(); renderWsContracts(); refreshTop(); queueSave();
+}
+function renderWsContracts(){
+  const box=$("contractBox"); if(!box) return;
+  const c=save.wsContract, now=Date.now();
+  if(c && now>c.until){ save.wsContract=null; }
+  if(!save.wsContract){
+    box.innerHTML=`<div class="sub-hint">Возьми заказ на шестерёнки. Сдай нужное количество до срока — получишь 🗝️ ключи.</div>
+      <button class="btn btn-primary massbtn" id="genContractBtn">📦 Взять контракт</button>`;
+    const gb=$("genContractBtn"); if(gb) gb.addEventListener("click", ()=>{ genContract(); renderWsContracts(); queueSave(); });
+  } else {
+    const cc=save.wsContract, left=Math.max(0,Math.ceil((cc.until-now)/1000));
+    box.innerHTML=`<div class="contract-card">
+        <div class="cc-need">📦 Сдать <b>${fmt(cc.need)}</b> ⚙️</div>
+        <div class="cc-rew">Награда: <b>+${cc.keys} 🗝️</b> · ⏳ <span id="ccTime">${left}</span>с</div>
+        <div class="cc-bar"><div id="ccFill" style="width:${Math.min(100,save.gears/cc.need*100)}%"></div></div>
+        <button class="btn btn-primary massbtn" id="deliverContractBtn" ${save.gears<cc.need?"disabled":""}>Сдать заказ</button>
+        <button class="btn btn-ghost" id="dropContractBtn">Отказаться</button>
+      </div>`;
+    const db=$("deliverContractBtn"); if(db) db.addEventListener("click", deliverContract);
+    const dp=$("dropContractBtn"); if(dp) dp.addEventListener("click", ()=>{ save.wsContract=null; renderWsContracts(); queueSave(); });
+  }
+}
+function updateWsContractLive(){
+  const c=save.wsContract; if(!c) return; const now=Date.now();
+  if(now>c.until){ renderWsContracts(); return; }
+  const t=$("ccTime"); if(t) t.textContent=Math.max(0,Math.ceil((c.until-now)/1000));
+  const f=$("ccFill"); if(f) f.style.width=Math.min(100,save.gears/c.need*100)+"%";
+  const db=$("deliverContractBtn"); if(db) db.disabled=save.gears<c.need;
 }
 // J-часть + E — шапка фарма со сценой и перегревом
 function renderWsFarm(){
@@ -2696,10 +2748,11 @@ function renderWsFarm(){
   const rt=$("gearRateTxt"); if(rt) rt.textContent="+"+fmt(D.gearRate||0)+" ⚙️/с";
   const o=save.overheat||{}; const cooling=o.coolUntil>Date.now();
   const btn=$("overheatBtn");
-  if(btn){ btn.textContent = cooling ? "🧊 Обслуживание…" : (o.on?"🔥 Форсаж ВКЛ":"🔥 Форсаж");
-    btn.classList.toggle("on",!!o.on&&!cooling); }
-  const wf=$("wearFill"); if(wf){ wf.style.width=Math.min(100,o.wear||0)+"%"; wf.classList.toggle("hot",(o.wear||0)>75||cooling); }
-  const wt=$("wearTxt"); if(wt) wt.textContent = cooling ? ("перегрев · "+Math.ceil((o.coolUntil-Date.now())/1000)+"с") : ("износ "+Math.round(o.wear||0)+"%"+(o.on?" · ×3":""));
+  if(btn){ btn.textContent = save.wsBroken ? "💥 Сломан" : (cooling ? "🧊 Обслуживание…" : (o.on?"🔥 Форсаж ВКЛ":"🔥 Форсаж"));
+    btn.classList.toggle("on",!!o.on&&!cooling&&!save.wsBroken); }
+  const mbtn=$("maintainBtn"); if(mbtn) mbtn.textContent = save.wsBroken ? ("🔧 Починить ("+wsRepairCost()+"🗝️)") : "🛠️ Обслужить";
+  const wf=$("wearFill"); if(wf){ wf.style.width=save.wsBroken?100:Math.min(100,o.wear||0)+"%"; wf.classList.toggle("hot",save.wsBroken||(o.wear||0)>75||cooling); }
+  const wt=$("wearTxt"); if(wt) wt.textContent = save.wsBroken ? "💥 ПОЛОМКА — фарм остановлен" : (cooling ? ("перегрев · "+Math.ceil((o.coolUntil-Date.now())/1000)+"с") : ("износ "+Math.round(o.wear||0)+"%"+(o.on?" · ×3":"")));
 }
 // A/H — уровень верстака + вехи
 function renderWsLevel(){
