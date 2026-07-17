@@ -831,7 +831,7 @@ function marketPrice(res){
 // ---- Трансцендентность: ⚛️ кварки (3-й слой сброса) + Пантеон (синергии) ----
 function quarkGain(stars){ if(stars<1000) return 0;
   const bonus = 1 + gaQuarkBonus() + (save.singularity?(save.singularity.ups.siQuark||0)*0.2:0);
-  return Math.floor(Math.pow(stars/1000, 0.5) * (D.allCurMul||1) * bonus); }
+  return Math.floor(Math.pow(stars/1000, 0.5) * (D.allCurMul||1) * bonus) + 1; }   // +1 «пол» — первая трансценденция награждает
 const QUARK_UPS = [
   { id:"qall",  icon:"⚛️", name:"Квантовый множитель", max:500, desc:l=>"Всё ×"+fmt(1+0.5*l),
     cost:l=>Math.ceil(3*Math.pow(1.4,l)), apply:(m,l)=>m.global*=(1+0.5*l) },
@@ -1419,7 +1419,7 @@ function recompute(){
 
   // фарм шестерёнок (открыт после первого престижа)
   D.gearRate = save.prestiges>=1
-    ? 0.05*(1 + 0.2*save.prestiges + save.stars)*(1 + (save.workshopUps.wrate||0)*0.2)
+    ? 0.15*(1 + 0.5*save.prestiges + save.stars)*(1 + (save.workshopUps.wrate||0)*0.2)
       *(1+m._gearBoost)*wsLevelMul()*wsOverheatFactor()
     : 0;
   // тёмная валюта: генерится при искажении, пропорц. дебаффу и производству
@@ -1445,7 +1445,7 @@ function prismGain(total){ // призмы за престиж
 }
 function starGain(prisms){
   if(prisms < 500) return 0;
-  return Math.floor(Math.pow(prisms/500, 0.6) * (D.allCurMul||1));
+  return Math.floor(Math.pow(prisms/500, 0.6) * (D.allCurMul||1)) + 1;   // +1 «пол» — первое вознесение награждает
 }
 
 /* ============ Действия ============ */
