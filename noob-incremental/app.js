@@ -1130,6 +1130,32 @@ const ACH_MILESTONES = [
 ];
 function achMileBonus(){ const d=achDone(); let g=1; for(const ms of ACH_MILESTONES){ if(d>=ms.at) g*=(1+ms.g); } return g; }
 
+// ---- Древо перков: вечные бонусы за очки перков (очки — с достижений и побед над боссом) ----
+const PERK_TREE = [
+  // 💰 Экономика
+  { id:"e1", br:"eco", tier:1, icon:"💰", name:"Нажива",       cost:1, desc:"+25% Oof/с",        apply:m=>m.global*=1.25 },
+  { id:"e2", br:"eco", tier:2, icon:"📈", name:"Инвестиции",   cost:2, desc:"+50% Oof/с",        apply:m=>m.global*=1.5, req:"e1" },
+  { id:"e3", br:"eco", tier:3, icon:"🏷️", name:"Оптовик",      cost:3, desc:"−15% цена нубов",   apply:m=>m.cost*=0.85, req:"e2" },
+  { id:"e4", br:"eco", tier:4, icon:"👑", name:"Империя",      cost:5, desc:"×2 Oof/с",          apply:m=>m.global*=2, req:"e3" },
+  // 👊 Бой
+  { id:"c1", br:"cbt", tier:1, icon:"👊", name:"Сила",         cost:1, desc:"+50% к тапу",       apply:m=>m.click*=1.5 },
+  { id:"c2", br:"cbt", tier:2, icon:"💥", name:"Точность",     cost:2, desc:"+5% крит",          apply:m=>m.crit+=0.05, req:"c1" },
+  { id:"c3", br:"cbt", tier:3, icon:"⚡", name:"Ярость",       cost:3, desc:"×2 к тапу",         apply:m=>m.click*=2, req:"c2" },
+  { id:"c4", br:"cbt", tier:4, icon:"☄️", name:"Сокрушение",   cost:5, desc:"Сила крита ×2",     apply:m=>m.critPow*=2, req:"c3" },
+  // 🌌 Мета
+  { id:"m1", br:"meta",tier:1, icon:"💎", name:"Резонанс",     cost:1, desc:"+20% призм",        apply:m=>m.prism*=1.2 },
+  { id:"m2", br:"meta",tier:2, icon:"🔮", name:"Чары",         cost:2, desc:"+15% эффект рун",   apply:m=>m._runePow+=0.15, req:"m1" },
+  { id:"m3", br:"meta",tier:3, icon:"⛏️", name:"Изобилие",     cost:3, desc:"+25% фарм руды и ⚙️", apply:m=>{ m._oreBoost+=0.25; m._gearBoost+=0.25; }, req:"m2" },
+  { id:"m4", br:"meta",tier:4, icon:"🌌", name:"Вознесение",   cost:5, desc:"×1.5 ко всему",     apply:m=>m.global*=1.5, req:"m3" },
+];
+const PERK_M = Object.fromEntries(PERK_TREE.map(p=>[p.id,p]));
+const PERK_BRANCHES = [ {id:"eco",icon:"💰",name:"Экономика"}, {id:"cbt",icon:"👊",name:"Бой"}, {id:"meta",icon:"🌌",name:"Мета"} ];
+function perkSpent(){ let s=0; for(const p of PERK_TREE){ if(save.perks[p.id]) s+=p.cost; } return s; }
+function perkAvail(){ return (save.perkPts||0) - perkSpent(); }
+function perkBuyable(p){ if(save.perks[p.id]) return false; if(p.req && !save.perks[p.req]) return false; return perkAvail()>=p.cost; }
+function buyPerk(id){ const p=PERK_M[id]; if(!p || !perkBuyable(p)) return;
+  save.perks[id]=1; recompute(); renderPerks(); refreshTop(); queueSave(); toast(p.icon+" Перк: "+p.name); }
+
 function toRoman(n){ const r=["","I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"]; return r[n]||n; }
 
 /* ============ Сохранение ============ */
@@ -1163,7 +1189,8 @@ const DEFAULT = ()=>({
   shop:{ offers:[], next:0 },
   lastTime:Date.now(), seen:{},
   admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 },
-  settings:{ fx:true, sound:false }, opsHist:[]
+  settings:{ fx:true, sound:false }, opsHist:[],
+  perks:{}, perkPts:0, bossCd:0, bossWins:0
 });
 let save = DEFAULT();
 function load(){
@@ -1219,6 +1246,10 @@ function load(){
       save.admin=Object.assign({ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }, save.admin||{});
       save.settings=Object.assign({ fx:true, sound:false }, save.settings||{});
       if(!Array.isArray(save.opsHist)) save.opsHist=[];
+      if(!save.perks) save.perks={};
+      if(typeof save.perkPts!=="number") save.perkPts=achDone();   // ретроактивно: очки за уже полученные ачивки
+      if(typeof save.bossCd!=="number") save.bossCd=0;
+      if(typeof save.bossWins!=="number") save.bossWins=0;
     }
   }catch(e){ save=DEFAULT(); }
 }
@@ -1298,6 +1329,7 @@ function recompute(){
   // достижения — вечные бонусы
   let ag=0,ac=0,ap=0,arp=0;
   for(const a of ACHS){ if(save.achieved[a.id]){ const b=a.buff; ag+=b.global||0; ac+=b.click||0; ap+=b.prism||0; arp+=b.runePow||0; } }
+  for(const pk of PERK_TREE){ if(save.perks[pk.id] && pk.apply) pk.apply(m); }   // древо перков
   m.global*=(1+ag); m.click*=(1+ac); m.prism*=(1+ap); m._runePow+=arp;
   m.global *= achMileBonus();   // вехи выполнения достижений
   // награды за пройденные испытания (вечные)
@@ -2116,6 +2148,7 @@ function loop(now){
   driftMarket();
   // карманная реальность: тик портала (реальное время)
   tickPortal(dt);
+  tickBoss(dt);
 
   render(dt);
   if(curTab==="workshop") drawWsScene(dt);
@@ -2181,6 +2214,7 @@ function refreshTop(){
     $("chalBtn").classList.remove("hidden");
   }
   if(save.prestiges>=2){ $("mktBtn").classList.remove("hidden"); }
+  if(save.prestiges>=1 || (save.bossWins||0)>0){ $("bossBtn").classList.remove("hidden"); }
   if(save.prestiges>=3 || Object.keys(save.mutants).length){ $("mutBtn").classList.remove("hidden"); }
   if(save.transcends>0 || save.corruption>0 || save.corr>0){ $("portalBtn").classList.remove("hidden"); }
   if(AUTOS.some(a=>a.unlock())){ $("autoBtn").classList.remove("hidden"); }
@@ -2193,6 +2227,7 @@ function updateBadges(){
   const ub=$("upBadge"); if(ups){ ub.classList.remove("hidden"); ub.textContent=ups>9?"9+":ups; } else ub.classList.add("hidden");
   const canP = prismGain(save.totalOof)>=1;
   $("prBadge").classList.toggle("hidden", !canP);
+  updatePerkBadge();
 }
 // «живые» части открытой вкладки (цены/доступность)
 function refreshLive(){
@@ -3552,6 +3587,7 @@ function checkAchievements(){
   const before=achDone(), got=[];
   for(const a of ACHS){ if(!save.achieved[a.id] && a.cond()){ save.achieved[a.id]=1; got.push(a.name); } }
   if(got.length){
+    save.perkPts=(save.perkPts||0)+got.length;   // очко перка за каждую новую ачивку
     if(got.length<=2) got.forEach(n=>toast("🏆 "+n));
     else toast("🏆 +"+got.length+" достижений!");
     playFx("ach");
@@ -3648,6 +3684,91 @@ function drawSparkline(){
 on("statsBtn","click", ()=>{ $("menuModal").classList.add("hidden"); renderStats(); $("statsModal").classList.remove("hidden"); });
 on("statsClose","click", ()=>$("statsModal").classList.add("hidden"));
 on("statsModal","click", e=>{ if(e.target.id==="statsModal") $("statsModal").classList.add("hidden"); });
+
+/* ---- Древо перков ---- */
+function renderPerks(){
+  const av=perkAvail(); const pa=$("perkAvail"); if(pa) pa.textContent=av;
+  const box=$("perkTree"); if(!box) return; box.innerHTML="";
+  PERK_BRANCHES.forEach(br=>{
+    const col=document.createElement("div"); col.className="perk-col";
+    col.innerHTML=`<div class="perk-br">${br.icon} ${br.name}</div>`;
+    PERK_TREE.filter(p=>p.br===br.id).sort((a,b)=>a.tier-b.tier).forEach(p=>{
+      const owned=!!save.perks[p.id], buyable=perkBuyable(p),
+        locked = p.req && !save.perks[p.req];
+      const node=document.createElement("div");
+      node.className="perk-node "+(owned?"owned":buyable?"buyable":"locked");
+      node.innerHTML=`<div class="pn-ico">${p.icon}</div>
+        <div class="pn-main"><div class="pn-name">${p.name}</div><div class="pn-desc">${p.desc}</div></div>
+        <div class="pn-cost">${owned?"✅":(locked?"🔒":"🌟 "+p.cost)}</div>`;
+      if(buyable) node.addEventListener("click", ()=>buyPerk(p.id));
+      col.appendChild(node);
+    });
+    box.appendChild(col);
+  });
+}
+function updatePerkBadge(){ const b=$("perkCount"); if(b){ const a=perkAvail(); b.textContent=a>0?("("+a+")"):""; } }
+on("perksBtn","click", ()=>{ $("menuModal").classList.add("hidden"); renderPerks(); $("perksModal").classList.remove("hidden"); });
+on("perksClose","click", ()=>$("perksModal").classList.add("hidden"));
+on("perksModal","click", e=>{ if(e.target.id==="perksModal") $("perksModal").classList.add("hidden"); });
+
+/* ---- Босс-арена: тапай босса на таймере → очко перка + бонус Oof ---- */
+const BOSS_TIME=20, BOSS_CD=180000, BOSS_TAPS=40;
+const BOSSES=[{icon:"👹",name:"Баг-босс"},{icon:"🐲",name:"Дракон-лаг"},{icon:"👾",name:"Вирус"},{icon:"🤖",name:"Читер-бот"},{icon:"💀",name:"Краш"}];
+let bossActive=false, bossHp=0, bossMaxHp=0, bossTimeLeft=0, bossFace=BOSSES[0];
+function bossCdLeft(){ return Math.max(0,(save.bossCd||0)-Date.now()); }
+function startBoss(){
+  if(bossCdLeft()>0) return; recompute();
+  bossMaxHp=Math.max(50,(D.clickBase||1)*BOSS_TAPS); bossHp=bossMaxHp; bossTimeLeft=BOSS_TIME;
+  bossFace=BOSSES[Math.floor(Math.random()*BOSSES.length)]; bossActive=true; renderBoss();
+}
+function bossHit(){
+  if(!bossActive) return;
+  let dmg=D.clickBase||1; const crit=Math.random()<D.crit; if(crit) dmg*=D.critPow;
+  bossHp-=dmg; playBlip(crit);
+  if(bossHp<=0){ bossWin(); } else renderBossLive();
+}
+function bossWin(){
+  bossActive=false; save.bossWins=(save.bossWins||0)+1; save.perkPts=(save.perkPts||0)+1;
+  save.bossCd=Date.now()+BOSS_CD;
+  const reward=Math.max(100,(D.ops||0)*1800); if(reward>0) gainOof(reward);
+  playFx("big"); toast("⚔️ Босс повержен! +🌟 очко перка"+(reward>0?" · +"+fmt(reward)+" Oof":""));
+  recompute(); renderBoss(); refreshTop(); queueSave();
+}
+function bossLose(){ bossActive=false; save.bossCd=Date.now()+Math.floor(BOSS_CD/3);
+  toast("💀 Босс сбежал — не успел. Перезарядка короче."); renderBoss(); queueSave(); }
+function tickBoss(dt){ if(!bossActive) return; bossTimeLeft-=dt;
+  if(bossTimeLeft<=0){ bossLose(); return; }
+  bossLiveAcc=(bossLiveAcc||0)+dt; if(bossLiveAcc>=0.1){ bossLiveAcc=0; renderBossLive(); } }
+let bossLiveAcc=0;
+function renderBoss(){
+  const box=$("bossBody"); if(!box) return; const cd=bossCdLeft();
+  if(bossActive){
+    box.innerHTML=`<div class="boss-arena">
+      <div class="boss-timer">⏳ <b id="bossTime">${Math.ceil(bossTimeLeft)}</b>с</div>
+      <div class="boss-face" id="bossFace">${bossFace.icon}</div>
+      <div class="boss-name">${bossFace.name}</div>
+      <div class="boss-hpbar"><div id="bossHpFill"></div></div>
+      <div class="boss-hint">Тапай по боссу! Урон = твой тап</div></div>`;
+    const bf=$("bossFace"); if(bf) bf.addEventListener("pointerdown", bossHit);
+    renderBossLive();
+  } else if(cd>0){
+    box.innerHTML=`<div class="sub-hint">Победи босса за ${BOSS_TIME}с — получишь 🌟 очко перка и всплеск Oof. Побед: ${save.bossWins||0}.</div>
+      <div class="boss-cd">⏳ Перезарядка: ${Math.ceil(cd/1000)}с</div>`;
+  } else {
+    box.innerHTML=`<div class="sub-hint">Победи босса за ${BOSS_TIME}с (≈${BOSS_TAPS} тапов) — 🌟 очко перка + всплеск Oof. Побед: ${save.bossWins||0}.</div>
+      <button class="btn btn-primary massbtn" id="bossStart">⚔️ Вызвать босса</button>`;
+    const bs=$("bossStart"); if(bs) bs.addEventListener("click", startBoss);
+  }
+}
+function renderBossLive(){
+  if(!bossActive) return;
+  const t=$("bossTime"); if(t) t.textContent=Math.ceil(bossTimeLeft);
+  const f=$("bossHpFill"); if(f) f.style.width=Math.max(0,bossHp/bossMaxHp*100)+"%";
+  const bf=$("bossFace"); if(bf){ bf.classList.remove("hit"); void bf.offsetWidth; bf.classList.add("hit"); }
+}
+on("bossBtn","click", ()=>{ $("menuModal").classList.add("hidden"); renderBoss(); $("bossModal").classList.remove("hidden"); });
+on("bossClose","click", ()=>{ if(bossActive) bossLose(); $("bossModal").classList.add("hidden"); });
+on("bossModal","click", e=>{ if(e.target.id==="bossModal"){ if(bossActive) bossLose(); $("bossModal").classList.add("hidden"); } });
 
 /* ---- Настройки ---- */
 const SETTINGS = [

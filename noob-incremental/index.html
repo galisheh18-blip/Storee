@@ -444,6 +444,8 @@
       </div>
       <button class="btn btn-ghost" id="achBtn">🏆 Достижения <span id="achCount" class="dim"></span></button>
       <button class="btn btn-ghost" id="statsBtn">📊 Статистика</button>
+      <button class="btn btn-ghost" id="perksBtn">🌳 Древо перков <span id="perkCount" class="dim"></span></button>
+      <button class="btn btn-ghost hidden" id="bossBtn">⚔️ Босс-арена</button>
       <button class="btn btn-ghost" id="codexBtn">🔮 Кодекс рун</button>
       <button class="btn btn-ghost hidden" id="autoBtn">🤖 Автоматизация</button>
       <button class="btn btn-ghost hidden" id="chalBtn">🎯 Испытания</button>
@@ -456,7 +458,24 @@
       <button class="btn btn-ghost" id="adminBtn">🛠️ Админ-панель</button>
       <button class="btn btn-ghost" id="wipeBtn">🗑️ Сбросить всё</button>
       <button class="btn btn-primary" id="closeMenu">Закрыть</button>
-      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v44</span></div>
+      <div class="credit">Оффлайн-игра · данные хранятся на устройстве · <span id="verTag">v45</span></div>
+    </div>
+  </div>
+
+  <!-- ДРЕВО ПЕРКОВ -->
+  <div id="perksModal" class="overlay hidden">
+    <div class="modal ach">
+      <div class="admin-head"><h1>🌳 Древо перков</h1><button class="icon-btn" id="perksClose">✕</button></div>
+      <div class="perk-bal">🌟 Очки перков: <b id="perkAvail">0</b> <span class="dim">· очко за ачивку и победу над боссом</span></div>
+      <div id="perkTree" class="perk-tree"></div>
+    </div>
+  </div>
+
+  <!-- БОСС-АРЕНА -->
+  <div id="bossModal" class="overlay hidden">
+    <div class="modal">
+      <div class="admin-head"><h1>⚔️ Босс-арена</h1><button class="icon-btn" id="bossClose">✕</button></div>
+      <div id="bossBody"></div>
     </div>
   </div>
 
