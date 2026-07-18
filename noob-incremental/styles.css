@@ -414,6 +414,31 @@ b{font-variant-numeric:tabular-nums}
 .spark-wrap{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:10px}
 .spark-label{font-size:11px;color:var(--muted);margin-bottom:6px}
 .spark-canvas{width:100%;height:72px;display:block}
+/* Древо перков */
+.perk-bal{font-size:14px;font-weight:700;text-align:center;margin-bottom:12px;padding:8px;background:var(--card);border:1px solid var(--line);border-radius:10px}
+.perk-bal b{color:var(--star)}
+.perk-tree{display:flex;gap:8px}
+.perk-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px}
+.perk-br{font-size:12px;font-weight:800;text-align:center;color:var(--muted);margin-bottom:2px}
+.perk-node{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 6px;text-align:center;position:relative}
+.perk-node .pn-ico{font-size:20px}
+.perk-node .pn-name{font-size:11px;font-weight:700;margin-top:2px}
+.perk-node .pn-desc{font-size:9px;color:var(--muted);line-height:1.25;margin-top:1px}
+.perk-node .pn-cost{font-size:10px;font-weight:700;margin-top:3px;color:var(--dim)}
+.perk-node.owned{border-color:var(--green);background:rgba(61,220,132,.08)}
+.perk-node.buyable{border-color:var(--star);cursor:pointer}
+.perk-node.buyable .pn-cost{color:var(--star)}
+.perk-node.locked{opacity:.5}
+/* Босс-арена */
+.boss-arena{text-align:center;padding:8px 0}
+.boss-timer{font-size:18px;font-weight:800;color:var(--oof);margin-bottom:8px}
+.boss-face{font-size:96px;line-height:1;cursor:pointer;user-select:none;display:inline-block;transition:transform .05s}
+.boss-face.hit{transform:scale(.88)}
+.boss-name{font-size:14px;font-weight:700;margin:6px 0 10px}
+.boss-hpbar{height:16px;background:var(--card2);border-radius:8px;overflow:hidden;margin-bottom:8px}
+#bossHpFill{height:100%;width:100%;background:linear-gradient(90deg,var(--red),#ff9f40);transition:width .08s linear}
+.boss-hint{font-size:12px;color:var(--muted)}
+.boss-cd{text-align:center;font-size:16px;font-weight:700;color:var(--muted);padding:16px}
 .set-toggle{display:flex;align-items:center;gap:10px;padding:12px;margin-bottom:8px;
   background:var(--card);border:1px solid var(--line);border-radius:12px;cursor:pointer}
 .set-toggle .st-ico{font-size:22px;flex:0 0 auto}
