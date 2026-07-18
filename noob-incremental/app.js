@@ -1025,7 +1025,7 @@ function doSingularity(auto){ const g=siGain(); if(g<1){ if(!auto) toast("Пок
   save.prestiges=0; save.transcends=0; save.pantheon={}; save.corruption=0; save.corr=0; save.corrUps={};
   save.gears=0; save.workshopUps={}; save.wsStars={}; save.wsQuality={};
   softReset(); recompute(); syncNoobSprites();
-  toast("♾️ Сингулярность #"+S.resets+": +"+fmt(g)+" бесконечных очков!");
+  toast("♾️ Сингулярность #"+S.resets+": +"+fmt(g)+" бесконечных очков!"); playFx("big");
   renderAll(); refreshTop(); persist(); }
 
 // ---- Испытания: забеги с ограничениями за вечные перки ----
@@ -1163,7 +1163,7 @@ const DEFAULT = ()=>({
   shop:{ offers:[], next:0 },
   lastTime:Date.now(), seen:{},
   admin:{ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 },
-  settings:{ fx:true, sound:false }
+  settings:{ fx:true, sound:false }, opsHist:[]
 });
 let save = DEFAULT();
 function load(){
@@ -1218,6 +1218,7 @@ function load(){
       if(!Array.isArray(save.runeStash)) save.runeStash=[];
       save.admin=Object.assign({ oofMul:1, clickMul:1, costMul:1, prismMul:1, speed:1 }, save.admin||{});
       save.settings=Object.assign({ fx:true, sound:false }, save.settings||{});
+      if(!Array.isArray(save.opsHist)) save.opsHist=[];
     }
   }catch(e){ save=DEFAULT(); }
 }
@@ -1702,7 +1703,7 @@ function doPrestige(auto){
   softReset();
   recompute(); syncNoobSprites();
   toast("💎 +"+fmt(g)+" призм"+(gg>0?"  ·  ⚙️ +"+fmt(gg):"")+(!wasUnlocked?"  ·  ⚙️ Мастерская открыта!":""));
-  if(!auto) switchTab("prestige");
+  if(!auto){ playFx("prestige"); switchTab("prestige"); }
   renderAll(); refreshTop(); persist();
 }
 function buyPrismUp(id){
@@ -1744,7 +1745,7 @@ function doAscend(auto){
   save.prisms=keep; save.prismUps={};
   softReset();
   recompute(); syncNoobSprites();
-  toast("⭐ +"+fmt(g)+" звёзд!");
+  toast("⭐ +"+fmt(g)+" звёзд!"); if(!auto) playFx("big");
   renderAll(); refreshTop(); persist();
 }
 function buyStarUp(id){
@@ -1764,7 +1765,7 @@ function doTranscend(auto){
   save.stars=keep; save.prisms=0; save.prismUps={}; save.starUps={};
   if(Math.random()<0.6) dropGodArtifact(); // F — шанс дропа артефакта
   softReset(); recompute(); syncNoobSprites(); checkMetaAch();
-  toast("⚛️ +"+fmt(g)+" кварков!"); if(!auto){ if(curTab!=="meta") switchTab("meta"); } renderAll(); refreshTop(); persist();
+  toast("⚛️ +"+fmt(g)+" кварков!"); if(!auto){ playFx("big"); if(curTab!=="meta") switchTab("meta"); } renderAll(); refreshTop(); persist();
 }
 function quarkReqMet(q){ return !q.req || q.req(); }
 function buyQuarkUp(id){
@@ -1931,6 +1932,24 @@ function playBlip(crit){
     o.frequency.exponentialRampToValueAtTime(crit?990:560, t+0.06);
     g.gain.setValueAtTime(0.08, t); g.gain.exponentialRampToValueAtTime(0.0001, t+0.12);
     o.connect(g); g.connect(_audioCtx.destination); o.start(t); o.stop(t+0.13);
+  }catch(e){}
+}
+// звуки событий (аккорд/арпеджио) — по тумблеру звука
+const FX_SEQS = {
+  prestige:  [[523,0],[659,0.08],[784,0.16]],            // престиж — C5·E5·G5
+  big:       [[392,0],[523,0.1],[659,0.2],[880,0.34]],   // вознес/транс/сингулярность — торжественнее
+  ach:       [[880,0],[1175,0.07]],                       // ачивка — яркий динь
+  milestone: [[659,0],[988,0.09]],                        // веха — короткий взлёт
+};
+function playFx(name){
+  if(!save.settings || !save.settings.sound) return;
+  try{
+    _audioCtx = _audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    const ctx=_audioCtx, t0=ctx.currentTime, seq=FX_SEQS[name]||FX_SEQS.ach;
+    for(const [freq,dt] of seq){ const o=ctx.createOscillator(), g=ctx.createGain(), t=t0+dt;
+      o.type="triangle"; o.frequency.setValueAtTime(freq,t);
+      g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.09,t+0.02); g.gain.exponentialRampToValueAtTime(0.0001,t+0.22);
+      o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+0.24); }
   }catch(e){}
 }
 function prestigeTier(){
@@ -2105,11 +2124,15 @@ function loop(now){
   uiAcc+=dt;
   tickResearch();
   if(uiAcc>0.12){ uiAcc=0; refreshTop(); refreshLive(); checkAchievements(); tickPotions(); updateChalLive(); refreshShop(); updateComboTag(); if(mutOpen) updateMutLive(); }
+  // сэмпл Oof/с для спарклайна статистики (раз в ~5с, окно 60 точек)
+  opsSampleTimer+=dt; if(opsSampleTimer>=5){ opsSampleTimer=0;
+    if(!save.opsHist) save.opsHist=[]; save.opsHist.push(D.ops||0); if(save.opsHist.length>60) save.opsHist.shift(); }
   saveTimer-=dt; if(saveTimer<0 && saveTimer>-1){ saveTimer=-2; persist(); }
   save.lastTime=Date.now();
   requestAnimationFrame(loop);
 }
 let uiAcc=0;
+let opsSampleTimer=0;
 let abTimer=0;
 let apTimer=0;
 let mnTimer=0;
@@ -3531,8 +3554,11 @@ function checkAchievements(){
   if(got.length){
     if(got.length<=2) got.forEach(n=>toast("🏆 "+n));
     else toast("🏆 +"+got.length+" достижений!");
+    playFx("ach");
     const after=achDone();
-    for(const ms of ACH_MILESTONES){ if(before<ms.at && after>=ms.at) toast("🏅 Веха "+ms.at+" достижений: +"+Math.round(ms.g*100)+"% навсегда!"); }
+    let milestone=false;
+    for(const ms of ACH_MILESTONES){ if(before<ms.at && after>=ms.at){ toast("🏅 Веха "+ms.at+" достижений: +"+Math.round(ms.g*100)+"% навсегда!"); milestone=true; } }
+    if(milestone) playFx("milestone");
     recompute(); refreshTop(); queueSave(); if(achOpen) renderAch();
   }
 }
@@ -3594,8 +3620,30 @@ function renderStats(){
     ["🎟️ Жетонов", fmt(save.tokens||0)],
     ["💎 Легендарных", Object.keys(save.legends||{}).length+"/"+LEGEND_UPS.length],
   ];
-  const box=$("statsBody"); if(box) box.innerHTML='<div class="stats-grid">'+
-    rows.map(([k,v])=>`<div class="stat-row"><span>${k}</span><b>${v}</b></div>`).join("")+'</div>';
+  const box=$("statsBody"); if(box) box.innerHTML=
+    '<div class="spark-wrap"><div class="spark-label">⚡ Oof/с · последние '+((save.opsHist||[]).length*5)+'с</div>'+
+    '<canvas id="opsSpark" class="spark-canvas" width="320" height="72"></canvas></div>'+
+    '<div class="stats-grid">'+rows.map(([k,v])=>`<div class="stat-row"><span>${k}</span><b>${v}</b></div>`).join("")+'</div>';
+  drawSparkline();
+}
+function drawSparkline(){
+  const cv=$("opsSpark"); if(!cv) return; const ctx=cv.getContext("2d");
+  const W=cv.width, H=cv.height, pad=6; ctx.clearRect(0,0,W,H);
+  const data=(save.opsHist||[]).filter(v=>isFinite(v));
+  if(data.length<2){ ctx.fillStyle="#6d76ab"; ctx.font="12px -apple-system,sans-serif"; ctx.textAlign="center";
+    ctx.fillText("Копится история…", W/2, H/2); return; }
+  const max=Math.max(...data), min=Math.min(...data), span=(max-min)||1;
+  const x=i=>pad+(W-2*pad)*i/(data.length-1), y=v=>H-pad-(H-2*pad)*(v-min)/span;
+  // площадь под линией
+  const grad=ctx.createLinearGradient(0,0,0,H); grad.addColorStop(0,"rgba(255,210,63,.35)"); grad.addColorStop(1,"rgba(255,210,63,0)");
+  ctx.beginPath(); ctx.moveTo(x(0),H-pad);
+  data.forEach((v,i)=>ctx.lineTo(x(i),y(v))); ctx.lineTo(x(data.length-1),H-pad); ctx.closePath();
+  ctx.fillStyle=grad; ctx.fill();
+  // линия
+  ctx.beginPath(); data.forEach((v,i)=>{ const px=x(i),py=y(v); i?ctx.lineTo(px,py):ctx.moveTo(px,py); });
+  ctx.strokeStyle="#ffd23f"; ctx.lineWidth=2; ctx.lineJoin="round"; ctx.stroke();
+  // текущая точка
+  const li=data.length-1; ctx.beginPath(); ctx.arc(x(li),y(data[li]),3,0,6.29); ctx.fillStyle="#ffd23f"; ctx.fill();
 }
 on("statsBtn","click", ()=>{ $("menuModal").classList.add("hidden"); renderStats(); $("statsModal").classList.remove("hidden"); });
 on("statsClose","click", ()=>$("statsModal").classList.add("hidden"));
